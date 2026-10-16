@@ -1,0 +1,107 @@
+{{ define "content" }}
+{{ $d := .Data }}
+{{ $q := $d.Query }}
+
+<div class="page-head">
+  <div>
+    <h1>Inventory</h1>
+    <p>{{ $d.Matched }} of {{ $d.AllItems }} lines · {{ $d.Units }} units · {{ money $d.Value }} at cost</p>
+  </div>
+  <a class="btn btn-primary" href="{{ url "/inventory/new" }}">Add an item</a>
+</div>
+
+<form class="filters" method="get" action="{{ url "/inventory" }}">
+  <div class="filters-row">
+    <label class="field field-grow">
+      <span class="field-label">Search</span>
+      <input type="search" name="q" value="{{ $q.Search }}" placeholder="SKU, name, bin or supplier">
+    </label>
+    <label class="field">
+      <span class="field-label">Aisle</span>
+      <select name="category">
+        <option value="">All five</option>
+        {{ range categories }}<option value="{{ . }}" {{ if eq $q.Category . }}selected{{ end }}>{{ . }}</option>{{ end }}
+      </select>
+    </label>
+    <label class="field">
+      <span class="field-label">State</span>
+      <select name="state">
+        <option value="">Any</option>
+        <option value="ok"       {{ if eq $q.State "ok" }}selected{{ end }}>On the shelf</option>
+        <option value="low"      {{ if eq $q.State "low" }}selected{{ end }}>At reorder point</option>
+        <option value="out"      {{ if eq $q.State "out" }}selected{{ end }}>Out of stock</option>
+        <option value="on_order" {{ if eq $q.State "on_order" }}selected{{ end }}>On order</option>
+        <option value="retired"  {{ if eq $q.State "retired" }}selected{{ end }}>Retired</option>
+      </select>
+    </label>
+    <label class="field">
+      <span class="field-label">Sort</span>
+      <select name="sort">
+        <option value=""         {{ if eq $q.Sort "" }}selected{{ end }}>Name</option>
+        <option value="sku"      {{ if eq $q.Sort "sku" }}selected{{ end }}>SKU</option>
+        <option value="qty"      {{ if eq $q.Sort "qty" }}selected{{ end }}>Fewest first</option>
+        <option value="value"    {{ if eq $q.Sort "value" }}selected{{ end }}>Most valuable</option>
+        <option value="category" {{ if eq $q.Sort "category" }}selected{{ end }}>Aisle</option>
+        <option value="updated"  {{ if eq $q.Sort "updated" }}selected{{ end }}>Last touched</option>
+      </select>
+    </label>
+    <button class="btn" type="submit">Apply</button>
+    {{ if or $q.Search $q.Category $q.State $q.Sort }}
+      <a class="btn btn-quiet" href="{{ url "/inventory" }}">Clear</a>
+    {{ end }}
+  </div>
+</form>
+
+{{ if $d.Items }}
+<div class="card card-flush">
+<table class="grid grid-hover">
+  <thead>
+    <tr>
+      <th>SKU</th><th>Item</th><th>Bin</th><th>Supplier</th>
+      <th class="num">On hand</th><th class="num">Reorder</th>
+      <th class="num">Unit</th><th class="num">Value</th>
+      <th>State</th><th class="num">Move</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{ range $d.Items }}
+    <tr>
+      <td class="mono">{{ .SKU }}</td>
+      <td class="cell-name">
+        <span class="cat-mark" style="--c:{{ catColor .Category }}" title="{{ .Category }}"></span>
+        <a href="{{ url (printf "/inventory/%d" .ID) }}">{{ .Name }}</a>
+      </td>
+      <td>{{ template "bin" .Bin }}</td>
+      <td class="muted">{{ .Supplier }}</td>
+      <td class="num {{ if eq .State "out" }}num-bad{{ else if eq .State "low" }}num-warn{{ end }}">{{ .Quantity }}</td>
+      <td class="num muted">{{ .ReorderPoint }}</td>
+      <td class="num muted">{{ money .UnitCostCents }}</td>
+      <td class="num">{{ money .ValueCents }}</td>
+      <td>{{ template "state" .State }}</td>
+      <td class="num">
+        <form method="post" action="{{ url (printf "/inventory/%d/move" .ID) }}" class="stepper">
+          <input type="hidden" name="back" value="{{ query "/inventory" "q" $q.Search "category" $q.Category "state" $q.State "sort" $q.Sort }}">
+          <button class="step" name="qty" value="-1" type="submit" aria-label="Issue one {{ .Name }}">−</button>
+          <button class="step" name="qty" value="1"  type="submit" aria-label="Receive one {{ .Name }}">+</button>
+        </form>
+      </td>
+    </tr>
+    {{ end }}
+  </tbody>
+</table>
+</div>
+{{ else }}
+  {{ if or $q.Search $q.Category $q.State }}
+    {{ template "empty" dict
+       "Head" "No line matches that filter."
+       "Body" "Widen the search, or clear the filter to see the whole register."
+       "Href" (url "/inventory") "Action" "Clear the filter" }}
+  {{ else }}
+    {{ template "empty" dict
+       "Head" "The register is empty."
+       "Body" "Add the first line and its opening count; every change after that is recorded as a movement."
+       "Href" (url "/inventory/new") "Action" "Add an item" }}
+  {{ end }}
+{{ end }}
+
+{{ end }}

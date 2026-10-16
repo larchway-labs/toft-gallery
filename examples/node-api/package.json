@@ -1,0 +1,13 @@
+{
+  "name": "toft-node-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A REST API, the page that uses it, and the caller’s role — the generic Node path on Toft.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

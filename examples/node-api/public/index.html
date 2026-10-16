@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Task list</title>
+<meta name="description" content="An Express API, the page that uses it, and the caller's role.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<!-- Relative, because this app is served under /apps/{slug}/ and a root-absolute
+     href would ask the platform for a file it does not have. -->
+<link rel="stylesheet" href="toft-kit.css">
+</head>
+<body>
+<a class="lp-skip" href="#main">Skip to content</a>
+
+<header class="masthead">
+  <div class="masthead-in">
+    <div>
+      <div class="wordmark">
+        <span class="mark" aria-hidden="true"></span>
+        <span class="wordmark-text">Toft example</span>
+      </div>
+      <h1>Task list</h1>
+      <p class="standfirst">
+        An Express API and the page that uses it. The three routes that change something
+        are gated on the caller's role — so a key minted carrying <code>viewer</code> can
+        read this list and cannot edit it.
+      </p>
+    </div>
+    <div class="masthead-aside">
+      <span class="chip chip-lang">JavaScript · Express</span>
+      <span class="chip" id="mode-chip">In memory</span>
+    </div>
+  </div>
+</header>
+
+<div class="rail"><div class="rail-in">
+  <span class="rail-label">Toft</span>
+  <span class="rail-caps" id="rail">
+    <span class="cap off"><b>Loading…</b></span>
+  </span>
+</div></div>
+
+<nav class="tabs" data-tabs aria-label="Sections">
+  <div class="tabs-in">
+    <button class="tab" type="button" data-tab="board">Board</button>
+    <button class="tab" type="button" data-tab="activity">Activity</button>
+    <button class="tab" type="button" data-tab="api">API</button>
+    <button class="tab" type="button" data-tab="platform">Platform</button>
+  </div>
+</nav>
+
+<main class="shell" id="main">
+
+<section data-panel="board">
+  <div class="tiles" id="tiles"></div>
+
+  <div class="section" id="gate-note"></div>
+
+  <div class="section">
+    <div class="card">
+      <div class="card-hd">
+        <h2>Add a task</h2>
+        <span class="muted small"><code>POST /api/tasks</code> · editor or owner</span>
+      </div>
+      <div class="card-bd">
+        <form id="add" class="controls">
+          <div class="field field-wide">
+            <label for="title">What needs doing?</label>
+            <input class="input" id="title" maxlength="200" required
+                   placeholder="Point the health check at something that can fail">
+          </div>
+          <div class="field">
+            <label for="owner">Owner</label>
+            <select id="owner"></select>
+          </div>
+          <div class="field">
+            <label for="lane">Lane</label>
+            <select id="lane"></select>
+          </div>
+          <div><button class="btn btn-primary" type="submit" id="add-btn">Add</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="card">
+      <div class="card-hd">
+        <div class="row grow" style="gap:.75rem">
+          <input class="input" id="q" placeholder="Search the list…" style="max-width:20rem">
+          <span class="muted small"><span id="shown">0</span> shown</span>
+        </div>
+        <div class="seg" role="group" aria-label="Filter">
+          <button type="button" class="is-on" data-filter="all">All</button>
+          <button type="button" data-filter="open">Open</button>
+          <button type="button" data-filter="done">Done</button>
+        </div>
+      </div>
+      <div class="card-bd" style="padding:0">
+        <div class="tbl-wrap">
+          <table class="tbl" id="tbl" data-sortable>
+            <thead><tr>
+              <th style="width:3rem"></th>
+              <th data-sort="text">Task</th>
+              <th data-sort="text">Lane</th>
+              <th data-sort="text">Owner</th>
+              <th data-sort="date">Added</th>
+              <th></th>
+            </tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+        <div class="empty" id="empty" hidden style="border:0">
+          <h3>Nothing on the list</h3>
+          <p>Add one above, or clear the filter.</p>
+        </div>
+      </div>
+      <div class="card-ft">
+        Every row is <code>GET /api/tasks</code> and every control is one of the three
+        routes below. The page is a client of the API, not a second implementation of it.
+      </div>
+    </div>
+  </div>
+</section>
+
+<section data-panel="activity" hidden>
+  <div class="section-hd">
+    <div>
+      <h2>Activity</h2>
+      <p>What changed, and which role changed it. In memory, like everything else here —
+         a record that survives a restart is a database decision.</p>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-bd" style="padding:0">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>When</th><th>What</th><th>Role</th></tr></thead>
+          <tbody id="activity-rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section data-panel="api" hidden>
+  <div class="section-hd">
+    <div>
+      <h2>API</h2>
+      <p>Six routes. Three of them need a role, and the refusal says which one it saw and
+         which one it wanted — because “forbidden” is the least useful sentence in software.</p>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-bd" style="padding:0">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Route</th><th>Needs</th><th>What</th></tr></thead>
+          <tbody>
+            <tr><td><span class="badge tone-info">GET</span> <code>/api/tasks</code></td>
+                <td><span class="badge">anyone</span></td>
+                <td class="muted small"><code>?done=</code>, <code>?owner=</code>, <code>?lane=</code>. Carries the caller's role back.</td></tr>
+            <tr><td><span class="badge tone-brand">POST</span> <code>/api/tasks</code></td>
+                <td><span class="badge tone-att">editor</span></td>
+                <td class="muted small">Add one.</td></tr>
+            <tr><td><span class="badge tone-brand">PATCH</span> <code>/api/tasks/{id}</code></td>
+                <td><span class="badge tone-att">editor</span></td>
+                <td class="muted small">Close, reopen or rename.</td></tr>
+            <tr><td><span class="badge tone-dan">DELETE</span> <code>/api/tasks/{id}</code></td>
+                <td><span class="badge tone-att">editor</span></td>
+                <td class="muted small">Remove one.</td></tr>
+            <tr><td><span class="badge tone-info">GET</span> <code>/api/platform</code></td>
+                <td><span class="badge">anyone</span></td>
+                <td class="muted small">What the platform told this app.</td></tr>
+            <tr><td><span class="badge tone-info">GET</span> <code>/healthz</code></td>
+                <td><span class="badge">anyone</span></td>
+                <td class="muted small">Real uptime and a real count.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card-ft">
+      An unknown path is a JSON 404 naming the method and the path, not an HTML error page.
+      An API that answers a machine with a stylesheet is an API that will be debugged twice.
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hd"><h2>Reaching it as a machine</h2></div>
+    <div class="card-bd">
+      <pre class="term"># An app key reaches these routes the same way a browser does.
+curl -H "Authorization: Bearer toft_..." \
+     https://toft.example/apps/<span id="slug-1">node-api</span>/api/tasks</pre>
+      <div class="note tone-brand">
+        <strong>A key can carry a role.</strong> An owner or editor of this app may mint an
+        <code>toft_</code> key describing their machine client as <code>viewer</code> or
+        <code>editor</code>, and it satisfies the gate exactly as a person with the same
+        word does. That is the point of the word — the caller may do what it says — and it
+        is why nothing here pretends to tell you a human is in front of it.
+      </div>
+    </div>
+  </div>
+</section>
+
+<section data-panel="platform" hidden>
+  <div class="section-hd">
+    <div>
+      <h2>Platform</h2>
+      <p>What Toft told this app about itself. Every example in the gallery has this tab.</p>
+    </div>
+  </div>
+  <div class="cards">
+    <div class="card">
+      <div class="card-hd"><h2>This app</h2></div>
+      <div class="card-bd"><dl class="kv" id="self-kv"></dl></div>
+      <div class="card-ft"><code>GET /api/v1/app/self</code>, through the SDK the builder
+        installs into every app's <code>node_modules</code>, cached for thirty seconds.</div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><h2>The caller's role</h2><span class="badge tone-brand" id="role-badge">—</span></div>
+      <div class="card-bd">
+        <p class="small">Six words and no seventh:</p>
+        <div class="row" id="ladder"></div>
+        <div class="note tone-brand" style="margin-top:.75rem">
+          <strong>Verified in this process.</strong> No round trip, no administrator switch,
+          and it is on every forwarded request whether anybody configured anything or not.
+          The key is derived per app and per workload start, so a blob minted for another
+          app fails here.
+        </div>
+        <h4 style="margin-top:1rem">Platform headers on this request</h4>
+        <div class="row" id="hdrs"></div>
+        <p class="tiny muted">Presence only. The role blob is a credential for 120 seconds,
+           and a page that printed one would have published it.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="card">
+      <div class="card-hd"><h2>The environment</h2></div>
+      <div class="card-bd" style="padding:0">
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead><tr><th>Variable</th><th>Value</th><th>What it is for</th></tr></thead>
+            <tbody id="env-rows"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card-ft">
+        <code>PORT</code> and <code>HOST</code> are the two that decide whether this app
+        works at all. <code>BASE_PATH</code> is used for exactly one thing — URLs that
+        leave the server — because the proxy strips the prefix before forwarding.
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="foot-in">
+    <span>An example app from the <strong>Toft</strong> gallery.</span>
+    <span>JavaScript · Express · one dependency · no build step</span>
+  </div>
+</footer>
+
+<script src="toft-kit.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

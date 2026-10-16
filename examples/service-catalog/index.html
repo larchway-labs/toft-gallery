@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Service Catalog</title>
+<meta name="description" content="What runs in production, who owns it, and what breaks when it stops.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<!-- Relative, and that matters. This app is served under /apps/{slug}/, so
+     `assets/styles.css` resolves and `/assets/styles.css` asks the *platform*
+     for a file it does not have. The build log names the first few offenders;
+     the platform warns and never rewrites. -->
+<link rel="stylesheet" href="assets/toft-kit.css">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+
+<a class="lp-skip" href="#main">Skip to the service list</a>
+
+<header class="masthead">
+  <div class="masthead-in">
+    <div>
+      <div class="wordmark">
+        <span class="mark" aria-hidden="true"></span>
+        <span class="wordmark-text">Toft example</span>
+      </div>
+      <h1>Service Catalog</h1>
+      <p class="standfirst">
+        What runs in production, who owns it, and what breaks when it stops.
+        One row per service with a deployment behind it.
+      </p>
+    </div>
+    <div class="masthead-aside">
+      <span class="chip chip-lang">Static &middot; HTML, CSS, one script</span>
+      <span class="chip">Nothing is built</span>
+    </div>
+  </div>
+</header>
+
+<!-- A static app has no server, so this rail is written by hand rather than read
+     from GET /api/v1/app/self. That is itself the point: a folder of HTML is a
+     workload like every other app, and it is the one kind that cannot ask the
+     platform anything. -->
+<div class="rail">
+  <div class="rail-in">
+    <span class="rail-label">Toft</span>
+    <span class="cap on" title="Detected last, and only when the tree carries no package.json, requirements.txt, pyproject.toml, Pipfile or go.mod."><b>Static hosting</b></span>
+    <span class="cap on" title="Nothing is installed and nothing is compiled. The workload is a serve-static subcommand of a binary that is already there."><b>No build</b></span>
+    <span class="cap on" title="404.html in the root is the body for an unmatched path."><b>Custom 404</b></span>
+    <span class="cap off" title="A static app has no process to hold a token, so viewer.identity is absent rather than off."><b>Viewer identity</b></span>
+    <span class="cap off" title="A toft.toml declaring [jobs.*] on a static app fails the deploy: the static image has no shell."><b>Jobs</b></span>
+    <span class="cap off" title="Dependencies report no_dependencies rather than zero findings, and the gate is skipped rather than passed."><b>Dependency policy</b></span>
+  </div>
+</div>
+
+<main class="shell" id="main">
+
+  <div class="tiles" id="plate">
+    <div class="tile"><div class="tile-k">Services</div>
+      <div class="tile-v" data-plate="services">&mdash;</div>
+      <div class="tile-n">with a deployment behind them</div></div>
+    <div class="tile tone-info"><div class="tile-k">Teams</div>
+      <div class="tile-v" data-plate="teams">&mdash;</div>
+      <div class="tile-n">who own at least one</div></div>
+    <div class="tile tone-dan"><div class="tile-k">Tier 1</div>
+      <div class="tile-v" data-plate="tier1">&mdash;</div>
+      <div class="tile-n">page somebody when they stop</div></div>
+    <div class="tile tone-neu"><div class="tile-k">Revision</div>
+      <div class="tile-v" data-plate="revision">&mdash;</div>
+      <div class="tile-n">reviewed <span data-plate="reviewed">&mdash;</span></div></div>
+  </div>
+
+  <div class="section">
+    <div class="card" style="margin-bottom:1rem">
+      <div class="card-bd">
+        <form class="controls" id="controls" role="search" autocomplete="off">
+          <div class="field field-search field-wide">
+            <label for="q">Search</label>
+            <input type="search" id="q" name="q" class="input"
+                   placeholder="name, summary, tag, rotation" spellcheck="false">
+            <kbd class="hint">/</kbd>
+          </div>
+
+          <fieldset class="field" style="border:0;padding:0;margin:0">
+            <legend class="lbl">Tier</legend>
+            <div class="seg" id="tier" role="group" aria-label="Filter by tier">
+              <button type="button" data-tier="all" aria-pressed="true">All</button>
+              <button type="button" data-tier="1" aria-pressed="false">1</button>
+              <button type="button" data-tier="2" aria-pressed="false">2</button>
+              <button type="button" data-tier="3" aria-pressed="false">3</button>
+            </div>
+          </fieldset>
+
+          <div class="field">
+            <label for="team">Team</label>
+            <select id="team"><option value="all">All teams</option></select>
+          </div>
+
+          <div class="field">
+            <label for="sort">Sort</label>
+            <select id="sort">
+              <option value="tier">Tier, then name</option>
+              <option value="name">Name</option>
+              <option value="dependents">Most depended on</option>
+              <option value="review">Longest since review</option>
+            </select>
+          </div>
+
+          <p class="count" id="count" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+    </div>
+
+    <div class="board">
+      <section class="rack" aria-labelledby="list-heading">
+        <h2 class="rack-hd" id="list-heading">Services</h2>
+        <ol class="list" id="list" tabindex="-1"></ol>
+        <p class="empty" id="empty" hidden style="border:0"></p>
+      </section>
+
+      <aside class="detail" id="detail" aria-live="polite" aria-labelledby="list-heading"></aside>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="cards">
+      <div class="card">
+        <div class="card-hd"><h2>What a static app has to know</h2></div>
+        <div class="card-bd">
+          <div class="note tone-brand">
+            <strong>Relative URLs work; root-absolute ones do not.</strong> This app is
+            served under <code>/apps/{slug}/</code>, so <code>assets/styles.css</code>
+            resolves and <code>/assets/styles.css</code> asks the platform for a file it
+            does not have. Toft warns in the build log and never rewrites.
+          </div>
+          <dl class="kv">
+            <dt>Entry</dt><dd><code>index.html</code>, unless <code>[static] entry</code> names another</dd>
+            <dt>Root</dt><dd>the release, unless <code>[static] root</code> names a subdirectory</dd>
+            <dt>Fallback</dt><dd>off &mdash; only a client-routed app needs it, and on by default would turn every missing asset into an HTML document</dd>
+            <dt>Never served</dt><dd>anything beginning with a dot, <code>toft.toml</code>, <code>ecosystem.config.json</code>. 404, not 403</dd>
+            <dt>Unmatched</dt><dd><code>404.html</code>, which is the page in this repository</dd>
+          </dl>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><h2>Detected last, and on purpose</h2></div>
+        <div class="card-bd">
+          <p class="small">A repository is static only when it carries <em>none</em> of
+             <code>package.json</code>, <code>requirements.txt</code>,
+             <code>pyproject.toml</code>, <code>Pipfile</code> or <code>go.mod</code>.
+             That list is the specification, and it exists because a Vite repository
+             detected as static would deploy successfully and serve a blank page forever.</p>
+          <div class="note">
+            Nothing is installed and nothing is compiled. The workload is a
+            <code>serve-static</code> subcommand of a binary that is already there, over an
+            image under 10&nbsp;MB. Conditional requests and <code>Range</code> work, so a
+            large PDF behaves. There is no compression, no fingerprinting and no cache
+            headers: <strong>the release is the site</strong>.
+          </div>
+          <p class="small muted">Everything on this page comes from
+             <code>data/services.json</code>. Replace that one file and the catalog is
+             yours.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer class="foot">
+  <div class="foot-in">
+    <span>An example app from the <strong>Toft</strong> gallery.</span>
+    <span class="keys"><kbd>/</kbd> search &middot; <kbd>&uarr;</kbd> <kbd>&darr;</kbd> move &middot; <kbd>Esc</kbd> clear</span>
+  </div>
+</footer>
+
+<script src="assets/toft-kit.js"></script>
+<script src="assets/catalog.js"></script>
+</body>
+</html>

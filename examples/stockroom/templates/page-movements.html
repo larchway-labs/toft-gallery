@@ -1,0 +1,100 @@
+{{ define "content" }}
+{{ $d := .Data }}
+
+<div class="page-head">
+  <div>
+    <h1>Movements</h1>
+    <p>{{ len $d.Movements }} in the last {{ $d.Days }} days · {{ $d.In }} units in · {{ $d.Out }} units out</p>
+  </div>
+</div>
+
+<div class="split split-form">
+
+  <section class="card">
+    <header class="card-head"><h2>Record a movement</h2></header>
+    <form method="post" action="{{ url "/movements" }}" class="form">
+      <input type="hidden" name="back" value="{{ url "/movements" }}">
+      <label class="field">
+        <span class="field-label">Item</span>
+        <select name="item_id" required>
+          <option value="">Pick a line…</option>
+          {{ range $d.Items }}
+          <option value="{{ .ID }}">{{ .SKU }} — {{ .Name }} ({{ .Quantity }} on hand)</option>
+          {{ end }}
+        </select>
+      </label>
+      <div class="form-row">
+        <label class="field">
+          <span class="field-label">Kind</span>
+          <select name="kind">
+            <option value="issue">Issue — went out</option>
+            <option value="receipt">Receipt — came in</option>
+            <option value="return">Return — came back</option>
+            <option value="adjustment">Adjustment — counted</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="field-label">How many</span>
+          <input name="qty" type="number" value="1" class="mono" required>
+          <span class="field-help">Issues are entered positive; the ledger stores the sign.</span>
+        </label>
+      </div>
+      <label class="field">
+        <span class="field-label">Note</span>
+        <input name="note" maxlength="120" placeholder="Rack build, bay 4">
+      </label>
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">Record it</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card card-wide">
+    <header class="card-head">
+      <h2>The ledger</h2>
+      <form class="head-filters" method="get" action="{{ url "/movements" }}">
+        <select name="kind" onchange="this.form.submit()">
+          <option value="">Every kind</option>
+          {{ range kinds }}<option value="{{ . }}" {{ if eq $d.Kind . }}selected{{ end }}>{{ title . }}</option>{{ end }}
+        </select>
+        <select name="days" onchange="this.form.submit()">
+          <option value="7"   {{ if eq $d.Days 7 }}selected{{ end }}>Last 7 days</option>
+          <option value="30"  {{ if eq $d.Days 30 }}selected{{ end }}>Last 30 days</option>
+          <option value="90"  {{ if eq $d.Days 90 }}selected{{ end }}>Last 90 days</option>
+          <option value="365" {{ if eq $d.Days 365 }}selected{{ end }}>Last year</option>
+        </select>
+      </form>
+    </header>
+
+    {{ if $d.Movements }}
+    <table class="grid grid-hover">
+      <thead>
+        <tr><th>When</th><th>SKU</th><th>Item</th><th>Movement</th><th class="num">Change</th><th>Note</th><th>By</th></tr>
+      </thead>
+      <tbody>
+        {{ range $d.Movements }}
+        <tr>
+          <td class="mono muted nowrap">{{ fmtTime .At "02 Jan 15:04" }}</td>
+          <td class="mono nowrap">{{ .SKU }}</td>
+          <td class="cell-name">
+            <span class="cat-mark" style="--c:{{ catColor .Category }}" title="{{ .Category }}"></span>
+            <a href="{{ url (printf "/inventory/%d" .ItemID) }}">{{ .ItemName }}</a>
+          </td>
+          <td>{{ title .Kind }}</td>
+          <td class="num {{ if lt .Qty 0 }}num-bad{{ else }}num-good{{ end }}">{{ signed .Qty }}</td>
+          <td class="muted">{{ .Note }}</td>
+          <td class="muted nowrap">{{ .Actor }}</td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+    {{ else }}
+      {{ template "empty" dict
+         "Head" "Nothing moved in this window."
+         "Body" "Widen the range, or record the first movement with the form beside this."
+         "Href" (url "/movements?days=365") "Action" "Look back a year" }}
+    {{ end }}
+  </section>
+
+</div>
+{{ end }}

@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ greeting }}</title>
+<meta name="description" content="The smallest complete Flask app for Toft, and what it can see.">
+<link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+<link rel="stylesheet" href="{{ url_for('static', filename='toft-kit.css') }}">
+</head>
+<body>
+<a class="lp-skip" href="#main">Skip to content</a>
+
+<header class="masthead">
+  <div class="masthead-in">
+    <div>
+      <div class="wordmark">
+        <span class="mark" aria-hidden="true"></span>
+        <span class="wordmark-text">Toft example</span>
+      </div>
+      <h1>{{ greeting }}</h1>
+      <p class="standfirst">
+        The smallest complete Flask app for Toft &mdash; and a look at the request
+        from inside it. Every URL on this page came out of <code>url_for()</code>, which
+        is the whole reason <code>ProxyFix</code> is there.
+      </p>
+    </div>
+    <div class="masthead-aside">
+      <span class="chip chip-lang">Python &middot; Flask {{ flask_version }}</span>
+      <span class="chip">Up {{ uptime }}</span>
+    </div>
+  </div>
+</header>
+
+<div class="rail"><div class="rail-in">
+  <span class="rail-label">Toft</span>
+  {% for label, state, note in rail %}
+    <span class="cap {{ state }}" title="{{ note }}"><b>{{ label }}</b></span>
+  {% endfor %}
+</div></div>
+
+<nav class="tabs" data-tabs aria-label="Sections">
+  <div class="tabs-in">
+    <button class="tab" type="button" data-tab="start">Getting started</button>
+    <button class="tab" type="button" data-tab="request">This request</button>
+    <button class="tab" type="button" data-tab="who">Who is asking</button>
+    <button class="tab" type="button" data-tab="env">Environment</button>
+    <button class="tab" type="button" data-tab="api">API</button>
+  </div>
+</nav>
+
+<main class="shell" id="main">
+
+{# ── Getting started ─────────────────────────────────────────────────── #}
+<section data-panel="start">
+  <div class="section-hd">
+    <div>
+      <h2>The four things a Flask app on Toft has to do</h2>
+      <p>Checked rather than claimed. An example that asserts it is set up correctly
+         is worth much less than one that looks.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-bd" style="padding:0">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <tbody>
+          {% for c in checks %}
+            <tr>
+              <td style="width:3rem">
+                {% if c.ok %}<span class="badge tone-ok"><i class="dot"></i></span>
+                {% else %}<span class="badge tone-att"><i class="dot"></i></span>{% endif %}
+              </td>
+              <td class="lead" style="width:18rem">{{ c.title|safe }}</td>
+              <td class="muted small">{{ c.detail|safe }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card-ft">
+      All five are in <code>app.py</code>, in about thirty lines. Copy it, delete what
+      you do not need, and you have a working starting point rather than a scaffold.
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="cards">
+      <div class="card">
+        <div class="card-hd"><h2>The one that catches everybody</h2></div>
+        <div class="card-bd">
+          <div class="note tone-brand">
+            <strong><code>x_prefix=1</code>.</strong> Toft's proxy <em>strips</em>
+            <code>/apps/{slug}</code> before forwarding, so this process is mounted at
+            <code>/</code>. A link it emits has to carry the prefix back, and
+            <code>ProxyFix</code> reading <code>X-Forwarded-Prefix</code> is what makes
+            <code>url_for()</code> do that.
+          </div>
+          <div class="note tone-att">
+            <strong>A <code>Location:</code> header must not carry it.</strong> The proxy
+            re-adds the prefix on the way out, so a redirect that includes it lands on
+            <code>/apps/slug/apps/slug</code>. Links carry the prefix; redirects do not.
+            That asymmetry is the single most common way a working app breaks on a
+            platform.
+          </div>
+          <dl class="kv">
+            <dt>Mounted at</dt><dd class="mono">{{ base_path or '/' }}</dd>
+            <dt><code>url_for('index')</code></dt><dd class="mono">{{ request_facts[6][1] }}</dd>
+            <dt><code>url_for('greet')</code></dt><dd class="mono">{{ request_facts[7][1] }}</dd>
+          </dl>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><h2>This process</h2></div>
+        <div class="card-bd">
+          <dl class="kv">
+            <dt>Python</dt><dd class="mono">{{ python }}</dd>
+            <dt>Flask</dt><dd class="mono">{{ flask_version }}</dd>
+            <dt>Hostname</dt><dd class="mono small">{{ host }}</dd>
+            <dt>Started</dt><dd>{{ started }}</dd>
+            <dt>Uptime</dt><dd>{{ uptime }}</dd>
+            <dt>Health</dt>
+            <dd><a href="{{ url_for('healthz') }}"><code>{{ url_for('healthz') }}</code></a></dd>
+          </dl>
+          <p class="small muted">The hostname is the one honest way to see an app move:
+             in isolated mode it is the pod, and it changes on every restart.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ── This request ────────────────────────────────────────────────────── #}
+<section data-panel="request" hidden>
+  <div class="section-hd">
+    <div>
+      <h2>This request</h2>
+      <p>What the platform put on it, and what this app made of it. Reload the page
+         and the role blob changes: it is minted per request and lives 120 seconds.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hd"><h2>The request itself</h2></div>
+    <div class="card-bd">
+      <dl class="kv">
+        {% for k, v in request_facts %}<dt>{{ k }}</dt><dd class="mono small">{{ v }}</dd>{% endfor %}
+      </dl>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hd">
+      <h2>Headers the platform adds</h2>
+      <span class="muted small">Present or absent, and what each is for</span>
+    </div>
+    <div class="card-bd" style="padding:0">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Header</th><th>Value</th><th>What it is for</th></tr></thead>
+          <tbody>
+          {% for name, why, value in platform_headers %}
+            <tr>
+              <td class="mono small nowrap">{{ name }}</td>
+              <td class="mono small" style="max-width:22rem;overflow-wrap:anywhere">
+                {% if value %}{{ value }}{% else %}<span class="badge">absent</span>{% endif %}
+              </td>
+              <td class="muted small">{{ why }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card-ft">
+      The three <code>X-Toft-*</code> headers are deleted from every inbound request
+      before any path can set one, so a client-supplied copy never reaches this app.
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hd">
+      <h2>Everything else</h2>
+      <span class="muted small">{{ other_headers|length }} headers</span>
+    </div>
+    <div class="card-bd" style="padding:0">
+      <div class="tbl-wrap">
+        <table class="tbl" data-sortable>
+          <thead><tr><th data-sort="text">Header</th><th data-sort="text">Value</th></tr></thead>
+          <tbody>
+          {% for k, v in other_headers %}
+            <tr><td class="mono small nowrap">{{ k }}</td>
+                <td class="mono small" style="overflow-wrap:anywhere">{{ v }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ── Who is asking ───────────────────────────────────────────────────── #}
+<section data-panel="who" hidden>
+  <div class="section-hd">
+    <div>
+      <h2>Who is asking</h2>
+      <p>Two questions, two calls, and which one you reach for is the decision.</p>
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-hd"><h2>What may they do</h2>
+        <span class="badge tone-brand">{{ role }}</span></div>
+      <div class="card-bd">
+        <p class="small">Six words and no seventh:</p>
+        <div class="row">
+          {% for word in ladder %}
+            <span class="badge {% if word == role %}tone-brand{% endif %}">{{ word }}</span>
+          {% endfor %}
+        </div>
+        <dl class="kv" style="margin-top:.75rem">
+          <dt>Verified</dt>
+          <dd><code>hmac.new(key, b"toft-role\0" + payload, sha256)</code></dd>
+          <dt>Key</dt><dd>per app, per workload start, derived and never stored</dd>
+          <dt>Life</dt><dd>120 seconds, compiled into the platform</dd>
+          <dt>May edit</dt>
+          <dd>{% if may_edit %}<span class="badge tone-ok">yes</span>
+              {% else %}<span class="badge tone-att">no</span>{% endif %}
+              <span class="tiny muted">editor or above</span></dd>
+        </dl>
+        <div class="note tone-brand">
+          <strong>No round trip, and no administrator switch.</strong> It is on every
+          forwarded request whether anybody configured anything or not. Reach for it to
+          <em>refuse</em>.
+        </div>
+      </div>
+      <div class="card-ft">
+        Signed rather than spelled: in shared mode apps bind loopback, so a neighbour on
+        this box can reach the port without the gateway. The key is per app, so a blob
+        minted for another app fails here.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd"><h2>Who are they</h2>
+        <span class="badge">{{ viewer.state }}</span></div>
+      <div class="card-bd">
+        {% if viewer.state == 'known' %}
+          <dl class="kv">
+            <dt>Name</dt><dd><strong>{{ viewer.name }}</strong>
+              {% if viewer.is_admin %}<span class="badge tone-info">administrator</span>{% endif %}</dd>
+            {% if viewer.email %}<dt>Email</dt><dd class="mono small">{{ viewer.email }}</dd>{% endif %}
+            <dt>Role on this app</dt><dd><span class="badge">{{ viewer.role }}</span></dd>
+            <dt>Groups</dt>
+            <dd>{% for g in viewer.groups %}<span class="badge" style="margin:0 .25rem .25rem 0">{{ g }}</span>{% else %}<span class="muted">none</span>{% endfor %}</dd>
+          </dl>
+        {% else %}
+          <div class="note {% if viewer.state == 'refused' %}tone-att{% endif %}">
+            <strong>{{ viewer.state }}.</strong> {{ viewer.note }}
+          </div>
+        {% endif %}
+        <div class="note">
+          <strong>204, 403 and a person are three different things.</strong> No viewer,
+          <em>this app may not be told</em>, and here they are &mdash; collapsing any two
+          is how an app ends up telling somebody the wrong story.
+        </div>
+        <div class="note">
+          <strong><code>email</code> is absent on a public app.</strong> Not a failure and
+          not a person without an address: a public app's visitors did not consent to a
+          mailing list by visiting.
+        </div>
+      </div>
+      <div class="card-ft">
+        One round trip, and an administrator has to have switched viewer identity on.
+        Reach for it to <em>describe</em>. A role names nobody, which is why these are not
+        one call.
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ── Environment ─────────────────────────────────────────────────────── #}
+<section data-panel="env" hidden>
+  <div class="section-hd">
+    <div>
+      <h2>Environment</h2>
+      <p>What the process was handed, and what each variable is for.</p>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-bd" style="padding:0">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Variable</th><th>Value</th><th>What it is for</th></tr></thead>
+          <tbody>
+          {% for name, value, why in env %}
+            <tr><td class="mono small nowrap">{{ name }}</td>
+                <td class="mono small">{{ value }}</td>
+                <td class="muted small">{{ why }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card-ft">
+      Values are shown, never guessed at &mdash; and the two secrets in the list are
+      reported as <em>set</em> rather than printed. Everything an app is given is
+      encrypted at rest under the install's own key ring; this page is the app choosing
+      what to put on a screen, which is a different decision.
+    </div>
+  </div>
+</section>
+
+{# ── API ─────────────────────────────────────────────────────────────── #}
+<section data-panel="api" hidden>
+  <div class="section-hd">
+    <div>
+      <h2>API</h2>
+      <p>The other half of a web app. Same process, same role header &mdash; it travels
+         on an XHR exactly as it travels on a page load.</p>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-hd"><h2><code>GET {{ url_for('greet') }}</code></h2></div>
+    <div class="card-bd">
+      <form id="greet-form" class="controls">
+        <div class="field field-wide">
+          <label for="name">name</label>
+          <input class="input" id="name" name="name" value="world" maxlength="80">
+        </div>
+        <div><button class="btn btn-primary" type="submit">Send it</button></div>
+      </form>
+      <pre class="term" id="greet-out">Press “Send it”.</pre>
+    </div>
+    <div class="card-ft">
+      <code>{{ url_for('greet') }}</code> came out of <code>url_for()</code> too. The fetch
+      below uses it verbatim, which is why this works under a base path and would not if
+      the path were written by hand.
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="foot-in">
+    <span>An example app from the <strong>Toft</strong> gallery.</span>
+    <span>Python &middot; Flask &middot; ProxyFix &middot; Jinja2 &middot; one dependency</span>
+  </div>
+</footer>
+
+<script src="{{ url_for('static', filename='toft-kit.js') }}"></script>
+<script>
+  // The one piece of script this app has, and it is here rather than in a file
+  // because it is four lines and the URL it calls has to come from url_for().
+  var GREET = {{ url_for('greet')|tojson }};
+  document.getElementById("greet-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var out = document.getElementById("greet-out");
+    out.textContent = "…";
+    LP.json(GREET + "?name=" + encodeURIComponent(document.getElementById("name").value))
+      .then(function (b) { out.textContent = JSON.stringify(b, null, 2); })
+      .catch(function (err) { out.textContent = "error: " + err.message; });
+  });
+</script>
+</body>
+</html>

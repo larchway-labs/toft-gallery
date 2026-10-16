@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ .Title }} · {{ .Deploy }}</title>
+<meta name="description" content="An inventory register that gets its own report out: PDF, Slack, email, on demand or on a schedule.">
+<link rel="icon" href="{{ url "/static/favicon.svg" }}" type="image/svg+xml">
+<link rel="stylesheet" href="{{ url "/static/app.css" }}">
+</head>
+<body>
+<a class="lp-skip" href="#main">Skip to content</a>
+
+<header class="masthead">
+  <div class="masthead-in">
+    <div>
+      <a class="wordmark" href="{{ url "/" }}" style="text-decoration:none">
+        <span class="mark" aria-hidden="true"></span>
+        <span class="wordmark-text">Toft example</span>
+      </a>
+      <h1>{{ .Deploy }}</h1>
+      <p class="standfirst">
+        Aisles A&ndash;E, counted by hand and kept here &mdash; and a PDF of any of it,
+        downloaded, posted to Slack, or emailed, by hand or on a schedule.
+      </p>
+    </div>
+    <div class="masthead-aside">
+      <span class="chip chip-lang">Go &middot; net/http &middot; SQLite</span>
+      <span class="chip">Recording as {{ .Actor }}</span>
+    </div>
+  </div>
+</header>
+
+{{/* The capability rail: what this example demonstrates, and whether it is
+     really here on this install. Every example in the gallery carries one, and
+     this app's is read from GET /api/v1/app/self rather than written down. */}}
+<div class="rail">
+  <div class="rail-in">
+    <span class="rail-label">Toft</span>
+    {{ range .Rail }}
+      <span class="cap {{ .State }}" title="{{ .Note }}"><b>{{ .Label }}</b></span>
+    {{ end }}
+  </div>
+</div>
+
+<nav class="tabs" aria-label="Sections">
+  <div class="tabs-in">
+    {{ template "tab" dict "Tab" .Tab "Key" "dashboard" "Href" "/"           "Label" "The room" }}
+    {{ template "tab" dict "Tab" .Tab "Key" "inventory" "Href" "/inventory"  "Label" "Inventory" }}
+    {{ template "tab" dict "Tab" .Tab "Key" "movements" "Href" "/movements"  "Label" "Movements" }}
+    {{ template "tab" dict "Tab" .Tab "Key" "reports"   "Href" "/reports"    "Label" "Reports" }}
+    {{ template "tab" dict "Tab" .Tab "Key" "activity"  "Href" "/activity"   "Label" "Activity" }}
+    {{ template "tab" dict "Tab" .Tab "Key" "platform"  "Href" "/platform"   "Label" "Platform" }}
+  </div>
+</nav>
+
+<main class="shell" id="main">
+  {{ if .Flash }}
+    <div class="flash flash-{{ .Flash.Tone }}" role="status">
+      <span class="flash-mark" aria-hidden="true"></span>
+      <p>{{ .Flash.Text }}</p>
+      <button type="button" class="flash-close" data-dismiss aria-label="Dismiss">×</button>
+    </div>
+  {{ end }}
+
+  {{ template "content" . }}
+</main>
+
+<footer class="foot">
+  <div class="foot-in">
+    <span>An example app from the <strong>Toft</strong> gallery.</span>
+    <span>Go &middot; net/http &middot; html/template &middot; SQLite &middot; no npm build</span>
+  </div>
+</footer>
+
+<script src="{{ url "/static/app.js" }}" defer></script>
+</body>
+</html>

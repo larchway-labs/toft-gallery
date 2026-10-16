@@ -1,0 +1,3 @@
+# flask is what Toft's detector looks for: it starts the app with
+# `flask --app app run --host <host> --port <port>`.
+flask>=3.0

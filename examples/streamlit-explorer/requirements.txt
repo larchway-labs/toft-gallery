@@ -1,0 +1,7 @@
+# streamlit is what Toft's detector looks for. It is started with
+# --server.baseUrlPath /apps/{slug}, and the proxy forwards the full path.
+#
+# 1.49 is the floor because this app uses width="stretch"; the older
+# use_container_width spelling is on its way out.
+streamlit>=1.49
+pandas>=2.0

@@ -1,0 +1,8 @@
+# FastAPI is what makes this app detected as FastAPI: the platform reads this
+# file, finds `fastapi`, and starts uvicorn against the name bound to FastAPI()
+# in main.py. Nothing else here is required by the framework.
+fastapi>=0.115,<1.0
+uvicorn>=0.30,<1.0
+jinja2>=3.1,<4.0
+pydantic>=2.7,<3.0
+python-multipart>=0.0.9

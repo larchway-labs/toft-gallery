@@ -1,0 +1,469 @@
+---
+title: "Service Review"
+subtitle: "Q2 2026 · the estate, its incidents, and what they cost"
+date: last-modified
+date-format: "D MMMM YYYY [at] HH:mm"
+lang: en-GB
+format:
+  html:
+    theme: default
+    css:
+      - static/toft-kit.css
+      - static/quarto.css
+    toc: true
+    toc-location: left
+    toc-title: "This review"
+    toc-depth: 3
+    number-sections: true
+    code-fold: true
+    code-summary: "The code that produced this"
+    code-tools: false
+    fig-cap-location: bottom
+    tbl-cap-location: top
+    self-contained: true
+    anchor-sections: true
+    link-external-newwindow: true
+knitr:
+  opts_chunk:
+    echo: true
+    warning: false
+    message: false
+    dev: "svg"
+    fig.width: 9
+    fig.height: 4.2
+execute:
+  freeze: false
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+# ── What this file is ──────────────────────────────────────────────────────
+#
+# A Quarto document whose *engine is knitr*, which is what makes it R rather
+# than Python. Toft reads the engine in detection, in this order:
+#
+#   1. [notebook] engine = "knitr" in toft.toml
+#   2. engine: / knitr: in this YAML header
+#   3. a fenced ```{r} chunk
+#   4. otherwise `notebook` in the Python family
+#
+# This file declares it in the header *and* is full of {r} chunks, so it is
+# unambiguous by two of the four rules.
+#
+# It is rendered **once, at build time**, with this app's own environment, and
+# what is served is the directory that fell out. There is no R process behind
+# the page a viewer loads. That is the sharpest edge of the framework and it is
+# worth saying plainly: whatever a chunk prints is in the published document,
+# and on a public app "published" means the internet.
+#
+# Quarto is not bundled with Toft. On an install without it, this app fails
+# to deploy naming QUARTO_BIN rather than being quietly rendered with nbconvert.
+
+knitr::opts_chunk$set(comment = "#>", collapse = TRUE)
+
+# The house palette, so a base-R plot matches every other example in the
+# gallery. Five series and no sixth; the tone colours are Toft's own.
+LP <- list(
+  ink   = "#14161C", ink2 = "#5A5F6B", ink3 = "#8A8F9B",
+  rule  = "#E5E6EA", paper = "#FAFAFB",
+  c1 = "#4338CA", c2 = "#0E9AA7", c3 = "#2E9E63", c4 = "#8B5CF6", c5 = "#C2703B",
+  ok = "#10B981", att = "#F59E0B", dan = "#EF4444", info = "#3B82F6"
+)
+
+# One plotting frame for the whole document. Base R draws a box and tick marks
+# by default, and both are noise next to a horizontal grid.
+frame <- function(ylim, xlim, xlab = "", ylab = "", grid_n = 5,
+                  mar = c(3.4, 4.4, 0.6, 0.8), grid = "h") {
+  par(mar = mar, family = "sans", las = 1,
+      col.axis = LP$ink2, col.lab = LP$ink2, fg = LP$rule, cex.axis = 0.86,
+      cex.lab = 0.86, tcl = -0.25, mgp = c(2.6, 0.5, 0))
+  plot(NA, xlim = xlim, ylim = ylim, xlab = xlab, ylab = ylab, axes = FALSE)
+  # The grid goes behind the bars and runs across whichever axis carries the
+  # measurement: horizontal for a column chart, vertical for a bar chart lying
+  # on its side. One argument, because a chart with the grid on the wrong axis
+  # is a chart nobody can read a value off.
+  if (grid == "h") {
+    at <- pretty(ylim, grid_n)
+    abline(h = at, col = LP$rule, lwd = 1)
+    axis(2, at = at, col = NA, col.ticks = NA, line = -0.6)
+  } else {
+    abline(v = pretty(xlim, grid_n), col = LP$rule, lwd = 1)
+  }
+}
+
+pct <- function(x, d = 2) sprintf(paste0("%.", d, "f%%"), x)
+hm  <- function(mins) sprintf("%dh %02dm", mins %/% 60, round(mins %% 60))
+
+# Emit raw HTML from an `asis` chunk.
+#
+# The indentation below is for whoever reads this file; pandoc reads a line
+# indented four spaces as a code block, which is how a masthead ends up on the
+# page as source. So the indentation is stripped on the way out, and the block
+# is fenced as raw HTML so no part of it is re-parsed as Markdown.
+html_block <- function(x) {
+  cat("\n```{=html}\n")
+  cat(gsub("(?m)^[ \\t]+", "", x, perl = TRUE))
+  cat("\n```\n\n")
+}
+```
+
+```{r}
+#| label: read
+#| include: false
+
+# A missing file is a first-class outcome rather than a crash. A build that dies
+# with "cannot open file" makes somebody read a build log to find out a nightly
+# export did not land; a report that says so on its own front page does not.
+data_dir  <- if (nzchar(Sys.getenv("REVIEW_DATA_DIR"))) Sys.getenv("REVIEW_DATA_DIR") else "data"
+inc_file  <- file.path(data_dir, "incidents.csv")
+svc_file  <- file.path(data_dir, "services.csv")
+have_data <- file.exists(inc_file) && file.exists(svc_file)
+
+if (have_data) {
+  inc <- utils::read.csv(inc_file, stringsAsFactors = FALSE)
+  svc <- utils::read.csv(svc_file, stringsAsFactors = FALSE)
+  inc$opened <- as.POSIXct(inc$opened, tz = "UTC")
+  inc$week   <- as.integer(format(inc$opened, "%V"))
+  inc$day    <- as.Date(inc$opened)
+} else {
+  inc <- data.frame(); svc <- data.frame()
+}
+
+# The quarter, in minutes, which is the denominator every availability figure
+# below divides by. Stated once so the numbers cannot disagree.
+QUARTER_DAYS <- 91
+QUARTER_MINS <- QUARTER_DAYS * 24 * 60
+
+quarter_label <- "1 April – 30 June 2026"
+```
+
+```{r}
+#| label: not-there
+#| echo: false
+#| results: asis
+
+if (!have_data) {
+  cat(sprintf(
+    ':::{.callout-important}\n## The export did not land\n\n`%s` and `%s` are what this review reads, and at least one of them is not there. Everything below would be an empty table, so it is not rendered.\n\nThe deploy **succeeded** — this is a report about missing data, not a broken build.\n:::\n',
+    inc_file, svc_file))
+  knitr::knit_exit()
+}
+```
+
+```{r}
+#| label: masthead
+#| echo: false
+#| results: asis
+
+slug <- Sys.getenv("TOFT_APP_SLUG", "")
+mode <- Sys.getenv("TOFT_EXECUTION_MODE", "")
+on_platform <- nzchar(Sys.getenv("TOFT_APP_TOKEN"))
+
+cap <- function(label, on, note = "") sprintf(
+  '<span class="cap %s" title="%s"><b>%s</b></span>',
+  if (on) "on" else "off", note, label)
+
+html_block(sprintf('
+<div class="lp-block">
+  <header class="masthead">
+    <div class="masthead-in">
+      <div>
+        <div class="wordmark">
+          <span class="mark" aria-hidden="true"></span>
+          <span class="wordmark-text">Toft example</span>
+        </div>
+        <h1>Service Review</h1>
+        <p class="standfirst">Ten services, %d incidents and one quarter, rendered once at
+           deploy time and served as the document that fell out.</p>
+      </div>
+      <div class="masthead-aside">
+        <span class="chip chip-lang">R &middot; Quarto (knitr)</span>
+        <span class="chip">%s</span>
+      </div>
+    </div>
+  </header>
+  <div class="rail"><div class="rail-in">
+    <span class="rail-label">Toft</span>%s
+  </div></div>
+</div>',
+  nrow(inc),
+  quarter_label,
+  paste0(
+    cap("Quarto", TRUE, "Rendered with the knitr engine, once, at build time."),
+    cap("Built at deploy", TRUE, "Nothing is re-rendered by a restart."),
+    cap("R", TRUE, sprintf("%s.%s", R.version$major, R.version$minor)),
+    cap("renv.lock", file.exists("renv.lock"),
+        "Committed, so the Dependencies tab can enumerate this app."),
+    cap("Workload", on_platform,
+        if (on_platform) sprintf("Running as a Toft workload (%s mode).", mode)
+        else "Rendered outside Toft."),
+    collapse = "")))
+```
+
+# What happened this quarter {#sec-summary}
+
+```{r}
+#| label: headline
+#| echo: false
+#| results: asis
+
+total_down <- sum(inc$minutes)
+s1 <- sum(inc$severity == "S1")
+mttr <- mean(inc$minutes)
+mttd <- mean(inc$detect_minutes)
+change_rate <- mean(inc$change_related == "yes")
+
+tile <- function(k, v, n, tone = "") sprintf(
+  '<div class="tile %s"><div class="tile-k">%s</div><div class="tile-v">%s</div><div class="tile-n">%s</div></div>',
+  tone, k, v, n)
+
+html_block(sprintf('<div class="lp-block"><div class="tiles">%s</div></div>',
+  paste0(
+    tile("Incidents", format(nrow(inc), big.mark = ","),
+         sprintf("%d severity 1", s1), if (s1 > 6) "tone-att" else "tone-ok"),
+    tile("Time lost", hm(total_down),
+         sprintf("across %d services", length(unique(inc$service))), "tone-neu"),
+    tile("Mean time to restore", hm(mttr),
+         sprintf("detected in %s", hm(mttd)), "tone-info"),
+    tile("Change-related", pct(change_rate * 100, 0),
+         "of all incidents", if (change_rate > 0.3) "tone-dan" else "tone-att"),
+    collapse = "")))
+```
+
+::: {.callout-note}
+## The one number to argue with
+
+`r pct(change_rate * 100, 0)` of this quarter's incidents followed a change.
+That is the figure worth taking to a planning meeting, because it is the only
+one on this page anybody in the room can do something about before the next
+quarter starts. Everything else here describes what already happened.
+:::
+
+## Availability against target {#sec-availability}
+
+Availability is downtime over the quarter, and the quarter is
+`r format(QUARTER_MINS, big.mark = ",")` minutes. Stated once, in the setup
+chunk, so nothing below can quietly divide by something else.
+
+```{r}
+#| label: tbl-availability
+#| tbl-cap: "Every service, its target, and what it actually did. Sorted by how far short it fell."
+#| echo: false
+
+by_svc <- aggregate(cbind(minutes, id = seq_len(nrow(inc)) * 0 + 1) ~ service,
+                    data = inc, FUN = sum)
+names(by_svc) <- c("service", "down", "count")
+tbl <- merge(svc, by_svc, by = "service", all.x = TRUE)
+tbl$down[is.na(tbl$down)] <- 0
+tbl$count[is.na(tbl$count)] <- 0
+tbl$actual <- 100 * (1 - tbl$down / QUARTER_MINS)
+tbl$gap <- tbl$actual - tbl$target_pct
+tbl <- tbl[order(tbl$gap), ]
+
+out <- data.frame(
+  Service = tbl$service,
+  Tier = tbl$tier,
+  Owner = tbl$owner,
+  Incidents = tbl$count,
+  Downtime = vapply(tbl$down, hm, character(1)),
+  Target = pct(tbl$target_pct),
+  Actual = pct(tbl$actual),
+  Verdict = ifelse(tbl$gap >= 0, "met", sprintf("short by %s", pct(-tbl$gap))),
+  check.names = FALSE
+)
+knitr::kable(out, align = c("l", "l", "l", "r", "r", "r", "r", "l"))
+```
+
+```{r}
+#| label: fig-availability
+#| fig-cap: "The same table as a picture. The bar is what the service did; the mark is what it promised."
+#| echo: true
+
+t2 <- tbl[order(tbl$actual), ]
+# The left margin is nine lines because "Customer portal" is the longest name
+# in the estate and the default clips it.
+frame(ylim = c(0, nrow(t2) + 1),
+      xlim = c(min(c(t2$actual, t2$target_pct)) - 0.15, 100.02),
+      mar = c(3.4, 9.2, 0.6, 0.8), grid = "v")
+tone <- ifelse(t2$gap >= 0, LP$ok, LP$dan)
+segments(x0 = par("usr")[1], x1 = t2$actual, y0 = seq_len(nrow(t2)),
+         col = tone, lwd = 9, lend = 1)
+points(t2$target_pct, seq_len(nrow(t2)), pch = "|", cex = 1.5, col = LP$ink)
+axis(2, at = seq_len(nrow(t2)), labels = t2$service, col = NA, col.ticks = NA,
+     cex.axis = 0.8, line = -0.6)
+axis(1, col = NA, col.ticks = NA, line = -0.8)
+mtext("Availability, per cent of the quarter", side = 1, line = 2,
+      col = LP$ink2, cex = 0.86)
+```
+
+@fig-availability and @tbl-availability are the same nine numbers twice, which
+is deliberate: the chart is what somebody looks at, and the table is what they
+paste into the follow-up email. Quarto's cross-references mean neither can be
+renumbered by hand into disagreeing with the other.
+
+# Where the time went {#sec-causes}
+
+::: {.panel-tabset}
+
+## By cause
+
+```{r}
+#| label: fig-cause
+#| fig-cap: "Incident count by root cause. Change is the largest bar in most quarters and in most organisations."
+
+by_cause <- sort(table(inc$cause))
+frame(ylim = c(0.4, length(by_cause) + 0.6), xlim = c(0, max(by_cause) * 1.08),
+      mar = c(3.4, 8.2, 0.6, 0.8), grid = "v")
+barplot(as.numeric(by_cause), horiz = TRUE, add = TRUE, axes = FALSE,
+        col = LP$c1, border = NA, space = 0.55, width = 0.62)
+axis(2, at = seq_along(by_cause), labels = names(by_cause), col = NA,
+     col.ticks = NA, cex.axis = 0.86, line = -0.6)
+axis(1, col = NA, col.ticks = NA, line = -0.8)
+text(as.numeric(by_cause), seq_along(by_cause), labels = as.numeric(by_cause),
+     pos = 4, col = LP$ink2, cex = 0.8, offset = 0.4)
+```
+
+## By severity, over time
+
+```{r}
+#| label: fig-weekly
+#| fig-cap: "Incidents a week, split by severity. Thirteen weeks; the quarter starts on the left."
+
+wk <- sort(unique(inc$week))
+mat <- sapply(c("S1", "S2", "S3"), function(s)
+  as.numeric(table(factor(inc$week[inc$severity == s], levels = wk))))
+frame(ylim = c(0, max(rowSums(mat)) * 1.15), xlim = c(0.5, length(wk) + 0.5))
+barplot(t(mat), add = TRUE, axes = FALSE, border = NA, space = 0.35,
+        col = c(LP$dan, LP$att, LP$c1), width = 0.74)
+axis(1, at = seq_along(wk), labels = wk, col = NA, col.ticks = NA,
+     cex.axis = 0.75, line = -0.8)
+mtext("ISO week", side = 1, line = 2, col = LP$ink2, cex = 0.86)
+legend("topright", legend = c("S1", "S2", "S3"), fill = c(LP$dan, LP$att, LP$c1),
+       border = NA, bty = "n", horiz = TRUE, cex = 0.82, text.col = LP$ink2)
+```
+
+## By region
+
+```{r}
+#| label: tbl-region
+#| tbl-cap: "Regions, with mean time to restore. A region with few incidents and a long MTTR is a staffing question, not a reliability one."
+
+reg <- do.call(rbind, lapply(split(inc, inc$region), function(d) data.frame(
+  Region = d$region[1],
+  Incidents = nrow(d),
+  S1 = sum(d$severity == "S1"),
+  Downtime = hm(sum(d$minutes)),
+  MTTR = hm(mean(d$minutes)),
+  MTTD = hm(mean(d$detect_minutes)),
+  check.names = FALSE)))
+knitr::kable(reg[order(-reg$Incidents), ], row.names = FALSE,
+             align = c("l", "r", "r", "r", "r", "r"))
+```
+
+:::
+
+## Detection is most of restoration {#sec-detection}
+
+```{r}
+#| label: fig-detect
+#| fig-cap: "Every incident: how long it took to notice against how long it took to fix. Both axes are logarithmic, because the range is three orders of magnitude and a linear plot would be one dot and a cloud."
+
+frame(ylim = log10(range(inc$minutes)), xlim = log10(range(inc$detect_minutes)))
+cols <- c(S1 = LP$dan, S2 = LP$att, S3 = LP$c1)
+points(log10(inc$detect_minutes), log10(inc$minutes),
+       pch = 19, cex = 0.9, col = adjustcolor(cols[inc$severity], alpha.f = 0.62))
+ticks <- c(1, 3, 10, 30, 100, 300, 1000)
+axis(1, at = log10(ticks), labels = ticks, col = NA, col.ticks = NA, line = -0.8)
+axis(2, at = log10(ticks), labels = ticks, col = NA, col.ticks = NA, line = -0.6)
+mtext("Minutes to detect", side = 1, line = 2, col = LP$ink2, cex = 0.86)
+mtext("Minutes to restore", side = 2, line = 2.8, col = LP$ink2, cex = 0.86,
+      las = 0)
+legend("bottomright", legend = names(cols), col = cols, pch = 19, bty = "n",
+       horiz = TRUE, cex = 0.82, text.col = LP$ink2)
+```
+
+Detection is `r pct(100 * mttd / mttr, 0)` of mean restoration time across the
+quarter. That ratio is usually the cheapest thing on this page to improve, and
+it is the argument for spending on alerting before spending on redundancy.
+
+::: {.callout-tip collapse="true"}
+## The arithmetic, if you want to check it
+
+```{r}
+#| label: arithmetic
+#| echo: true
+
+c(incidents = nrow(inc),
+  quarter_minutes = QUARTER_MINS,
+  total_downtime = sum(inc$minutes),
+  mean_restore = round(mean(inc$minutes), 1),
+  mean_detect = round(mean(inc$detect_minutes), 1),
+  worst_service = which.max(tapply(inc$minutes, inc$service, sum)))
+```
+:::
+
+# What Toft did with this file {#sec-platform}
+
+```{r}
+#| label: platform
+#| echo: false
+#| results: asis
+
+kv <- function(k, v) sprintf("<dt>%s</dt><dd>%s</dd>", k, v)
+
+html_block(sprintf('
+<div class="lp-block">
+  <div class="cards">
+    <div class="card">
+      <div class="card-hd"><h2>This render</h2></div>
+      <div class="card-bd"><dl class="kv">%s</dl></div>
+      <div class="card-ft">Nothing is re-rendered by a restart. A wake, a crash restore or a
+        repair serves the document this release was deployed with; only a deploy produces a
+        new one.</div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><h2>The sharp edge</h2></div>
+      <div class="card-bd">
+        <div class="note tone-att"><strong>The chunks ran with this app&rsquo;s whole
+          environment.</strong> Whatever they printed is in this document, and nothing is
+          redacted &mdash; the platform cannot know which cell output is a secret. On a
+          public app, &ldquo;published&rdquo; means the internet. The build log lists the
+          variable <em>names</em> that were exported, never their values.</div>
+        <div class="note"><strong>Quarto is not bundled.</strong> On an install without it,
+          a <code>.qmd</code> fails the deploy naming <code>QUARTO_BIN</code> &mdash;
+          refused, never quietly rendered with the other engine.</div>
+      </div>
+    </div>
+  </div>
+</div>',
+  paste0(
+    kv("Engine", "<span class=\"badge tone-brand\">knitr</span> &mdash; declared in the YAML header and confirmed by the {r} chunks"),
+    kv("R", sprintf("<span class=\"mono small\">%s</span>", R.version.string)),
+    kv("Quarto", sprintf("<span class=\"mono small\">%s</span>",
+                         Sys.getenv("QUARTO_VERSION", "resolved at build time"))),
+    kv("Rendered", format(Sys.time(), "%Y-%m-%d %H:%M %Z")),
+    kv("Served from", "<code>toft-render/</code> &mdash; the platform&rsquo;s directory, never the release"),
+    kv("Published", "the render, and nothing else: the <code>.qmd</code>, <code>renv.lock</code> and <code>data/</code> are all 404"),
+    kv("Packages", sprintf("%d, from <code>renv.lock</code>", {
+      lk <- tryCatch(length(jsonlite::fromJSON("renv.lock")$Packages), error = function(e) NA)
+      if (is.na(lk)) 0L else lk
+    })),
+    collapse = "")))
+```
+
+```{r}
+#| label: footer
+#| echo: false
+#| results: asis
+html_block('
+<div class="lp-block">
+  <footer class="foot" style="border-radius:var(--lp-r);margin-top:1.5rem">
+    <div class="foot-in">
+      <span>An example app from the <strong>Toft</strong> gallery.</span>
+      <span>R &middot; Quarto &middot; knitr &middot; base graphics &middot; no chart library</span>
+    </div>
+  </footer>
+</div>')
+```

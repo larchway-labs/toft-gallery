@@ -1,0 +1,460 @@
+/* The console's stylesheet.
+ *
+ * It takes Toft's visual identity — light theme only, its blue, dense
+ * information-first pages, tables over cards, one card surface, the five tones,
+ * the 11px type floor, sentence case — and does **not** take Toft's
+ * chrome. No imitation of the platform's nav, no page shaped like an Admin
+ * page, no breadcrumb that appears to lead back into the platform. The frame
+ * around this app is Toft's own; this app's header names this app. Looking
+ * like the product and impersonating it are one small step apart, and the step
+ * is the whole difference between an extension and a phishing page.
+ *
+ * The tokens are the platform's own, copied rather than imported, because a Go
+ * extension cannot import a React component or a Tailwind build. That is a real
+ * cost and it is stated in the README: when Toft retunes a token, this file
+ * does not find out. What it is *not* any more is an approximation — every
+ * value below was read out of the running product rather than picked off a
+ * palette, which is how the primary spent a release as indigo-600 while the
+ * platform's was the considerably bluer #2855c4, near enough to look intended
+ * and far enough to look like a different product.
+ *
+ * Two declarations of each colour. The hex is what the platform's oklch
+ * resolves to in sRGB and is what an older browser gets; the @supports block
+ * restates the oklch, so a wide-gamut display shows what the platform shows.
+ */
+
+/* --- Type ------------------------------------------------------------------
+ *
+ * Geist and Geist Mono, served from this app's own /static — the same two faces
+ * the platform ships, so a page here and a page there set the same words the
+ * same way. Self-hosted rather than fetched: an install with no egress is the
+ * normal case, and a CDN link is a request to somebody else's server on every
+ * page of somebody's private change record. Latin only, 51 KB for the pair;
+ * anything outside that range falls through to the system stack.
+ */
+@font-face {
+  font-family: 'Geist Console';
+  src: url('fonts/geist-latin.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Geist Mono Console';
+  src: url('fonts/geist-mono-latin.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  --background: #f7f8fa;
+  --foreground: #0a0a0a;
+  --card: #ffffff;
+  --muted: #f2f3f7;
+  --muted-foreground: #636363;
+  --accent: #ebf0fb;
+  --accent-foreground: #172e64;
+  --border: #e0e2e5;
+  --primary: #2855c4;
+  --primary-hover: #23499f;
+  --primary-foreground: #fafafa;
+  --ring: #2855c4;
+
+  /* The five tones. A state's colour comes from one of these and never from a
+   * palette step — reaching for amber to mean "broken" is how a warning colour
+   * stops working. `attention` is a thing to look at: a build running, a key an
+   * administrator disabled, a release the source has moved on from. It is not a
+   * failure. */
+  --ok-surface: #ecfdf5;        --ok-text: #007a55;        --ok-border: #a4f4cf;
+  --attention-surface: #fffbeb; --attention-text: #bb4d00; --attention-border: #fee685;
+  --danger-surface: #fef2f2;    --danger-text: #c10007;    --danger-border: #ffc9c9;
+  --neutral-surface: #fafafa;   --neutral-text: #52525c;   --neutral-border: #e4e4e7;
+  --info-surface: #eef2ff;      --info-text: #432dd7;      --info-border: #c6d2ff;
+
+  --radius: 8px;
+  --radius-sm: 6px;
+  --shadow-card: 0 1px 2px 0 rgb(10 10 10 / 0.05);
+  --shadow-pop: 0 16px 40px -12px rgb(10 10 10 / 0.25);
+
+  --font: 'Geist Console', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+    Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --mono: 'Geist Mono Console', ui-monospace, SFMono-Regular, 'SF Mono', Menlo,
+    Consolas, 'Liberation Mono', monospace;
+}
+
+/* The values the platform actually holds, for a display that can show them. */
+@supports (color: oklch(0.5 0.1 264)) {
+  :root {
+    --background: oklch(0.98 0.002 250);
+    --foreground: oklch(0.145 0 0);
+    --card: oklch(1 0 0);
+    --muted: oklch(0.965 0.005 264);
+    --muted-foreground: oklch(0.5 0 0);
+    --accent: oklch(0.955 0.015 264);
+    --accent-foreground: oklch(0.318 0.1 264);
+    --border: oklch(0.912 0.005 264);
+    --primary: oklch(0.488 0.18 264);
+    --primary-hover: oklch(0.428 0.175 264);
+    --primary-foreground: oklch(0.985 0 0);
+    --ring: oklch(0.488 0.18 264);
+
+    --ok-surface: oklch(0.979 0.021 166.113);
+    --ok-text: oklch(0.508 0.118 165.612);
+    --ok-border: oklch(0.905 0.093 164.15);
+    --attention-surface: oklch(0.987 0.022 95.277);
+    --attention-text: oklch(0.555 0.163 48.998);
+    --attention-border: oklch(0.924 0.12 95.746);
+    --danger-surface: oklch(0.971 0.013 17.38);
+    --danger-text: oklch(0.505 0.213 27.518);
+    --danger-border: oklch(0.885 0.062 18.334);
+    --neutral-surface: oklch(0.985 0 0);
+    --neutral-text: oklch(0.442 0.017 285.786);
+    --neutral-border: oklch(0.92 0.004 286.32);
+    --info-surface: oklch(0.962 0.018 272.314);
+    --info-text: oklch(0.457 0.24 277.023);
+    --info-border: oklch(0.87 0.065 274.039);
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--primary); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+
+/* One focus treatment on everything. A keyboard-first app whose focus ring is a
+ * browser default in one place and a custom outline in another is an app you
+ * lose your place in. */
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
+
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px 72px; }
+.measure { max-width: 780px; }
+
+/* --- Header: this app's own, never the platform's ------------------------- */
+
+.topbar {
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+  position: sticky; top: 0; z-index: 20;
+}
+.topbar .wrap { display: flex; align-items: stretch; gap: 24px; padding-bottom: 0; flex-wrap: wrap; }
+.brand {
+  display: flex; align-items: center; gap: 9px;
+  font-weight: 600; font-size: 15px; letter-spacing: -0.011em;
+  color: var(--foreground); white-space: nowrap; padding: 13px 0;
+}
+.brand:hover { text-decoration: none; }
+.brand span { color: var(--muted-foreground); font-weight: 400; font-size: 14px; }
+.brand .mark {
+  width: 24px; height: 24px; border-radius: 7px; flex: 0 0 auto;
+  background: var(--accent); color: var(--accent-foreground);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.01em;
+}
+.topnav { display: flex; gap: 2px; flex-wrap: wrap; margin-left: auto; align-items: stretch; }
+.topnav a {
+  display: flex; align-items: center;
+  color: var(--muted-foreground); font-size: 14px; padding: 0 11px;
+  border-bottom: 2px solid transparent; text-decoration: none;
+}
+.topnav a:hover { color: var(--foreground); text-decoration: none; }
+.topnav a[aria-current="page"] {
+  color: var(--foreground); font-weight: 500; border-bottom-color: var(--primary);
+}
+/* The control that says the shortcut exists. Small, quiet, and to the right of
+ * everything, which is where this product puts it. */
+.topsearch {
+  align-self: center; height: 32px; padding: 0 10px; margin-left: 12px;
+  font-size: 13px; color: var(--muted-foreground); gap: 8px;
+}
+.topsearch kbd { margin-left: 2px; }
+@media (max-width: 760px) { .topsearch { display: none; } }
+
+/* Narrow: the nav takes a row of its own and scrolls sideways, rather than
+ * wrapping into a column beside the name and covering it. */
+@media (max-width: 860px) {
+  .topbar .wrap { gap: 0; }
+  .topnav {
+    margin-left: 0; width: 100%; flex-wrap: nowrap; overflow-x: auto;
+    border-top: 1px solid var(--border);
+  }
+  .topnav a { padding: 10px 12px; }
+}
+
+/* Visible the moment it is focused, invisible otherwise. */
+.skiplink {
+  position: absolute; left: -9999px; top: 0; z-index: 40;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 8px 12px; font-size: 14px; font-weight: 500;
+}
+.skiplink:focus { left: 12px; top: 12px; }
+
+/* --- Page header ---------------------------------------------------------- */
+
+.pagehead { display: flex; align-items: flex-start; gap: 20px; padding: 32px 0 20px; flex-wrap: wrap; }
+.pagehead > div:first-child { flex: 1 1 420px; min-width: 0; }
+.pagehead h1 { margin: 0 0 6px; font-size: 26px; font-weight: 700; letter-spacing: -0.021em; line-height: 1.2; }
+.pagehead p { margin: 0; color: var(--muted-foreground); font-size: 14px; max-width: 78ch; }
+.pagehead .actions { margin-left: auto; display: flex; gap: 8px; align-items: center; padding-top: 4px; }
+
+h2 { font-size: 14px; font-weight: 600; margin: 28px 0 10px; letter-spacing: -0.006em; }
+h3 { font-size: 14px; font-weight: 600; margin: 20px 0 8px; }
+
+kbd {
+  font-family: var(--mono); font-size: 11px; padding: 1px 5px;
+  border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px;
+  background: var(--muted); color: var(--muted-foreground);
+}
+
+/* --- One card surface ----------------------------------------------------- */
+
+.card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+.card.flat { box-shadow: none; }
+.card > .cardhead {
+  padding: 13px 18px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.card > .cardhead h2 { margin: 0; }
+.card > .body { padding: 18px; }
+
+/* --- A detail page: a narrative column and a rail of facts ---------------- */
+
+.detail { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+.detail-main { flex: 1 1 600px; min-width: 0; }
+.detail-side { flex: 1 1 300px; max-width: 360px; min-width: 0; }
+@media (max-width: 1000px) { .detail-side { max-width: none; flex-basis: 100%; } }
+
+/* Label and value, in two columns that stay lined up down the rail. */
+.facts { display: grid; grid-template-columns: minmax(88px, auto) 1fr; gap: 10px 16px; margin: 0; font-size: 13px; }
+.facts dt { color: var(--muted-foreground); }
+.facts dd { margin: 0; overflow-wrap: anywhere; }
+.facts dd .sub { margin-top: 2px; }
+
+/* --- Tables --------------------------------------------------------------- */
+
+.tablewrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+/* Sentence case, full contrast. Uppercase micro-type reads as a legend rather
+ * than as a heading, and the platform's own tables do not do it. */
+th {
+  text-align: left; font-weight: 500; font-size: 13px; color: var(--foreground);
+  padding: 11px 18px; border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+td { padding: 13px 18px; border-bottom: 1px solid var(--border); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+tbody tr:hover { background: color-mix(in srgb, var(--muted) 55%, transparent); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+/* A column holding one short fact that wraps into two lines doubles the height
+ * of every row in the table for nothing. */
+td.nowrap, th.nowrap { white-space: nowrap; }
+/* A row's controls belong at the end of the row, together. */
+.rowactions { justify-content: flex-end; }
+td:has(> .rowactions) { text-align: right; }
+td .sub { margin-top: 3px; }
+/* The row's own subject gets room before anything else takes it. */
+td:first-child, th:first-child { min-width: 190px; }
+
+/* Columns a table can afford to lose, in order — and the order is what the
+ * person is looking for. On a phone that is *the state*: whether the thing
+ * shipped. The subject and the state stay; everything else, the target
+ * included, is one horizontal scroll or one tap away. */
+@media (max-width: 900px) { .drop-lg { display: none; } }
+@media (max-width: 680px) { .drop-md { display: none; } }
+
+/* --- Chips ---------------------------------------------------------------- */
+
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; font-weight: 500; padding: 2px 9px; line-height: 18px;
+  border-radius: 999px; border: 1px solid transparent; white-space: nowrap;
+}
+/* A state and the note beside it belong on one line until the line runs out,
+ * not stacked because the cell was narrow. */
+.chipset { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.chip.ok        { background: var(--ok-surface);        color: var(--ok-text);        border-color: var(--ok-border); }
+.chip.attention { background: var(--attention-surface); color: var(--attention-text); border-color: var(--attention-border); }
+.chip.danger    { background: var(--danger-surface);    color: var(--danger-text);    border-color: var(--danger-border); }
+.chip.neutral   { background: var(--neutral-surface);   color: var(--neutral-text);   border-color: var(--neutral-border); }
+.chip.info      { background: var(--info-surface);      color: var(--info-text);      border-color: var(--info-border); }
+
+/* --- Notices: never a hand-built tinted block ----------------------------- */
+
+.notice {
+  border: 1px solid; border-radius: var(--radius); padding: 13px 15px;
+  margin: 0 0 16px; font-size: 14px;
+}
+.notice strong { display: block; font-weight: 600; margin-bottom: 3px; }
+.notice .detail { font-size: 13px; }
+.notice.ok        { background: var(--ok-surface);        color: var(--ok-text);        border-color: var(--ok-border); }
+.notice.attention { background: var(--attention-surface); color: var(--attention-text); border-color: var(--attention-border); }
+.notice.danger    { background: var(--danger-surface);    color: var(--danger-text);    border-color: var(--danger-border); }
+.notice.neutral   { background: var(--neutral-surface);   color: var(--neutral-text);   border-color: var(--neutral-border); }
+.notice.info      { background: var(--info-surface);      color: var(--info-text);      border-color: var(--info-border); }
+.notice a { color: inherit; text-decoration: underline; }
+
+/* --- Forms ---------------------------------------------------------------- */
+
+label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px; }
+.hint { font-size: 12px; color: var(--muted-foreground); margin-top: 6px; line-height: 1.5; }
+.req {
+  font-size: 11px; font-weight: 500; color: var(--attention-text);
+  background: var(--attention-surface); border: 1px solid var(--attention-border);
+  border-radius: 999px; padding: 0 7px; margin-left: 6px; vertical-align: 1px;
+}
+/* Every text-ish input, including the ones with no `type` attribute at all —
+ * an attribute selector does not match a bare <input>, which is how half the
+ * fields on a page end up a different width from the other half. */
+input:not([type=checkbox]):not([type=radio]):not([type=submit]), select, textarea {
+  width: 100%; padding: 8px 11px; font: inherit; font-size: 14px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--card);
+  color: var(--foreground); box-shadow: 0 1px 1px 0 rgb(10 10 10 / 0.03);
+}
+input::placeholder, textarea::placeholder { color: var(--muted-foreground); opacity: 0.8; }
+textarea { min-height: 96px; resize: vertical; }
+input:not([type=checkbox]):not([type=radio]):focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ring) 45%, transparent);
+  outline-offset: 0; border-color: var(--primary);
+}
+input[type=checkbox], input[type=radio] { accent-color: var(--primary); width: 15px; height: 15px; }
+/* A file input is the one control a browser draws from scratch, and left alone
+ * it is the only 1998 thing on the page. */
+input[type=file] { padding: 6px 10px; }
+input[type=file]::file-selector-button {
+  font: inherit; font-size: 13px; font-weight: 500; margin-right: 10px;
+  padding: 4px 10px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--card); color: var(--foreground); cursor: pointer;
+}
+input[type=file]::file-selector-button:hover { background: var(--muted); }
+.field { margin-bottom: 16px; }
+.field:last-child { margin-bottom: 0; }
+.row:last-child > .field { margin-bottom: 0; }
+.row { display: flex; gap: 14px; flex-wrap: wrap; }
+.row > .field { flex: 1 1 220px; }
+
+button, .btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  font: inherit; font-size: 14px; font-weight: 500; padding: 0 14px; height: 36px;
+  border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--card);
+  color: var(--foreground); cursor: pointer; white-space: nowrap;
+  box-shadow: var(--shadow-card);
+}
+button:hover, .btn:hover { background: var(--muted); text-decoration: none; }
+button.primary, .btn.primary {
+  background: var(--primary); border-color: var(--primary); color: var(--primary-foreground);
+}
+button.primary:hover, .btn.primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+button.danger { border-color: var(--danger-border); color: var(--danger-text); background: var(--danger-surface); }
+button.danger:hover { background: color-mix(in srgb, var(--danger-surface) 70%, var(--danger-border)); }
+button.small, .btn.small { height: 30px; padding: 0 10px; font-size: 13px; }
+button.ghost, .btn.ghost { border-color: transparent; background: transparent; box-shadow: none; }
+button.ghost:hover, .btn.ghost:hover { background: var(--muted); }
+button[disabled] { opacity: .55; cursor: not-allowed; }
+
+/* --- Small print, mono, meta --------------------------------------------- */
+
+.mono { font-family: var(--mono); font-size: 13px; }
+.muted { color: var(--muted-foreground); }
+.small { font-size: 13px; }
+.xs { font-size: 12px; }
+/* The floor. Nothing in this app is set smaller. */
+.xxs { font-size: 11px; }
+.stack > * + * { margin-top: 16px; }
+.inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.spread { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sep { color: var(--border); }
+
+/* --- Empty and error states ---------------------------------------------- */
+
+.empty { text-align: center; padding: 48px 24px; }
+.empty h3 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+.empty p { margin: 0 auto 16px; max-width: 56ch; color: var(--muted-foreground); font-size: 14px; }
+.empty p:last-child { margin-bottom: 0; }
+
+/* --- Filter bar: the primary axis, with counts --------------------------- */
+
+.filterbar {
+  display: flex; gap: 4px; border-bottom: 1px solid var(--border);
+  margin-bottom: 16px; overflow-x: auto;
+}
+.filterbar a {
+  padding: 10px 12px; font-size: 14px; color: var(--muted-foreground);
+  border-bottom: 2px solid transparent; text-decoration: none; white-space: nowrap;
+}
+.filterbar a:hover { color: var(--foreground); text-decoration: none; }
+.filterbar a[aria-current="page"] { color: var(--foreground); font-weight: 500; border-bottom-color: var(--primary); }
+.filterbar .count { color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+
+/* --- The event ledger ----------------------------------------------------- */
+
+.events { list-style: none; margin: 0; padding: 0; font-size: 14px; }
+.events li { display: flex; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.events li:last-child { border-bottom: 0; }
+.events time { color: var(--muted-foreground); font-size: 12px; white-space: nowrap; min-width: 136px; }
+/* A build log's line breaks are the log. Collapsing them turns a stack of
+ * steps into a paragraph, which is exactly the shape nobody can read at the
+ * moment they most need to. */
+.events .detail { white-space: pre-wrap; word-break: break-word; }
+
+/* --- Attachments ---------------------------------------------------------- */
+
+.attachments { list-style: none; margin: 0; padding: 0; }
+.attachments li { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.attachments li:last-child { border-bottom: 0; }
+.attachments .name { font-weight: 500; }
+object.pdf { width: 100%; height: 560px; border: 1px solid var(--border); border-radius: var(--radius); }
+
+/* --- Waiting states. A request spends its life waiting for a person, a clock
+ *     or a build on another install; those are three different sentences and
+ *     none of them is a spinner. ------------------------------------------- */
+
+.waiting { display: flex; gap: 12px; align-items: flex-start; }
+.waiting > .chip { flex: 0 0 auto; margin-top: 1px; }
+.lastlooked { font-size: 12px; color: var(--muted-foreground); }
+
+/* htmx swaps a region; the region says so rather than the page doing it. */
+.htmx-request .swapping { opacity: .55; transition: opacity 120ms linear; }
+
+/* --- Command palette ------------------------------------------------------ */
+
+dialog.palette {
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 0;
+  width: min(560px, 92vw); box-shadow: var(--shadow-pop);
+}
+dialog.palette::backdrop { background: rgb(10 10 10 / 0.32); }
+dialog.palette input { border: 0; border-bottom: 1px solid var(--border); border-radius: 0; padding: 14px 16px; font-size: 15px; box-shadow: none; }
+dialog.palette input:focus-visible { outline: none; }
+.palette-results { max-height: 340px; overflow-y: auto; }
+.palette-results a { display: block; padding: 10px 16px; color: var(--foreground); border-bottom: 1px solid var(--border); }
+.palette-results a:last-child { border-bottom: 0; }
+.palette-results a:hover, .palette-results a:focus { background: var(--muted); text-decoration: none; outline: none; }
+
+/* Keyboard-first, never keyboard-only: every shortcut has a control beside it,
+ * and this is only the focus affordance for j/k. */
+tr[data-row].kbfocus { background: var(--accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

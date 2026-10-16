@@ -1,0 +1,9 @@
+{{/* Never a hand-built tinted block, and never colour as the only carrier: the
+     tone is a class and the title is words. */}}
+{{define "_notice"}}
+<div class="notice {{.Tone}}" role="note">
+  {{if .Title}}<strong>{{.Title}}</strong>{{end}}
+  {{.Body}}
+  {{if .Action}}<div style="margin-top:8px">{{.Action}}</div>{{end}}
+</div>
+{{end}}

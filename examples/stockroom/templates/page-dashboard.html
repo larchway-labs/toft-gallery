@@ -1,0 +1,126 @@
+{{ define "content" }}
+{{ $d := .Data }}
+
+<section class="hero">
+  <div class="hero-head">
+    <h1>The room, right now</h1>
+    <p>{{ $d.Stats.Items }} lines standing across five aisles, {{ $d.Stats.Units }} units counted,
+       {{ money $d.Stats.ValueCents }} at cost.</p>
+  </div>
+  {{ template "band" $d.Stats }}
+</section>
+
+<section class="tiles">
+  <a class="tile" href="{{ url "/inventory" }}">
+    <span class="tile-value">{{ $d.Stats.Items }}</span>
+    <span class="tile-label">lines on the shelf</span>
+  </a>
+  <a class="tile{{ if gt $d.Stats.Low 0 }} tile-flag{{ end }}" href="{{ query "/inventory" "state" "low" }}">
+    <span class="tile-value">{{ $d.Stats.Low }}</span>
+    <span class="tile-label">at the reorder point</span>
+  </a>
+  <a class="tile{{ if gt $d.Stats.Out 0 }} tile-flag{{ end }}" href="{{ query "/inventory" "state" "out" }}">
+    <span class="tile-value">{{ $d.Stats.Out }}</span>
+    <span class="tile-label">out of stock</span>
+  </a>
+  <a class="tile" href="{{ query "/inventory" "state" "on_order" }}">
+    <span class="tile-value">{{ $d.Stats.OnOrder }}</span>
+    <span class="tile-label">on order</span>
+  </a>
+  <a class="tile" href="{{ url "/movements" }}">
+    <span class="tile-value">{{ $d.Stats.MovedWeek }}</span>
+    <span class="tile-label">movements this week</span>
+  </a>
+</section>
+
+{{/* The order list gets the full width. It is the one table on this page
+     somebody acts on, and squeezed into half a row every item name wrapped
+     onto three lines — which is how a list that is meant to be scanned in ten
+     seconds becomes one nobody reads. */}}
+  <section class="card">
+    <header class="card-head">
+      <h2>To order</h2>
+      <a class="card-more" href="{{ url "/reports?report=low_stock" }}">Send this list →</a>
+    </header>
+
+    {{ if $d.Low }}
+    <table class="grid">
+      <thead>
+        <tr>
+          <th>SKU</th><th>Item</th><th>Bin</th><th>Supplier</th>
+          <th class="num">On hand</th><th class="num">Reorder at</th><th class="num">Short by</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range $d.Low }}
+        <tr>
+          <td class="mono">{{ .SKU }}</td>
+          <td class="cell-name">
+            <span class="cat-mark" style="--c:{{ catColor .Category }}" title="{{ .Category }}"></span>
+            <a href="{{ url (printf "/inventory/%d" .ID) }}">{{ .Name }}</a>
+          </td>
+          <td>{{ template "bin" .Bin }}</td>
+          <td class="muted">{{ .Supplier }}</td>
+          <td class="num {{ if eq .State "out" }}num-bad{{ else }}num-warn{{ end }}">{{ .Quantity }}</td>
+          <td class="num muted">{{ .ReorderPoint }}</td>
+          <td class="num">{{ sub .ReorderPoint .Quantity }}</td>
+          <td class="num">
+            <form method="post" action="{{ url (printf "/inventory/%d/move" .ID) }}" class="inline-form">
+              <input type="hidden" name="qty" value="{{ .ReorderPoint }}">
+              <input type="hidden" name="back" value="{{ url "/" }}">
+              <button class="btn btn-sm" type="submit">Receive {{ .ReorderPoint }}</button>
+            </form>
+          </td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+    {{ else }}
+      {{ template "empty" dict
+         "Head" "Nothing needs ordering."
+         "Body" "Every line is above its reorder point. The Reports tab can still send the full register."
+         "Href" (url "/reports") "Action" "Open reports" }}
+    {{ end }}
+  </section>
+
+<div class="split">
+
+  <section class="card">
+    <header class="card-head"><h2>Last movements</h2>
+      <a class="card-more" href="{{ url "/movements" }}">All →</a>
+    </header>
+    <ul class="feed">
+      {{ range $d.Movements }}
+      <li>
+        <span class="feed-qty {{ if lt .Qty 0 }}feed-out{{ else }}feed-in{{ end }}">{{ signed .Qty }}</span>
+        <span class="feed-body">
+          <a href="{{ url (printf "/inventory/%d" .ItemID) }}">{{ .ItemName }}</a>
+          <span class="feed-meta">{{ .Kind }} · {{ .Actor }} · {{ relTime .At }}</span>
+        </span>
+      </li>
+      {{ else }}
+      <li class="feed-none">Nothing has moved yet.</li>
+      {{ end }}
+    </ul>
+  </section>
+
+  <section class="card">
+    <header class="card-head"><h2>What changed in the register</h2>
+      <a class="card-more" href="{{ url "/activity" }}">Full activity →</a>
+    </header>
+    <ul class="feed feed-flat">
+      {{ range $d.Activity }}
+      <li>
+        <span class="feed-body">
+          <b>{{ .Actor }}</b> {{ .Action }} — {{ .Subject }}
+          {{ if .Detail }}<span class="feed-meta">{{ .Detail }}</span>{{ end }}
+        </span>
+        <span class="feed-when">{{ relTime .At }}</span>
+      </li>
+      {{ end }}
+    </ul>
+  </section>
+
+</div>
+
+{{ end }}

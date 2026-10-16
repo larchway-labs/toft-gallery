@@ -1,0 +1,81 @@
+/* Support review — the layer between nbconvert's `lab` template and the house
+ * style. `toft-kit.css` is loaded first and is byte-identical in every
+ * example in the Toft gallery. This file never redefines a kit token.
+ */
+
+body, .jp-Notebook {
+  background: var(--lp-paper); color: var(--lp-ink);
+  font-family: var(--lp-sans); font-size: 15px; line-height: 1.62;
+}
+.jp-Notebook { max-width: 68rem; margin: 0 auto; padding: 0 var(--lp-gutter) 3rem; }
+.jp-Cell { padding: 0; margin-bottom: .5rem; }
+.jp-Cell-inputWrapper, .jp-Cell-outputWrapper { padding: 0; }
+.jp-InputPrompt, .jp-OutputPrompt { display: none; }
+
+/* Headings. A markdown cell's h1 is a section here; the masthead is the page. */
+.jp-RenderedMarkdown h1 {
+  font-size: 1.5rem; font-weight: 640; letter-spacing: -.021em;
+  margin: 2.5rem 0 .5rem; padding-bottom: .5rem; border-bottom: 1px solid var(--lp-rule);
+}
+.jp-RenderedMarkdown h2 { font-size: 1.125rem; font-weight: 620; letter-spacing: -.014em; margin: 2rem 0 .5rem; }
+.jp-RenderedMarkdown h3 { font-size: .9375rem; font-weight: 620; margin: 1.5rem 0 .4rem; }
+.jp-RenderedMarkdown p, .jp-RenderedMarkdown li { color: var(--lp-ink-2); max-width: 74ch; }
+.jp-RenderedMarkdown strong { color: var(--lp-ink); }
+.jp-RenderedMarkdown code {
+  background: var(--lp-sunk); border-radius: 4px; padding: .1em .32em;
+  font-size: .875em; color: var(--lp-ink);
+}
+.jp-RenderedMarkdown hr { border: 0; border-top: 1px solid var(--lp-rule); margin: 2.5rem 0; }
+
+/* The code, which stays visible.
+ *
+ * nbconvert's `lab` template does not honour `jupyter.source_hidden`, and
+ * Toft runs that template on purpose: it is what File → Export as HTML
+ * produces, so the deployed page matches the one the author already looked at.
+ * A notebook app therefore *shows its working*, and the right response is to
+ * make the code pleasant to read rather than to fight the template. */
+.jp-CodeCell .jp-InputArea { background: none; border: 0; }
+.jp-CodeCell .jp-Editor, .jp-InputArea-editor, .highlight pre, .jp-RenderedText pre {
+  background: #14161C; border: 0; border-radius: var(--lp-r-sm);
+  padding: .75rem .875rem; overflow-x: auto;
+}
+.jp-CodeCell .cm-editor, .jp-CodeMirrorEditor { background: #14161C; }
+.jp-InputArea-editor .cm-content, .highlight pre, .highlight pre * {
+  font: 400 .8125rem/1.6 var(--lp-mono) !important;
+  color: #D6D9E3;
+}
+
+/* A pandas table. */
+.jp-RenderedHTMLCommon table, table.dataframe {
+  width: 100%; border-collapse: collapse; font-size: .875rem;
+  background: var(--lp-card); border: 1px solid var(--lp-rule);
+  border-radius: var(--lp-r); overflow: hidden; margin: 1rem 0 1.5rem;
+}
+table.dataframe th, table.dataframe td,
+.jp-RenderedHTMLCommon th, .jp-RenderedHTMLCommon td {
+  padding: .5rem .75rem; border: 0; border-bottom: 1px solid var(--lp-rule-2);
+  text-align: left; vertical-align: top;
+}
+table.dataframe thead th, .jp-RenderedHTMLCommon thead th {
+  font: 600 .6875rem/1.4 var(--lp-sans); letter-spacing: .07em; text-transform: uppercase;
+  color: var(--lp-ink-3); background: var(--lp-paper);
+  border-bottom: 1px solid var(--lp-rule); white-space: nowrap;
+}
+table.dataframe tbody tr:last-child td { border-bottom: 0; }
+table.dataframe tbody tr:hover { background: var(--lp-paper); }
+table.dataframe td:not(:first-child) { font-variant-numeric: tabular-nums; }
+
+/* A figure, and the text a cell printed. */
+.jp-RenderedImage img {
+  border: 1px solid var(--lp-rule); border-radius: var(--lp-r);
+  background: #fff; padding: .5rem;
+}
+.jp-OutputArea-output.jp-RenderedText pre {
+  background: var(--lp-sunk); border: 1px solid var(--lp-rule);
+  color: var(--lp-ink-2); font-size: .8125rem;
+}
+
+/* The masthead the first cell emits. */
+.lp-block { margin: 0 0 1.75rem; }
+.lp-block .masthead { border-radius: var(--lp-r) var(--lp-r) 0 0; }
+.lp-block .rail { border-radius: 0 0 var(--lp-r) var(--lp-r); }

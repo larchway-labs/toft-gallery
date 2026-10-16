@@ -1,0 +1,5 @@
+# What this notebook imports. Nothing here is the renderer: Toft installs
+# nbconvert and ipykernel itself, because the engine is the platform's business
+# and not the report's.
+pandas>=2.0
+matplotlib>=3.8

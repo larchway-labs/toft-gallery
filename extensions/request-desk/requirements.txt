@@ -1,0 +1,12 @@
+# fastapi is what Toft's detector looks for: it starts the app with
+# `uvicorn main:app --root-path /apps/{slug}`.
+#
+# python-multipart is not optional here — every page posts a form, and FastAPI
+# refuses to bind a `Form(...)` parameter without it.
+#
+# There is deliberately nothing else. SQLite is the standard library's
+# `sqlite3`, and the Toft SDK is installed into the app by the build —
+# an app never declares it.
+fastapi>=0.110,<1.0
+uvicorn>=0.27
+python-multipart>=0.0.9

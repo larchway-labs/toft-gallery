@@ -1,0 +1,182 @@
+/* Service Review — the layer between Quarto's own HTML and the house style.
+ *
+ * Quarto renders into a Bootstrap document, so this file does two things and no
+ * more: it hands the page the kit's paper and type, and it restyles the four
+ * Quarto-specific structures the kit knows nothing about — the title block, the
+ * left contents rail, callouts, and folded code.
+ *
+ * It never redefines a kit token. That is the rule for every example's own
+ * stylesheet in this gallery.
+ */
+
+body {
+  background: var(--lp-paper);
+  color: var(--lp-ink);
+  font-family: var(--lp-sans);
+  font-size: 15px;
+  line-height: 1.62;
+}
+
+/* ── the title block ───────────────────────────────────────────────────────
+   Suppressed: the masthead below it says the same thing in the gallery's own
+   voice, and two headings arguing about which is the title is worse than one. */
+#title-block-header { display: none; }
+
+/* ── the contents rail ─────────────────────────────────────────────────── */
+
+#TOC, nav[role="doc-toc"] {
+  font-size: .8125rem;
+  border-left: 1px solid var(--lp-rule);
+  padding-left: 1rem;
+}
+#TOC > h2, nav[role="doc-toc"] > h2 {
+  font: 620 .6875rem/1.4 var(--lp-sans);
+  letter-spacing: .1em; text-transform: uppercase; color: var(--lp-ink-3);
+  margin-bottom: .6rem;
+}
+nav[role="doc-toc"] ul { padding-left: 0; list-style: none; }
+nav[role="doc-toc"] ul ul { padding-left: .75rem; }
+nav[role="doc-toc"] a {
+  color: var(--lp-ink-2); text-decoration: none;
+  display: block; padding: .18rem 0;
+}
+nav[role="doc-toc"] a:hover { color: var(--lp-primary); }
+nav[role="doc-toc"] a.active { color: var(--lp-primary); font-weight: 600; }
+
+/* ── headings ──────────────────────────────────────────────────────────── */
+
+h1, .h1 { font-size: 1.5rem;   font-weight: 640; letter-spacing: -.021em; margin-top: 2.5rem; }
+h2, .h2 { font-size: 1.125rem; font-weight: 620; letter-spacing: -.014em; margin-top: 2rem; }
+h3, .h3 { font-size: .9375rem; font-weight: 620; margin-top: 1.5rem; }
+h1 { padding-bottom: .5rem; border-bottom: 1px solid var(--lp-rule); }
+.lp-block h1, .lp-block h2, .lp-block h3 { margin-top: 0; border: 0; padding: 0; }
+.header-section-number { color: var(--lp-ink-3); font-weight: 500; margin-right: .4rem; }
+
+/* ── tables: knitr::kable emits a plain <table>, so the kit's rules are
+      applied by name here rather than by adding a class to every chunk ──── */
+
+main table, .table {
+  width: 100%; border-collapse: collapse; font-size: .875rem;
+  background: var(--lp-card); border: 1px solid var(--lp-rule);
+  border-radius: var(--lp-r); overflow: hidden;
+}
+main table th, main table td {
+  padding: .5rem .75rem; border-bottom: 1px solid var(--lp-rule-2);
+  text-align: left; vertical-align: top;
+}
+main table thead th {
+  font: 600 .6875rem/1.4 var(--lp-sans); letter-spacing: .07em;
+  text-transform: uppercase; color: var(--lp-ink-3);
+  background: var(--lp-paper); border-bottom: 1px solid var(--lp-rule);
+  white-space: nowrap;
+}
+main table tbody tr:last-child td { border-bottom: 0; }
+main table tbody tr:hover { background: var(--lp-paper); }
+main table td:not(:first-child) { font-variant-numeric: tabular-nums; }
+
+caption, .quarto-float-caption, figcaption {
+  color: var(--lp-ink-2); font-size: .8125rem; text-align: left;
+  padding: .5rem 0; caption-side: top;
+}
+
+/* ── callouts ──────────────────────────────────────────────────────────── */
+
+.callout {
+  border: 1px solid var(--lp-rule); border-left: 3px solid var(--lp-ink-3);
+  border-radius: var(--lp-r-sm); background: var(--lp-card);
+  margin: 1.25rem 0; padding: 0;
+}
+.callout .callout-header, .callout-title-container, .callout-caption {
+  font-weight: 620; font-size: .9375rem; padding: .625rem .875rem .25rem;
+}
+.callout .callout-body, .callout-body-container { padding: 0 .875rem .75rem; font-size: .9375rem; }
+.callout-note      { border-left-color: var(--lp-info-solid); background: var(--lp-info-sur); border-color: var(--lp-info-brd); }
+.callout-tip       { border-left-color: var(--lp-ok-solid);   background: var(--lp-ok-sur);   border-color: var(--lp-ok-brd); }
+.callout-important { border-left-color: var(--lp-dan-solid);  background: var(--lp-dan-sur);  border-color: var(--lp-dan-brd); }
+.callout-warning   { border-left-color: var(--lp-att-solid);  background: var(--lp-att-sur);  border-color: var(--lp-att-brd); }
+.callout .callout-icon-container, .callout i.callout-icon { display: none; }
+
+/* ── folded code ───────────────────────────────────────────────────────── */
+
+details.code-fold > summary, .code-fold summary {
+  font: 560 .75rem/1.4 var(--lp-sans); color: var(--lp-ink-3);
+  cursor: pointer; padding: .3rem 0; list-style: none;
+}
+details.code-fold > summary::before { content: "▸ "; }
+details.code-fold[open] > summary::before { content: "▾ "; }
+div.sourceCode {
+  background: #14161C; border-radius: var(--lp-r-sm);
+  padding: .75rem .875rem; overflow-x: auto; margin: .5rem 0 1rem;
+}
+div.sourceCode pre, div.sourceCode code {
+  background: none; color: #D6D9E3;
+  font: 400 .8125rem/1.6 var(--lp-mono);
+}
+pre.sourceCode code > span > a:first-child::before { display: none; }
+code:not(.sourceCode) {
+  background: var(--lp-sunk); border-radius: 4px; padding: .1em .32em;
+  font-size: .875em; color: var(--lp-ink);
+}
+pre > code.cell-code { color: #D6D9E3; }
+.cell-output pre {
+  background: var(--lp-sunk); border: 1px solid var(--lp-rule);
+  border-radius: var(--lp-r-sm); padding: .625rem .75rem;
+  font: 400 .8125rem/1.55 var(--lp-mono); color: var(--lp-ink-2);
+  overflow-x: auto;
+}
+
+/* ── tabsets ───────────────────────────────────────────────────────────── */
+
+.panel-tabset > .nav-tabs {
+  border-bottom: 1px solid var(--lp-rule); gap: .25rem; padding: 0;
+  list-style: none; display: flex; margin: 1rem 0 0;
+}
+.panel-tabset > .nav-tabs .nav-link {
+  border: 0; border-bottom: 2px solid transparent; background: none;
+  padding: .625rem .75rem; font: 560 .875rem/1 var(--lp-sans);
+  color: var(--lp-ink-2); border-radius: 0; margin-bottom: -1px;
+}
+.panel-tabset > .nav-tabs .nav-link.active {
+  color: var(--lp-primary); border-bottom-color: var(--lp-primary); font-weight: 620;
+}
+.panel-tabset .tab-content { padding-top: 1rem; }
+
+/* ── the masthead block, which is the kit's and needs room ─────────────── */
+
+.lp-block { margin-bottom: 1.75rem; }
+.lp-block .masthead { border-radius: var(--lp-r) var(--lp-r) 0 0; }
+.lp-block .rail { border-radius: 0 0 var(--lp-r) var(--lp-r); }
+.lp-block .tiles { margin-bottom: 0; }
+
+figure, .quarto-figure { margin: 1rem 0 1.5rem; }
+figure svg, .cell-output-display svg { max-width: 100%; height: auto; }
+
+a { color: var(--lp-primary); }
+hr { border: 0; border-top: 1px solid var(--lp-rule); margin: 2rem 0; }
+
+/* ── two accommodations for a document column ──────────────────────────────
+   The kit sizes its tiles for an application shell about 1180px wide. Quarto
+   gives a report a reading column, which is the right call for prose and wrong
+   for a row of four numbers, so the tiles are told to fit the narrower box
+   rather than the page being widened to suit them. */
+
+.lp-block .tiles {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+}
+.lp-block .cards {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+}
+
+/* A little more room than Quarto's default: these tables are nine columns wide
+   and the alternative to the width is a horizontal scrollbar on a report. */
+main.content, #quarto-document-content { max-width: 62rem; }
+
+/* The one collision between the kit and Bootstrap, named rather than left to be
+   discovered: `.row` is a flex utility in the kit and a grid row in Bootstrap.
+   Quarto is Bootstrap 5, whose row is flex too, so only the kit's extra
+   properties are wrong here — a gap and a vertical centring that Bootstrap's
+   gutters and alignment classes are supposed to own. */
+.quarto-container .row, .page-columns .row, main .row {
+  gap: 0;
+  align-items: initial;
+}

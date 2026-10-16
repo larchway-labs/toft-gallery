@@ -1,0 +1,16 @@
+{{/* ⌘K rather than a deeper nav. A five-page app that grows a nav tree instead
+     has chosen the wrong decade — and here it is an endpoint returning a
+     fragment rather than a client-side dependency. */}}
+{{define "_palette"}}
+<dialog class="palette" id="palette" aria-label="Search">
+  <form method="dialog"><input type="search" name="q" placeholder="Find a request, an app or a target…"
+      hx-get="{{url "/palette"}}" hx-trigger="keyup changed delay:180ms, search"
+      hx-target="#palette-results" autocomplete="off" aria-label="Search"></form>
+  <div class="palette-results" id="palette-results">
+    <a href="{{url "/requests/new"}}">Raise a migration request</a>
+    <a href="{{url "/?tab=review"}}">Awaiting my review</a>
+    <a href="{{url "/?tab=behind"}}">Links that are behind</a>
+    <a href="{{url "/health"}}">What this install still needs</a>
+  </div>
+</dialog>
+{{end}}

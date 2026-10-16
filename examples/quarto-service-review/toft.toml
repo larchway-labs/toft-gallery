@@ -1,0 +1,19 @@
+[app]
+name = "Service Review"
+
+# `file` settles which document is the app. The *engine* is deliberately not
+# declared here.
+#
+# `[notebook] engine` names the renderer, and its two values are "nbconvert" and
+# "quarto" — `knitr` is Quarto's own engine, a different axis, and writing it
+# here fails the deploy with "which is not an engine". Quarto is already implied
+# by the `.qmd` extension, so the key would add nothing.
+#
+# What makes this document R rather than Python is read from the document
+# itself, and this one answers twice over: `engine: knitr` in the YAML header,
+# and `{r}` chunks throughout. Either alone is enough.
+[notebook]
+file = "report.qmd"
+
+[runtime]
+r = ">=4.4"

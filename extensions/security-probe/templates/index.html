@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Security Probe</title>
+<link rel="icon" href="{{ base_path }}/static/favicon.svg">
+<link rel="stylesheet" href="{{ base_path }}/static/toft-kit.css">
+</head>
+<body>
+<header class="masthead">
+  <div class="masthead-in">
+    <div class="wordmark">Toft</div>
+    <h1>Security Probe</h1>
+    <p class="standfirst">
+      What this app can and cannot reach, measured from inside its own per-app
+      account. Every check carries the answer it <em>should</em> get, so a red
+      result is a finding and an amber one is an accepted, documented trade of
+      shared mode.
+    </p>
+    <span class="chip">running as {{ identity.user }} · uid {{ identity.uid }}</span>
+  </div>
+</header>
+
+<main class="shell">
+
+  <section class="tiles" id="summary">
+    <div class="tile"><div class="tile-n" id="n-pass">—</div><div class="tile-l">isolation held</div></div>
+    <div class="tile"><div class="tile-n" id="n-warn">—</div><div class="tile-l">accepted risk</div></div>
+    <div class="tile"><div class="tile-n" id="n-fail">—</div><div class="tile-l">findings</div></div>
+    <div class="tile"><div class="tile-n">{{ checks|length }}</div><div class="tile-l">checks</div></div>
+  </section>
+
+  <div class="note">
+    <button class="btn btn-primary" id="run-all">Run every check</button>
+    <span id="run-all-status" class="muted" style="margin-left:.75rem"></span>
+  </div>
+
+  {% for cat in categories %}
+  <section class="card">
+    <div class="card-hd">{{ cat }}</div>
+    <table class="tbl">
+      <thead>
+        <tr><th style="width:34%">Check</th><th style="width:12%">Status</th><th>What it means</th><th style="width:1%"></th></tr>
+      </thead>
+      <tbody>
+      {% for c in checks if c.category == cat %}
+        <tr id="row-{{ c.id }}" data-id="{{ c.id }}">
+          <td>
+            <div class="row-title">{{ c.title }}</div>
+            <div class="row-q muted">{{ c.question }}</div>
+          </td>
+          <td><span class="badge tone-muted" id="badge-{{ c.id }}">not run</span></td>
+          <td>
+            <div class="row-headline" id="head-{{ c.id }}">
+              <span class="muted">Expected: {{ c.expectation }}</span>
+            </div>
+            <details class="row-detail" id="detail-{{ c.id }}" hidden>
+              <summary>evidence</summary>
+              <pre class="ev" id="ev-{{ c.id }}"></pre>
+            </details>
+          </td>
+          <td><button class="btn" data-run="{{ c.id }}">Run</button></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endfor %}
+
+  <footer class="foot">
+    Security Probe · Python {{ python }} · a Toft gallery extension.
+    Read-only: it writes nothing and persists nothing.
+  </footer>
+</main>
+
+<style>
+  .row-title{font-weight:600}
+  .row-q{font-size:.85rem;margin-top:.15rem}
+  .row-headline{font-size:.9rem}
+  .ev{background:var(--lp-sunk);padding:.6rem .75rem;border-radius:8px;overflow:auto;font-size:.8rem;max-height:22rem;white-space:pre-wrap;word-break:break-word}
+  details.row-detail{margin-top:.4rem}
+  details.row-detail summary{cursor:pointer;color:var(--lp-ink-2);font-size:.82rem}
+  tr.busy{opacity:.55}
+  .badge.pulse{animation:pulse 1s infinite}
+  @keyframes pulse{50%{opacity:.4}}
+</style>
+
+<script>
+const BASE = {{ base_path|tojson }};
+const TONE = {pass:"tone-ok", warn:"tone-warn", fail:"tone-bad", info:"tone-muted"};
+const LABEL = {pass:"pass", warn:"accepted", fail:"FINDING", info:"info"};
+
+function apply(res){
+  const badge = document.getElementById("badge-" + res.id);
+  badge.className = "badge " + (TONE[res.verdict] || "tone-muted");
+  badge.textContent = LABEL[res.verdict] || res.verdict;
+  const head = document.getElementById("head-" + res.id);
+  head.textContent = res.headline + (res.detail ? " — " + res.detail : "");
+  const ev = document.getElementById("ev-" + res.id);
+  const det = document.getElementById("detail-" + res.id);
+  if (res.evidence && Object.keys(res.evidence).length){
+    ev.textContent = JSON.stringify(res.evidence, null, 2);
+    det.hidden = false;
+  } else { det.hidden = true; }
+  document.getElementById("row-" + res.id).classList.remove("busy");
+}
+
+function tally(){
+  const counts = {pass:0, warn:0, fail:0};
+  document.querySelectorAll("[id^=badge-]").forEach(b=>{
+    if (b.classList.contains("tone-ok")) counts.pass++;
+    else if (b.classList.contains("tone-warn")) counts.warn++;
+    else if (b.classList.contains("tone-bad")) counts.fail++;
+  });
+  document.getElementById("n-pass").textContent = counts.pass;
+  document.getElementById("n-warn").textContent = counts.warn;
+  document.getElementById("n-fail").textContent = counts.fail;
+}
+
+async function runOne(id){
+  const row = document.getElementById("row-" + id);
+  const badge = document.getElementById("badge-" + id);
+  row.classList.add("busy");
+  badge.className = "badge tone-muted pulse"; badge.textContent = "running";
+  try{
+    const r = await fetch(BASE + "/api/run/" + id, {method:"POST"});
+    apply(await r.json());
+  }catch(e){
+    badge.className = "badge tone-bad"; badge.textContent = "error";
+    document.getElementById("head-" + id).textContent = String(e);
+    row.classList.remove("busy");
+  }
+  tally();
+}
+
+document.querySelectorAll("[data-run]").forEach(b=>{
+  b.addEventListener("click", ()=>runOne(b.getAttribute("data-run")));
+});
+
+document.getElementById("run-all").addEventListener("click", async ()=>{
+  const btn = document.getElementById("run-all");
+  const status = document.getElementById("run-all-status");
+  btn.disabled = true; status.textContent = "running all checks…";
+  document.querySelectorAll("[data-id]").forEach(r=>{
+    const id = r.getAttribute("data-id");
+    const badge = document.getElementById("badge-" + id);
+    badge.className = "badge tone-muted pulse"; badge.textContent = "running";
+    r.classList.add("busy");
+  });
+  try{
+    const r = await fetch(BASE + "/api/run-all");
+    (await r.json()).forEach(apply);
+    const f = Number(document.getElementById("n-fail").textContent);
+  }catch(e){ status.textContent = "error: " + e; }
+  tally();
+  const fails = document.getElementById("n-fail").textContent;
+  status.textContent = fails === "0"
+    ? "done — no findings; isolation held everywhere it should."
+    : "done — " + fails + " finding(s) need attention.";
+  btn.disabled = false;
+});
+</script>
+</body>
+</html>

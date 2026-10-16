@@ -1,0 +1,11 @@
+.Rproj.user/
+.Rhistory
+renv/library/
+renv/staging/
+toft-render/
+report_files/
+report.html
+*_cache/
+
+/.quarto/
+**/*.quarto_ipynb

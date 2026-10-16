@@ -1,0 +1,28 @@
+/* Reconcile — the one thing this app adds to the house style.
+ *
+ * The rule is that an app-specific stylesheet may *add* classes and may never
+ * redefine the kit's tokens. This one adds two things: a wider first column on
+ * the "what did not match" bars, and a monospaced money column that lines up
+ * decimal points down the table, which is the only thing an accountant will
+ * actually ask for.
+ */
+
+.tbl td.mono { font-variant-numeric: tabular-nums; }
+
+/* The exception table is the densest thing in the app; give it a little more
+   room than the kit's default and let the reference column shrink first. */
+#exceptions td, #exceptions th { padding-top: .5rem; padding-bottom: .5rem; }
+/* A reference and a date are things people read character by character and type
+   back somewhere else. Wrapping either one costs more than the width it saves. */
+#exceptions td:nth-child(2),
+#exceptions td:nth-child(4) { white-space: nowrap; }
+#exceptions td:nth-child(3) { min-width: 12rem; }
+
+/* A decided row is still readable — dimmed, never hidden. Somebody has to be
+   able to see what they just did to it. */
+#exceptions tr[style*="opacity"] .badge { filter: none; }
+
+@media (max-width: 760px) {
+  .masthead-in { grid-template-columns: 1fr; }
+  .masthead-aside { align-items: flex-start; }
+}

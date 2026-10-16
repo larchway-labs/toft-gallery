@@ -1,0 +1,179 @@
+{{ define "content" }}
+{{ $d := .Data }}
+{{ $it := $d.Item }}
+
+<p class="crumb"><a href="{{ url "/inventory" }}">← Inventory</a></p>
+
+<div class="page-head">
+  <div>
+    <h1>{{ if $d.IsNew }}New item{{ else }}{{ $it.Name }}{{ end }}</h1>
+    {{ if not $d.IsNew }}
+    <p class="head-meta">
+      <span class="mono">{{ $it.SKU }}</span> · {{ template "bin" $it.Bin }} ·
+      {{ template "state" $it.State }} ·
+      last touched {{ relTime $it.UpdatedAt }}
+    </p>
+    {{ end }}
+  </div>
+  {{ if not $d.IsNew }}
+  <div class="head-figure">
+    <span class="head-figure-value">{{ $it.Quantity }}</span>
+    <span class="head-figure-label">on hand · {{ money $it.ValueCents }} at cost</span>
+  </div>
+  {{ end }}
+</div>
+
+<div class="split split-form">
+
+  <section class="card">
+    <header class="card-head"><h2>{{ if $d.IsNew }}Details{{ else }}Edit this line{{ end }}</h2></header>
+
+    <form method="post" class="form"
+          action="{{ if $d.IsNew }}{{ url "/inventory" }}{{ else }}{{ url (printf "/inventory/%d" $it.ID) }}{{ end }}">
+
+      <div class="form-row">
+        <label class="field">
+          <span class="field-label">SKU</span>
+          <input name="sku" value="{{ $it.SKU }}" required maxlength="24" class="mono" placeholder="EL-1009">
+        </label>
+        <label class="field field-grow">
+          <span class="field-label">Name</span>
+          <input name="name" value="{{ $it.Name }}" required maxlength="120" placeholder="USB-C cable, 2 m">
+        </label>
+      </div>
+
+      <div class="form-row">
+        <label class="field">
+          <span class="field-label">Aisle</span>
+          <select name="category">
+            {{ range categories }}<option value="{{ . }}" {{ if eq $it.Category . }}selected{{ end }}>{{ . }}</option>{{ end }}
+          </select>
+        </label>
+        <label class="field">
+          <span class="field-label">Bin</span>
+          <input name="bin" value="{{ $it.Bin }}" maxlength="16" class="mono" placeholder="A02-14">
+        </label>
+        <label class="field field-grow">
+          <span class="field-label">Supplier</span>
+          <input name="supplier" value="{{ $it.Supplier }}" maxlength="80">
+        </label>
+      </div>
+
+      <div class="form-row">
+        {{ if $d.IsNew }}
+        <label class="field">
+          <span class="field-label">Opening count</span>
+          <input name="quantity" type="number" min="0" value="{{ $it.Quantity }}" class="mono">
+          <span class="field-help">Recorded as the first movement, so the ledger balances from day one.</span>
+        </label>
+        {{ end }}
+        <label class="field">
+          <span class="field-label">Reorder point</span>
+          <input name="reorder_point" type="number" min="0" value="{{ $it.ReorderPoint }}" class="mono">
+          <span class="field-help">At or below this, the line appears on the order list.</span>
+        </label>
+        <label class="field">
+          <span class="field-label">Unit cost</span>
+          <input name="unit_cost" value="{{ if $it.UnitCostCents }}{{ printf "%.2f" (divf $it.UnitCostCents 100) }}{{ end }}"
+                 class="mono" inputmode="decimal" placeholder="12.50">
+        </label>
+        <label class="field">
+          <span class="field-label">Status</span>
+          <select name="status">
+            <option value="active"   {{ if eq $it.Status "active" }}selected{{ end }}>Active</option>
+            <option value="on_order" {{ if eq $it.Status "on_order" }}selected{{ end }}>On order</option>
+            <option value="retired"  {{ if eq $it.Status "retired" }}selected{{ end }}>Retired</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="field">
+        <span class="field-label">Notes</span>
+        <textarea name="notes" rows="3" maxlength="500" placeholder="Anything the next person needs to know.">{{ $it.Notes }}</textarea>
+      </label>
+
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">{{ if $d.IsNew }}Add to the register{{ else }}Save changes{{ end }}</button>
+        <a class="btn btn-quiet" href="{{ url "/inventory" }}">Cancel</a>
+      </div>
+    </form>
+  </section>
+
+  {{ if not $d.IsNew }}
+  <section class="card">
+    <header class="card-head"><h2>Record a movement</h2></header>
+    <form method="post" action="{{ url "/movements" }}" class="form">
+      <input type="hidden" name="item_id" value="{{ $it.ID }}">
+      <input type="hidden" name="back" value="{{ url (printf "/inventory/%d" $it.ID) }}">
+      <div class="form-row">
+        <label class="field">
+          <span class="field-label">Kind</span>
+          <select name="kind">
+            <option value="issue">Issue — went out</option>
+            <option value="receipt">Receipt — came in</option>
+            <option value="return">Return — came back</option>
+            <option value="adjustment">Adjustment — counted</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="field-label">How many</span>
+          <input name="qty" type="number" value="1" class="mono">
+          <span class="field-help">Enter issues as a positive number.</span>
+        </label>
+      </div>
+      <label class="field">
+        <span class="field-label">Note</span>
+        <input name="note" maxlength="120" placeholder="Issued to the bench">
+      </label>
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">Record it</button>
+      </div>
+    </form>
+
+    <div class="danger">
+      <h3>Delete this line</h3>
+      <p>Deleting takes its {{ len $d.History }} movements with it, and the register stops adding up
+         to what the shelf did. Set the status to <b>Retired</b> instead to keep the history.</p>
+      <form method="post" action="{{ url (printf "/inventory/%d/delete" $it.ID) }}" class="danger-form">
+        <label class="field">
+          <span class="field-label">Type <b class="mono">{{ $it.SKU }}</b> to confirm</span>
+          {{/* No placeholder showing the SKU: a greyed-out copy of the exact
+               string somebody has to type turns a deliberate confirmation into
+               a shape to match, which is the opposite of what it is for. */}}
+          <input name="confirm" class="mono" autocomplete="off">
+        </label>
+        <button class="btn btn-danger" type="submit">Delete the line and its history</button>
+      </form>
+    </div>
+  </section>
+  {{ end }}
+</div>
+
+{{ if not $d.IsNew }}
+<section class="card">
+  <header class="card-head">
+    <h2>Every movement on this line</h2>
+    <span class="card-note">{{ len $d.History }} shown, most recent first</span>
+  </header>
+  {{ if $d.History }}
+  <table class="grid">
+    <thead><tr><th>When</th><th>Movement</th><th class="num">Change</th><th>Note</th><th>By</th></tr></thead>
+    <tbody>
+      {{ range $d.History }}
+      <tr>
+        <td class="mono muted">{{ fmtTime .At "02 Jan 2006 15:04" }}</td>
+        <td>{{ title .Kind }}</td>
+        <td class="num {{ if lt .Qty 0 }}num-bad{{ else }}num-good{{ end }}">{{ signed .Qty }}</td>
+        <td class="muted">{{ .Note }}</td>
+        <td class="muted">{{ .Actor }}</td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+  {{ else }}
+    <p class="card-empty">Nothing has moved on this line yet.</p>
+  {{ end }}
+</section>
+{{ end }}
+
+{{ end }}

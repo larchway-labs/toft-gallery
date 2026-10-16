@@ -1,0 +1,45 @@
+/* Service metrics — what this app adds to the house style.
+ *
+ * `toft-kit.css` is imported first in app/layout.js and is byte-identical
+ * in every example in the Toft gallery. This file adds the two structures
+ * the kit knows nothing about — a tile that is also a link, and the chart's
+ * hover readout — and it never redefines a kit token.
+ */
+
+/* A metric tile is a link here, because picking a metric is a *navigation*:
+   the choice lives in the URL, so a view is something somebody can paste into
+   a chat rather than a state they have to describe. */
+a.tile {
+  text-decoration: none;
+  color: inherit;
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+a.tile:hover { border-color: var(--lp-primary-brd); }
+a.tile.on {
+  border-color: var(--lp-primary);
+  box-shadow: inset 0 0 0 1px var(--lp-primary);
+}
+a.tile.on::before { background: var(--lp-primary); }
+a.tile:not(.on)::before { background: var(--lp-rule); }
+
+.delta { font-size: .75rem; margin-top: .3rem; font-variant-numeric: tabular-nums; }
+.delta.good { color: var(--lp-ok-fg); }
+.delta.bad  { color: var(--lp-dan-fg); }
+
+/* The chart's readout: one line above the plot that changes on hover, rather
+   than a floating tooltip. A tooltip that follows the pointer is a tooltip that
+   covers the thing you are pointing at. */
+.chart-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap; margin-bottom: .5rem;
+  font-size: .8125rem; color: var(--lp-ink-2);
+}
+.chart-head b {
+  font: 620 1rem/1.2 var(--lp-sans); color: var(--lp-ink);
+  font-variant-numeric: tabular-nums;
+}
+.chart-wrap { position: relative; }
+.chart-wrap svg { display: block; width: 100%; height: auto; }
+.chart-hit { fill: transparent; cursor: crosshair; }
+.chart-cursor { stroke: var(--lp-ink-3); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart-pt { fill: var(--lp-card); stroke-width: 2; }

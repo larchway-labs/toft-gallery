@@ -1,0 +1,73 @@
+{{define "content"}}
+{{$d := .Data}}
+<div class="pagehead">
+  <div>
+    <h1>Reviewers</h1>
+    <p>Who may approve and reject. This roster is the console’s own authority, and it is deliberately
+       not the platform’s: a Toft administrator arrives here as an <em>editor</em> of this app’s
+       configuration, and that does not make them an approver. An app that could not refuse an
+       administrator in its own domain would have no domain.</p>
+  </div>
+</div>
+
+<div class="stack">
+  <div class="card">
+    <div class="cardhead"><h2>The roster</h2></div>
+    {{if not $d.Roster}}
+      <div class="empty"><h3>Nobody can approve anything yet</h3>
+        <p>Add a person, or a group so a whole team is one row.</p></div>
+    {{else}}
+    <div class="tablewrap"><table>
+      <thead><tr><th>Who</th><th>Kind</th><th class="drop-md">Added by</th><th></th></tr></thead>
+      <tbody>{{range $d.Roster}}
+        <tr><td><strong>{{.SubjectName}}</strong><div class="mono xs muted">{{.SubjectID}}</div></td>
+            <td>{{if eq .SubjectType "group"}}<span class="chip info">Group</span>{{else}}<span class="chip neutral">Person</span>{{end}}</td>
+            <td class="drop-md small muted">{{.AddedByName}}, {{ago .AddedAt}}</td>
+            <td><form method="post" action="{{url (printf "/reviewers/%s/delete" .ID)}}">
+                  <button class="small" type="submit">Remove</button></form></td></tr>
+      {{end}}</tbody>
+    </table></div>
+    {{end}}
+  </div>
+
+  <form class="card measure" method="post" action="{{url "/reviewers"}}">
+    <div class="cardhead"><h2>Add a reviewer</h2></div>
+    <div class="body stack">
+      <div class="row">
+        <div class="field"><label for="st">Kind</label>
+          <select id="st" name="subject_type"><option value="user">A person</option><option value="group">A group</option></select></div>
+        <div class="field"><label for="sid">Id</label>
+          <input id="sid" name="subject_id" required list="knownpeople" autocomplete="off"
+                 placeholder="user id, or a group id from below">
+          {{/* Suggestions, not a list of everybody. A deploy key of either
+               scope may read the group directory and never the user one, so the
+               only people this console can name are the ones already in its own
+               ledger — whoever has raised, decided or been named on a request
+               here. Anybody else's id still works. */}}
+          <datalist id="knownpeople">
+            {{range $d.People}}<option value="{{.ID}}">{{.Label}}</option>{{end}}
+          </datalist>
+        </div>
+        <div class="field"><label for="sname">Name, for the record</label><input id="sname" name="subject_name"></div>
+      </div>
+      {{if $d.Groups}}
+      <div class="field">
+        <label>Groups on this install</label>
+        <div class="tablewrap"><table><tbody>
+          {{range $d.Groups}}<tr><td class="mono xs">{{.ID}}</td><td>{{.Name}}</td>
+            <td class="small muted">{{.Members}} member(s)</td></tr>{{end}}
+        </tbody></table></div>
+        <p class="hint">The console can read the directory of group names and addresses. It cannot
+           read who is in a group — that stays with Toft.</p>
+      </div>
+      {{end}}
+      {{if $d.People}}
+      <p class="hint">The id field suggests the people this console already has a name for — anyone
+         who has raised, decided or been named on a request here. It cannot offer the install's
+         whole user directory: the key it holds may read group names and never who is in one.</p>
+      {{end}}
+      <button class="primary" type="submit">Add</button>
+    </div>
+  </form>
+</div>
+{{end}}

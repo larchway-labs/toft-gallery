@@ -1,0 +1,6 @@
+# Deliberately empty of dependencies.
+#
+# This file's presence is what tells Toft the app is Python; the absence
+# of flask, fastapi or streamlit in it is what makes this the *generic* Python
+# path — started as `python app.py`, with the app owning its own server, bind
+# address and port. The whole app is the standard library.

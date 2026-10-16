@@ -1,0 +1,325 @@
+---
+title: "`r if (nzchar(trimws(Sys.getenv('REPORT_TITLE', '')))) Sys.getenv('REPORT_TITLE') else 'Data Quality Report'`"
+date: "`r format(Sys.time(), '%d %B %Y at %H:%M %Z')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 2
+    self_contained: true
+    theme: default
+    highlight: null
+    css:
+      - static/toft-kit.css
+      - static/rmd.css
+---
+
+```{r setup, include = FALSE}
+# Toft renders this once, at build time, with `rmarkdown::render` into
+# toft-render/, and serves the directory that falls out. There is no R
+# process behind the page a viewer loads, so nothing here can be interactive and
+# nothing here should try: what the reader gets is exactly what this render saw.
+#
+# The render runs with the app's environment variables, which is the edge worth
+# knowing about. It is what lets this report read REPORT_DATA below; it is also
+# why a report that reads a connection string and prints it has published that
+# connection string to everyone who can read the page.
+#
+# One .Rmd at the repository root, and that is a requirement rather than a
+# style: the root's .Rmd files are what Toft counts to decide which
+# document is the app, and two of them is ambiguous. Helpers belong in a
+# subdirectory, which is where data/make-sample.R lives.
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE,
+                      fig.width = 8.5, fig.height = 4.2, dpi = 110)
+
+env <- function(name, fallback) {
+  value <- trimws(Sys.getenv(name, ""))
+  if (nzchar(value)) value else fallback
+}
+
+data_file <- env("REPORT_DATA", "data/deliveries.csv")
+max_rows <- suppressWarnings(as.integer(env("REPORT_MAX_ROWS", "200000")))
+if (is.na(max_rows) || max_rows < 1) max_rows <- 200000L
+
+# A missing file is a first-class outcome, not a crash. A build that dies with
+# "cannot open file" makes somebody read a build log to discover that a nightly
+# export did not land; a report that says so on its own front page does not.
+readable <- file.exists(data_file)
+if (readable) {
+  raw <- utils::read.csv(data_file, stringsAsFactors = FALSE,
+                         na.strings = c("", "NA", "null"), nrows = max_rows)
+  truncated <- nrow(raw) == max_rows
+} else {
+  raw <- data.frame()
+  truncated <- FALSE
+}
+
+key_column <- {
+  declared <- trimws(Sys.getenv("REPORT_KEY", ""))
+  if (nzchar(declared) && declared %in% names(raw)) declared
+  else if (ncol(raw) > 0) names(raw)[1]
+  else NA_character_
+}
+
+numeric_cols <- names(raw)[vapply(raw, is.numeric, logical(1))]
+text_cols <- setdiff(names(raw), numeric_cols)
+
+pct <- function(x, total) {
+  if (total == 0) return("--")
+  paste0(formatC(100 * x / total, format = "f", digits = 1), "%")
+}
+big <- function(x) formatC(as.integer(x), format = "d", big.mark = ",")
+num <- function(x) {
+  if (all(is.na(x))) return(NA_character_)
+  formatC(x, format = "g", digits = 4)
+}
+
+# One table style for the whole document. kable ships with knitr, which
+# rmarkdown already requires, so this costs no dependency.
+show <- function(df, caption = NULL) {
+  knitr::kable(df, caption = caption, row.names = FALSE, format = "html",
+               table.attr = 'class="table table-sm"')
+}
+
+frame <- function(mar = c(4, 4.5, 1.2, 1)) {
+  par(mar = mar, bg = "white", las = 1, cex.axis = 0.9,
+      col.axis = "#5A5F6B", col.lab = "#5A5F6B", fg = "#E5E6EA", family = "sans")
+}
+
+# The house palette, so a base-R plot matches every other example in the
+# gallery. `--lp-c1` and `--lp-dan-solid` from toft-kit.css.
+bar_fill  <- "#4338CA"
+flag_fill <- "#EF4444"
+
+# Emit raw HTML from an `asis` chunk.
+#
+# The indentation below is for whoever reads this file; pandoc reads a line
+# indented four spaces as a code block, which is how a masthead ends up on the
+# page as source. So it is stripped on the way out.
+html_block <- function(x) {
+  cat("\n```{=html}\n")
+  cat(gsub("(?m)^[ \\t]+", "", x, perl = TRUE))
+  cat("\n```\n\n")
+}
+```
+
+```{r masthead, echo = FALSE, results = "asis"}
+cap <- function(label, on, note = "") sprintf(
+  '<span class="cap %s" title="%s"><b>%s</b></span>',
+  if (isTRUE(on)) "on" else "off", note, label)
+
+on_platform <- nzchar(Sys.getenv("TOFT_APP_TOKEN"))
+
+html_block(sprintf('
+<div class="lp-block">
+  <div class="masthead"><div class="masthead-in">
+    <div>
+      <div class="wordmark"><span class="mark"></span>
+        <span class="wordmark-text">Toft example</span></div>
+      <h1>%s</h1>
+      <p class="standfirst">Point it at a CSV and it says what is wrong with the file.
+         Seven checks, rendered once at deploy time and served as the document that
+         fell out.</p>
+    </div>
+    <div class="masthead-aside">
+      <span class="chip chip-lang">R &middot; R Markdown</span>
+      <span class="chip">%s</span>
+    </div>
+  </div></div>
+  <div class="rail"><div class="rail-in">
+    <span class="rail-label">Toft</span>%s
+  </div></div>
+</div>',
+  if (nzchar(trimws(Sys.getenv("REPORT_TITLE", "")))) Sys.getenv("REPORT_TITLE")
+  else "Data Quality Report",
+  format(Sys.time(), "%d %B %Y at %H:%M %Z"),
+  paste0(
+    cap("R Markdown", TRUE,
+        "An .Rmd at the release root, rendered once at build time with rmarkdown::render into toft-render/ and served as a document."),
+    cap("Built at deploy", TRUE,
+        "Nothing is re-rendered by a restart. Only a deploy produces a new document \u2014 and a schedule on the app\u2019s Overview tab makes that deploy happen on a cron expression."),
+    cap("The data", readable,
+        if (readable) data_file else paste(data_file, "is not there \u2014 which this report says on its own front page rather than failing the build")),
+    cap("renv.lock", file.exists("renv.lock"),
+        "Committed, so the Dependencies tab can enumerate this app. Without one nothing is installed and the app fails at its first library() call."),
+    cap("No network", TRUE,
+        "Nothing here contacts anything. Everything below is derived from one file."),
+    cap("Toft workload", on_platform,
+        if (on_platform) "Rendered as a Toft workload." else "Rendered outside Toft."),
+    collapse = "")))
+```
+
+```{r missing-file, eval = !readable, results = "asis"}
+cat(sprintf(
+"## The data is not there yet\n\nThis report expected to read `%s`, relative to the release directory, and no such file exists.\n\nThat is normal for a while on a fresh install: something else — a nightly export, a scheduled job, a person with a volume browser — puts the file there. Point `REPORT_DATA` at it, or deploy again once it has landed. **A render is a deploy**, so nothing here re-reads the file on its own.\n",
+data_file))
+```
+
+```{r overview, eval = readable, results = "asis"}
+cat(sprintf(
+"## What was profiled\n\n`%s` — **%s rows**, **%d columns**, read at build time.%s\n\nEverything below is derived from that file alone. Nothing is written back to it, and nothing here contacts a network.\n",
+data_file, big(nrow(raw)), ncol(raw),
+if (truncated) sprintf(" The read stopped at the `REPORT_MAX_ROWS` limit of %s, so this is a profile of the first %s rows and not of the whole file.", big(max_rows), big(max_rows)) else ""))
+```
+
+```{r column-profile, eval = readable, results = "asis"}
+cat("\n## Every column at a glance\n\nThe first thing to read. A column that is 40% empty, or that holds one distinct value across the whole file, is usually a pipeline fault rather than a fact about the world.\n\n")
+
+profile <- do.call(rbind, lapply(names(raw), function(nm) {
+  col <- raw[[nm]]
+  missing <- sum(is.na(col))
+  data.frame(
+    Column = nm,
+    Type = if (is.numeric(col)) "numeric" else if (is.logical(col)) "logical" else "text",
+    Missing = sprintf("%s (%s)", big(missing), pct(missing, nrow(raw))),
+    Distinct = big(length(unique(col[!is.na(col)]))),
+    Smallest = if (is.numeric(col)) num(suppressWarnings(min(col, na.rm = TRUE))) else
+      { v <- sort(unique(as.character(col[!is.na(col)]))); if (length(v)) v[1] else NA_character_ },
+    Largest = if (is.numeric(col)) num(suppressWarnings(max(col, na.rm = TRUE))) else
+      { v <- sort(unique(as.character(col[!is.na(col)]))); if (length(v)) v[length(v)] else NA_character_ },
+    Mean = if (is.numeric(col)) num(mean(col, na.rm = TRUE)) else NA_character_,
+    stringsAsFactors = FALSE
+  )
+}))
+print(show(profile))
+```
+
+```{r missingness, eval = readable && nrow(raw) > 0, results = "asis", fig.height = 3.6}
+missing_counts <- vapply(raw, function(c) sum(is.na(c)), integer(1))
+cat(sprintf("\n## Missing values\n\n%s of %s rows are complete across every column.\n\n",
+            big(sum(stats::complete.cases(raw))), big(nrow(raw))))
+if (any(missing_counts > 0)) {
+  ord <- order(missing_counts, decreasing = TRUE)
+  ord <- ord[missing_counts[ord] > 0]
+  frame(mar = c(4, 9, 1.2, 1))
+  bp <- barplot(rev(100 * missing_counts[ord] / nrow(raw)), horiz = TRUE,
+                names.arg = rev(names(missing_counts)[ord]), col = bar_fill,
+                border = NA, xlab = "Missing (% of rows)", cex.names = 0.9)
+  text(rev(100 * missing_counts[ord] / nrow(raw)), bp,
+       labels = rev(big(missing_counts[ord])), pos = 4, cex = 0.8, xpd = NA)
+} else {
+  cat("No column has a missing value.\n")
+}
+```
+
+```{r duplicates, eval = readable && !is.na(key_column), results = "asis"}
+cat(sprintf("\n## Duplicate keys\n\n`%s` is treated as the key column — the first column, unless `REPORT_KEY` names another.\n\n",
+            key_column))
+keys <- as.character(raw[[key_column]])
+counts <- table(keys[!is.na(keys)])
+repeated <- counts[counts > 1]
+if (length(repeated) == 0) {
+  cat(sprintf("Every one of the %s values is unique.\n", big(length(counts))))
+} else {
+  cat(sprintf("**%s value%s appear%s more than once**, accounting for %s extra row%s. A key that repeats usually means an export ran twice.\n\n",
+              big(length(repeated)), if (length(repeated) == 1) "" else "s",
+              if (length(repeated) == 1) "s" else "",
+              big(sum(repeated) - length(repeated)),
+              if (sum(repeated) - length(repeated) == 1) "" else "s"))
+  top <- sort(repeated, decreasing = TRUE)[seq_len(min(10, length(repeated)))]
+  print(show(data.frame(Value = names(top), Rows = as.integer(top), stringsAsFactors = FALSE)))
+}
+```
+
+```{r categories, eval = readable && length(text_cols) > 0, results = "asis"}
+cat("\n## Categories that are the same thing spelled differently\n\nCase and stray whitespace are the quiet ones: `North`, `north` and ` North` group as three regions in every tool that has ever read this file, and nothing warns you.\n\n")
+
+collisions <- do.call(rbind, lapply(text_cols, function(nm) {
+  values <- as.character(raw[[nm]])
+  values <- values[!is.na(values)]
+  if (!length(values)) return(NULL)
+  distinct <- unique(values)
+  # Too many distinct values means this is free text or an identifier, not a
+  # category, and every pair of near-matches in it would be noise.
+  if (length(distinct) > 50) return(NULL)
+  normalised <- tolower(trimws(distinct))
+  grouped <- split(distinct, normalised)
+  grouped <- grouped[vapply(grouped, length, integer(1)) > 1]
+  if (!length(grouped)) return(NULL)
+  do.call(rbind, lapply(names(grouped), function(g) {
+    variants <- grouped[[g]]
+    data.frame(Column = nm,
+               `Reads as` = g,
+               `Spelled` = paste(sprintf("%s (%s)", encodeString(variants, quote = '"'),
+                                         vapply(variants, function(v) big(sum(values == v)), character(1))),
+                                 collapse = ", "),
+               check.names = FALSE, stringsAsFactors = FALSE)
+  }))
+}))
+
+if (is.null(collisions)) {
+  cat("No column has two spellings of one value.\n")
+} else {
+  print(show(collisions))
+}
+```
+
+```{r outliers, eval = readable && length(numeric_cols) > 0, results = "asis"}
+cat("\n## Numbers that do not belong\n\nTukey's rule — more than one and a half interquartile ranges outside the quartiles — which is exactly what a boxplot draws as dots. It flags honest extremes as well as broken ones, so it is a list to read rather than a verdict.\n\n")
+
+flags <- do.call(rbind, lapply(numeric_cols, function(nm) {
+  col <- raw[[nm]][!is.na(raw[[nm]])]
+  if (length(col) < 4) return(NULL)
+  q <- stats::quantile(col, c(0.25, 0.75), names = FALSE)
+  iqr <- q[2] - q[1]
+  if (iqr == 0) return(NULL)
+  low <- q[1] - 1.5 * iqr
+  high <- q[2] + 1.5 * iqr
+  out <- col[col < low | col > high]
+  nonpositive <- sum(col <= 0)
+  if (!length(out) && nonpositive == 0) return(NULL)
+  data.frame(
+    Column = nm,
+    `Outside` = sprintf("%s to %s", num(low), num(high)),
+    `Outliers` = sprintf("%s (%s)", big(length(out)), pct(length(out), length(col))),
+    `Largest seen` = if (length(out)) num(out[which.max(abs(out - stats::median(col)))]) else "",
+    `Zero or negative` = big(nonpositive),
+    check.names = FALSE, stringsAsFactors = FALSE)
+}))
+
+if (is.null(flags)) {
+  cat("No numeric column has a value outside Tukey's fences.\n")
+} else {
+  print(show(flags))
+  cat("\nA **zero or negative** count is worth a second look on its own: a duration, a weight or a price that is not positive is usually a clock, a unit or a decimal point rather than an unusual delivery.\n")
+}
+```
+
+```{r distributions, eval = readable && length(numeric_cols) > 0, fig.height = 3.4, results = "asis"}
+cat("\n## Distributions\n\nOne histogram per numeric column, on its own scale. The dashed line is the median; a distribution whose mean sits far from it is being pulled by the values in the table above.\n\n")
+for (nm in numeric_cols) {
+  col <- raw[[nm]][!is.na(raw[[nm]])]
+  if (length(col) < 2 || length(unique(col)) < 2) next
+  frame()
+  hist(col, breaks = "Sturges", col = bar_fill, border = "white",
+       main = "", xlab = nm)
+  abline(v = stats::median(col), col = flag_fill, lwd = 2, lty = 2)
+  title(main = nm, adj = 0, cex.main = 1, font.main = 1)
+}
+```
+
+```{r checks, eval = readable, results = "asis"}
+cat("\n## What this report checks\n\n")
+checks <- data.frame(
+  Check = c("Shape", "Missing values", "Duplicate keys", "Category spelling",
+            "Outliers", "Non-positive numbers", "Distributions"),
+  `What it looks for` = c(
+    "Row and column counts, and whether the read hit its row limit.",
+    "Per column and per row, so a column that is mostly empty is visible next to a file that is mostly complete.",
+    "Values of the key column appearing on more than one row.",
+    "Values in a low-cardinality column that differ only by case or surrounding whitespace.",
+    "Values beyond 1.5 interquartile ranges from the quartiles.",
+    "Zeros and negatives in numeric columns, counted separately from outliers.",
+    "The shape of each numeric column, with its median marked."),
+  check.names = FALSE, stringsAsFactors = FALSE)
+print(show(checks))
+cat("\nNothing here is specific to the sample file. Point `REPORT_DATA` at any CSV and the same seven checks run against its columns.\n")
+```
+
+----
+
+<small>
+Rendered by Toft at build time from `report.Rmd`. The source, including the
+script that generates the sample data, is in this app's repository.
+</small>

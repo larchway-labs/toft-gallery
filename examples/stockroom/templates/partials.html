@@ -1,0 +1,57 @@
+{{/* A server-rendered app gives every tab its own URL, so the kit's tab is an
+     <a> with aria-current rather than a button. The styling is the same. */}}
+{{ define "tab" }}
+  <a class="tab" href="{{ url .Href }}"
+     {{ if eq .Tab .Key }}aria-current="page"{{ end }}>{{ .Label }}</a>
+{{ end }}
+
+
+{{/* The bin code, set like the printed strip slid into a drawer front. It is
+     the one thing somebody in the room actually walks to, so it gets weight. */}}
+{{ define "bin" }}<span class="bin">{{ . }}</span>{{ end }}
+
+
+{{ define "state" }}
+  <span class="chip chip-{{ stateTone . }}">{{ stateLabel . }}</span>
+{{ end }}
+
+
+{{/* The aisle band: the whole room as one bar, each aisle sized by what is
+     standing in it. Segments are direct-labelled below, so identity never
+     rests on colour alone. */}}
+{{ define "band" }}
+  {{ $total := 0 }}
+  {{ range .Categories }}{{ $total = add $total .ValueCents }}{{ end }}
+  {{ if gt $total 0 }}
+  <div class="band">
+    <div class="band-bar" role="img"
+         aria-label="Stock value by aisle. {{ range .Categories }}{{ .Category }} {{ moneyShort .ValueCents }}. {{ end }}">
+      {{ range .Categories }}{{ if gt .ValueCents 0 }}
+        <span class="band-seg" style="--w:{{ printf "%.3f" (pct .ValueCents $total) }}%;--c:{{ catColor .Category }}"
+              data-tip="{{ .Category }} — {{ .Items }} lines, {{ .Units }} units, {{ money .ValueCents }}"></span>
+      {{ end }}{{ end }}
+    </div>
+    <ul class="band-key">
+      {{ range .Categories }}
+        <li>
+          <a href="{{ query "/inventory" "category" .Category }}">
+            <span class="band-dot" style="--c:{{ catColor .Category }}"></span>
+            <span class="band-name">{{ .Category }}</span>
+            <span class="band-val">{{ moneyShort .ValueCents }}</span>
+            <span class="band-sub">{{ .Items }} lines{{ if gt .Low 0 }} · {{ .Low }} to order{{ end }}</span>
+          </a>
+        </li>
+      {{ end }}
+    </ul>
+  </div>
+  {{ end }}
+{{ end }}
+
+
+{{ define "empty" }}
+  <div class="empty">
+    <p class="empty-head">{{ .Head }}</p>
+    <p class="empty-body">{{ .Body }}</p>
+    {{ if .Href }}<a class="btn btn-primary" href="{{ .Href }}">{{ .Action }}</a>{{ end }}
+  </div>
+{{ end }}

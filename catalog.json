@@ -1,0 +1,972 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-31T02:00:51Z",
+  "items": [
+    {
+      "id": "5b64ef63-5514-4964-9f72-1d2ba224045c",
+      "kind": "extension",
+      "name": "Status Board",
+      "summary": "Poll a list of internal endpoints and show what is up, slow or down.",
+      "description": "A status page for the services your team runs. It polls each endpoint from inside the network on an interval and shows the result as a board, with the last error text when there is one. Go, standard library only — no database, no external assets, nothing persisted: the board is what the process has seen since it started.",
+      "author": "Toft",
+      "language": "Go",
+      "tags": [
+        "monitoring",
+        "status",
+        "go",
+        "operations"
+      ],
+      "version": "1.1.0",
+      "min_platform_version": "0.7.0",
+      "repo_url": "https://github.com/larchway-labs/toft-gallery",
+      "ref": "status-board/v1.1.0",
+      "path": "extensions/status-board",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/extensions/status-board",
+      "suggested_slug": "status-board",
+      "env": [
+        {
+          "name": "SERVICES",
+          "required": true,
+          "default": "",
+          "description": "Comma-separated name=url pairs, e.g. Wiki=https://wiki.internal/health, Billing=https://billing.internal/healthz"
+        },
+        {
+          "name": "BOARD_TITLE",
+          "required": false,
+          "default": "Service status",
+          "description": "Heading shown on the page."
+        },
+        {
+          "name": "CHECK_INTERVAL_SECONDS",
+          "required": false,
+          "default": "60",
+          "description": "How often every endpoint is polled. Minimum 5."
+        },
+        {
+          "name": "CHECK_TIMEOUT_SECONDS",
+          "required": false,
+          "default": "5",
+          "description": "Per-request timeout. Minimum 1."
+        }
+      ],
+      "notes": "The board makes outbound HTTP requests to whatever SERVICES names. Point it only at endpoints this install is meant to reach."
+    },
+    {
+      "id": "9e3e6c69-612b-46df-9aba-928b2be4f443",
+      "kind": "extension",
+      "name": "Webhook Inspector",
+      "summary": "See exactly what a third party is sending you: method, headers, query and body.",
+      "description": "Point any webhook at this app's /hook path and every request is captured and shown newest first. FastAPI. Nothing is persisted — the buffer lives in the process and is lost on restart, which is the right trade for a tool that routinely receives signatures, customer identifiers and one-time tokens. Authorization, Cookie and X-API-Key are recorded as redacted rather than dropped, because 'did they send one at all' is usually the real question.",
+      "author": "Toft",
+      "language": "Python",
+      "tags": [
+        "webhooks",
+        "debugging",
+        "fastapi",
+        "integration"
+      ],
+      "version": "1.1.0",
+      "min_platform_version": "0.7.0",
+      "repo_url": "https://github.com/larchway-labs/toft-gallery",
+      "ref": "webhook-inspector/v1.1.0",
+      "path": "extensions/webhook-inspector",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/extensions/webhook-inspector",
+      "suggested_slug": "webhook-inspector",
+      "env": [
+        {
+          "name": "MAX_REQUESTS",
+          "required": false,
+          "default": "50",
+          "description": "How many requests to keep in memory. 1 to 500."
+        },
+        {
+          "name": "WEBHOOK_TOKEN",
+          "required": false,
+          "default": "",
+          "description": "Optional shared secret. When set, a capture must carry X-Webhook-Token or ?token=."
+        }
+      ],
+      "notes": "The token is a convenience for handing the URL to an external sender, not a boundary — the app already sits behind Toft's authorization."
+    },
+    {
+      "id": "1003f1e0-4c97-4c57-bde2-fb941072a94e",
+      "kind": "extension",
+      "name": "Ops Console",
+      "summary": "On-call, the operations checklist by cadence, and four short runbooks.",
+      "description": "An internal operations console for the team that runs the platform. Next.js App Router, React 19, no dependencies beyond the framework. It reads no platform API at all: checklists and runbooks are content in the repository, and only what genuinely differs per install — team name, who is on call — comes from the environment.",
+      "author": "Toft",
+      "language": "JavaScript",
+      "tags": [
+        "operations",
+        "runbooks",
+        "on-call",
+        "nextjs"
+      ],
+      "version": "1.1.0",
+      "min_platform_version": "0.7.0",
+      "repo_url": "https://github.com/larchway-labs/toft-gallery",
+      "ref": "ops-console/v1.1.0",
+      "path": "extensions/ops-console",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/extensions/ops-console",
+      "suggested_slug": "ops-console",
+      "env": [
+        {
+          "name": "TEAM_NAME",
+          "required": false,
+          "default": "Platform",
+          "description": "Heading on the overview."
+        },
+        {
+          "name": "ONCALL_PRIMARY",
+          "required": false,
+          "default": "unassigned",
+          "description": "Who is holding the pager."
+        },
+        {
+          "name": "ONCALL_SECONDARY",
+          "required": false,
+          "default": "unassigned",
+          "description": "Who takes the weekly work."
+        },
+        {
+          "name": "ESCALATION_CHANNEL",
+          "required": false,
+          "default": "#platform-oncall",
+          "description": "Where to escalate when the primary is unreachable."
+        }
+      ],
+      "notes": "The overview is rendered per request, so changing an on-call name and restarting the app is enough — no rebuild."
+    },
+    {
+      "id": "7a172cbf-e666-4db7-b1a5-7a8b7c35baf3",
+      "kind": "extension",
+      "name": "Volume Browser",
+      "summary": "Browse, upload and manage the EFS volumes attached to an app.",
+      "description": "A file manager for attached storage. It reads TOFT_STORAGE — the platform's own declaration of what is mounted — and offers the ordinary operations on every EFS volume it finds: browse, download, upload, new folder, rename and delete. Nothing is configured by hand, and a mount that is declared but not on the filesystem is shown with the reason rather than left out. Object stores are listed and deliberately not browsable: Mountpoint has no rename, no append and no real directories. Go, standard library only. Isolated mode, since durable storage is attached below a boundary a shared process does not have.",
+      "author": "Toft",
+      "language": "Go",
+      "tags": [
+        "storage",
+        "efs",
+        "files",
+        "go",
+        "operations"
+      ],
+      "version": "1.1.0",
+      "min_platform_version": "0.7.0",
+      "repo_url": "https://github.com/larchway-labs/toft-gallery",
+      "ref": "volume-browser/v1.1.0",
+      "path": "extensions/volume-browser",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/extensions/volume-browser",
+      "suggested_slug": "volume-browser",
+      "env": [
+        {
+          "name": "BROWSER_TITLE",
+          "required": false,
+          "default": "Volume browser",
+          "description": "Heading shown on the page."
+        },
+        {
+          "name": "MAX_UPLOAD_MB",
+          "required": false,
+          "default": "1024",
+          "description": "Per-file upload limit in megabytes. A file over it is refused and nothing partial is left behind."
+        },
+        {
+          "name": "READ_ONLY",
+          "required": false,
+          "default": "",
+          "description": "Set to 1 to show every volume read-only regardless of how it is mounted."
+        }
+      ],
+      "notes": "Attach the volumes this app should manage, then redeploy it — a storage mapping takes effect on the next deployment. It shows whatever those mounts contain to anyone who can open the app, so keep its visibility to the people who should see the data."
+    },
+    {
+      "id": "a5c4129d-9633-4840-bfdf-69c5415abe3b",
+      "kind": "extension",
+      "name": "Request Desk",
+      "summary": "A request-and-approval desk on embedded SQLite, where who may do what comes from the identity Toft supplies.",
+      "description": "Somebody asks for a monitor, a conference ticket, a license; somebody else approves or refuses it. FastAPI and the standard library's sqlite3 — no JavaScript framework, no build step, nothing beyond the two lines in requirements.txt. What it is really for is the seam underneath: Toft answers one question the app cannot forge — who is looking — by resolving the signed act-for blob the request arrives with, and everything after that is the app's own directory, its own groups and its own rule. Three sources of authority, deliberately not one. The platform's role on the app (owner, editor, install administrator) administers the desk and nothing else, because 'may redeploy this app' is not 'may approve an expense'; a desk group an editor put you in is the ordinary path; and a desk group linked to a Toft group is the same thing with the directory doing the bookkeeping. Two groups ship — Requesters and Approvers — and both are ordinary rows an editor can reshape. An Access page renders the identity the platform supplied beside the decision the app made and the sentences connecting them, which is the part worth reading before building your own. desk.py imports nothing from Toft, so the rule is tested without a running install: 31 tests construct callers by hand.",
+      "author": "Toft",
+      "language": "Python",
+      "tags": [
+        "identity",
+        "authorization",
+        "sqlite",
+        "fastapi",
+        "approvals",
+        "viewer-identity"
+      ],
+      "version": "1.1.1",
+      "min_platform_version": "0.7.0",
+      "repo_url": "https://github.com/larchway-labs/toft-gallery",
+      "ref": "request-desk/v1.1.1",
+      "path": "extensions/request-desk",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/extensions/request-desk",
+      "suggested_slug": "request-desk",
+      "env": [
+        {
+          "name": "DESK_TITLE",
+          "required": false,
+          "default": "Request Desk",
+          "description": "Heading and page title."
+        },
+        {
+          "name": "DB_PATH",
+          "required": false,
+          "default": "",
+          "description": "Where the SQLite file lives. Unset, the app uses the first writable volume mapped to it, and failing that its own filesystem — which a restart replaces. The page footer always says which of the three it got."
+        }
+      ],
+      "notes": "Two things have to be true before it can recognise anybody. Viewer identity must be switched on for this app — it is off by default and a system administrator turns it on — and the app must not be public, because Toft withholds the email address from a public app and the address is how this desk identifies people. The app explains both on the page rather than looking broken. For data that survives a restart, map a volume: that means isolated mode, since shared mode refuses a storage mapping at deploy time."
+    },
+    {
+      "id": "0d5f2c11-9a7e-4c8a-b2f0-6e4b1c7d9a30",
+      "kind": "extension",
+      "name": "Migration Console",
+      "summary": "Request, approve and carry out moves of an app from one Toft install to another.",
+      "description": "A change-request workflow for promotion between installs. A developer raises a request against one specific successful release of an app they own; a named reviewer reads it, looks at the attached documents and approves or rejects; the approved release is then pushed to the target install, straight away or at a scheduled time. The submitter never picks the destination — the first successful deploy binds a source app to a target app and every later request follows that link — and the approver chooses what the app is called there and who may see it, with the choice carrying to the next migration. Notes and documents live in two places: standing ones on the app, inherited by every request for it, and per-request ones for that release. The requester can name other people on a request, who can then read it, watch it and raise the next one. Everything is recorded per app, so \"what has ever shipped from this app, and where is it now\" is one page. Go, html/template and htmx, with its own Postgres database — no Node, no bundler, and no outbound request to anything but the installs you configure.",
+      "author": "Toft",
+      "language": "Go",
+      "tags": [
+        "governance",
+        "promotion",
+        "change-management",
+        "approvals",
+        "go"
+      ],
+      "version": "1.2.1",
+      "min_platform_version": "0.7.0",
+      "repo_url": "https://github.com/larchway-labs/toft-gallery",
+      "ref": "migration-console/v1.2.1",
+      "path": "extensions/migration-console",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/extensions/migration-console",
+      "suggested_slug": "migration-console",
+      "env": [
+        {
+          "name": "DATABASE_URL",
+          "required": true,
+          "default": "",
+          "sensitive": true,
+          "description": "A Postgres database for the console's own records — requests, approvals, documents and the ledger. Use one you already back up: this is an audit record of production deploys, not a cache. postgres://user:password@host:5432/dbname"
+        },
+        {
+          "name": "TARGET_KEY_SECRET",
+          "required": true,
+          "default": "",
+          "sensitive": true,
+          "description": "Any long passphrase. Each target install's deploy key is encrypted with it before it is written to the database, so a database backup is not a copy of your estate's push credentials."
+        }
+      ],
+      "notes": "Needs a Toft that can mint a read-scoped deploy key — 0.2.0 or later. The console holds a deploy key for each install it can push to, and each of those can deploy to any app on that install. Install it on the install your developers use, give it a read-scoped deploy key here and a deploy-scoped key on each target, and add a scheduled task pointing at /tasks/tick. The Install page inside the app lists every step and shows what is still outstanding.",
+      "visibility": "viewable"
+    },
+    {
+      "id": "f1fef3f5-b626-4bfb-9acd-d7d3d4de4342",
+      "kind": "example",
+      "name": "Flask Hello",
+      "summary": "The smallest complete Flask app — and a look at the request from inside it.",
+      "description": "One dependency, and it still does the four things a Flask app on this platform has to do: a module-level `app`, ProxyFix with `x_prefix=1`, configuration from the environment, and a health check that does not lie. All five are run as live checks against the process rather than claimed. What it adds is the other half of a first deploy: every header Toft puts on a forwarded request, the environment the process was handed, and the two questions an app can ask about whoever is in front of it — **what may this caller do**, from a signed header verified in-process with no round trip and no administrator switch, and **who are they**, which needs both. A role names nobody, which is why they are not one call, and this is the example that shows the pair side by side. 204, 403 and a person are kept apart on the page, because collapsing any two of them is how an app tells somebody the wrong story.",
+      "author": "Toft",
+      "language": "Python",
+      "tags": [
+        "flask",
+        "python",
+        "starter",
+        "viewer-identity",
+        "roles",
+        "example"
+      ],
+      "version": "1.2.0",
+      "min_platform_version": "0.7.0",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/flask-hello/v1.2.0.zip",
+      "path": "examples/flask-hello",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/flask-hello",
+      "suggested_slug": "flask-hello",
+      "env": [
+        {
+          "name": "GREETING",
+          "required": false,
+          "default": "Hello from Toft",
+          "description": "The heading, and the greeting the JSON endpoint returns."
+        }
+      ],
+      "notes": "Nothing has to be configured. Viewer identity is an administrator's switch on the app's Settings tab; with it off the page says so rather than showing an empty panel. Off-platform there is no role header and no SDK, and every tab still works."
+    },
+    {
+      "id": "3f7c1a24-6b0e-4d8f-9c31-8a52e0d47b19",
+      "kind": "example",
+      "name": "Reconcile",
+      "summary": "A month-end desk on FastAPI, and the six things an app can ask Toft for.",
+      "description": "Two sides of a month, matched three ways, and the leftovers put in front of somebody who can decide about them. FastAPI and uvicorn, embedded SQLite, no npm build and no chart library; the page is a client of the same JSON API your tooling would call, and the API tab is generated from the app's own OpenAPI document at page load, so it works with no route to the internet. It is the example to read for an app **using** the platform rather than merely hosted by it: the tolerances live in the app's one JSON document and save with `If-Match`, so a second person with the page open gets a 409 naming the stored version instead of silently losing their edit; a close runs as a **background job** in a container of its own, attributed to whoever pressed the button; the caller's signed **role** gates the two buttons that change something; **viewer identity** answers the different question of who they are; the summary goes to Slack or email without this app holding a token or naming a channel; and a scheduled task fires a path it published. Every one of those degrades — run it on an install with none of them attached and the page still works, and the rail says what is missing and what the app did instead.",
+      "author": "Toft",
+      "language": "Python",
+      "tags": [
+        "fastapi",
+        "python",
+        "jobs",
+        "app-data",
+        "roles",
+        "integrations",
+        "example"
+      ],
+      "version": "1.1.0",
+      "min_platform_version": "0.7.0",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/fastapi-reconcile/v1.1.0.zip",
+      "path": "examples/fastapi-reconcile",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/fastapi-reconcile",
+      "suggested_slug": "reconcile",
+      "env": [
+        {
+          "name": "RECONCILE_DATA_DIR",
+          "required": false,
+          "default": "",
+          "description": "Where the register goes. Leave it unset: the app prefers a writable storage mount, then the scratch directory, and its Platform tab says which one it picked and what that costs."
+        },
+        {
+          "name": "CLOSE_REPORT_TO",
+          "required": false,
+          "default": "",
+          "description": "Comma-separated addresses for the emailed close summary. Recipients are the one destination an app chooses, which is why every address goes to the install's send log."
+        }
+      ],
+      "notes": "Background jobs need an isolated backend and `jobs_enabled`; where they are absent the platform says so by name and the app offers to run the close in the web process instead — which is exactly what the job system exists to avoid, and the page says that too. Slack and email are an administrator's decision on the app's Integrations tab."
+    },
+    {
+      "id": "5ef17c95-2025-425e-bde2-abd3545a949e",
+      "kind": "example",
+      "name": "CSV Explorer",
+      "summary": "Upload a CSV, filter it, chart it, and take the cleaned data away again.",
+      "description": "Drop in a CSV export from anywhere and get filtering, summary statistics, a chart and a cleaned download without writing a notebook. It ships with a seeded sample so the first screen is not an empty file picker. Two things worth copying: the upload lives in `st.session_state` and is never written to disk, because on a shared install every session runs in one process under one UID; and nothing here binds a port or builds a URL — Streamlit is the one framework that keeps its `/apps/{slug}` prefix rather than having it stripped. The Platform panel says why `--server.enableCORS false` is not optional: without it Streamlit refuses every WebSocket upgrade and the page renders blank with the reason only in the log.",
+      "author": "Toft",
+      "language": "Python",
+      "tags": [
+        "streamlit",
+        "data",
+        "csv",
+        "upload",
+        "example"
+      ],
+      "version": "1.2.0",
+      "min_platform_version": "0.7.0",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/streamlit-explorer/v1.2.0.zip",
+      "path": "examples/streamlit-explorer",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/streamlit-explorer",
+      "suggested_slug": "csv-explorer",
+      "env": [
+        {
+          "name": "APP_TITLE",
+          "required": false,
+          "default": "CSV Explorer",
+          "description": "Page title and heading."
+        }
+      ],
+      "notes": "Streamlit draws its own shell, so the house style arrives as a palette in `.streamlit/config.toml` and an injected stylesheet. The app checks the two have not drifted and says so on the page if they have."
+    },
+    {
+      "id": "c03cacd3-c1fd-4d2a-8a24-f3bd6f8f842e",
+      "kind": "example",
+      "name": "Weekly Report",
+      "summary": "A working web app that is only the Python standard library — including the signed role header.",
+      "description": "`http.server`, `csv`, `json`, `html`, `hmac`, and nothing else: `requirements.txt` is empty on purpose. It renders a weekly delivery report, offers the same numbers as JSON and CSV, serves its own static files, and **verifies Toft's signed role header in about fifteen lines**. That is the point of the example: the platform's contract is environment variables and HTTP headers, and the whole of it can be honoured without the SDK. Being the generic Python path, the app also owns the whole contract — `PORT`, `HOST`, `BASE_PATH`, and both stop signals — and the Platform tab lists every variable it was handed with a sentence saying what each one is for.",
+      "author": "Toft",
+      "language": "Python",
+      "tags": [
+        "python",
+        "stdlib",
+        "reporting",
+        "roles",
+        "no-dependencies",
+        "example"
+      ],
+      "version": "1.2.0",
+      "min_platform_version": "0.7.0",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/python-report/v1.2.0.zip",
+      "path": "examples/python-report",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/python-report",
+      "suggested_slug": "weekly-report",
+      "env": [
+        {
+          "name": "REPORT_TITLE",
+          "required": false,
+          "default": "Weekly delivery report",
+          "description": "Heading and page title."
+        }
+      ],
+      "notes": "This is the generic Python path: a requirements.txt naming none of the recognised frameworks means the app is started as `python app.py`."
+    },
+    {
+      "id": "b18c04f3-3fb6-4048-a17c-2ffe48ddb0e1",
+      "kind": "example",
+      "name": "Orders",
+      "summary": "Read a SQLite database off an attached EFS volume — sortable, filterable, read-only.",
+      "description": "Toft's storage example, from the reading side. Something else — a nightly job, an export, a person with the volume browser — puts `orders.db` on an attached volume; this app finds the volume from the platform's own declaration, opens the database **read-only**, and shows the table sortable and filterable. It writes nothing, ever, even where the mount would let it. The interesting half is what happens when the file is not there, because on a fresh volume that is the normal state for a while: the page says which volume it looked at, where it looked, and what would have to happen — and offers a button that looks again. Nothing is cached, so that button is a real check. Liveness is the process and not the data, so a missing database is a 200 with `database: false`: reporting it as unhealthy would have the platform restart something working exactly as intended.",
+      "author": "Toft",
+      "language": "Python",
+      "tags": [
+        "storage",
+        "efs",
+        "sqlite",
+        "python",
+        "read-only",
+        "example"
+      ],
+      "version": "1.2.0",
+      "min_platform_version": "0.7.0",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/orders-viewer/v1.2.0.zip",
+      "path": "examples/orders-viewer",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/orders-viewer",
+      "suggested_slug": "orders-viewer",
+      "env": [
+        {
+          "name": "VIEWER_TITLE",
+          "required": false,
+          "default": "Orders",
+          "description": "Heading and page title."
+        },
+        {
+          "name": "ORDERS_DB",
+          "required": false,
+          "default": "orders.db",
+          "description": "The database file, relative to the volume root. A path that would leave the volume is refused."
+        },
+        {
+          "name": "ORDERS_TABLE",
+          "required": false,
+          "default": "orders",
+          "description": "The table or view to show. If it is missing, the page lists the tables that are there."
+        },
+        {
+          "name": "PAGE_SIZE",
+          "required": false,
+          "default": "100",
+          "description": "Rows per page. Clamped to 10-1000."
+        }
+      ],
+      "notes": "Nothing here guesses at a path — the volume comes from `TOFT_STORAGE`, the platform's own declaration of what an administrator mounted. An app that hardcoded `/mnt/data` would work on one install and fail on the next."
+    },
+    {
+      "id": "ca3089c5-5d0e-4214-85c6-3955db0b4b23",
+      "kind": "example",
+      "name": "MCP Server",
+      "summary": "A Model Context Protocol server an assistant can connect to — hosted like any other app.",
+      "description": "MCP's streamable-HTTP transport is an HTTP server, so a remote MCP server is an ordinary Toft app and this one is 250 lines of Python. Three tools over a folder of Markdown runbooks — list, search, read — and the notes it ships are samples to delete. What is worth copying is the shape: no authentication inside the app, because the gateway refuses anything without an API key and strips the credential before it arrives; stateless sessions, so a deploy or an idle sleep can replace the process underneath a connected client; and every path a caller supplies resolved and checked to be inside the folder. Its landing page works out its own endpoint URL from the forwarded headers — rename the app and the page is still right — which matters because an MCP endpoint answers POST and 404s a browser, so without it, opening the app shows a person nothing at all.",
+      "author": "Toft",
+      "language": "Python",
+      "tags": [
+        "mcp",
+        "ai",
+        "assistant",
+        "python",
+        "app-keys",
+        "example"
+      ],
+      "version": "1.2.0",
+      "min_platform_version": "0.7.0",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/mcp-server/v1.2.0.zip",
+      "path": "examples/mcp-server",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/mcp-server",
+      "suggested_slug": "mcp-server",
+      "env": [
+        {
+          "name": "SERVER_NAME",
+          "required": false,
+          "default": "Runbooks",
+          "description": "What the server calls itself to a client, and the heading on its endpoint page."
+        },
+        {
+          "name": "NOTES_DIR",
+          "required": false,
+          "default": "notes",
+          "description": "The folder of Markdown the tools read. Relative paths are resolved inside the app's directory."
+        }
+      ],
+      "notes": "The app has no authentication of its own: create a key on its Settings → API keys tab and give it to the client as a bearer token. A client that can send a static Authorization header connects; one that requires MCP's OAuth flow cannot, because Toft authenticates with keys and runs no authorization server. The MCP SDK needs Python 3.10+, which the bundled .python-version asks uv to fetch at build time."
+    },
+    {
+      "id": "ea35cc5e-4bf1-4096-9df5-dcf7df19a8e3",
+      "kind": "example",
+      "name": "Support Review",
+      "summary": "A notebook executed once at deploy time and served as the document that fell out.",
+      "description": "A month of the support desk — volume by week, first response against the target, and what is still waiting — executed once when the release was deployed and served as the document that fell out. There is no kernel behind the page: a wake, a crash restore or a repair serves this same file, and only a deploy produces a new one. The figures come from a fixed seed, so the report is worth looking at before anybody has plugged in a real source; replace the one cell under *The data* and nothing else changes. It shows its working, deliberately — nbconvert's `lab` template is what *File → Export as HTML* produces, so the deployed page matches the one the author already looked at.",
+      "author": "Toft",
+      "language": "Python",
+      "tags": [
+        "notebook",
+        "jupyter",
+        "pandas",
+        "matplotlib",
+        "reporting",
+        "example"
+      ],
+      "version": "1.2.0",
+      "min_platform_version": "0.7.0",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/support-review/v1.2.0.zip",
+      "path": "examples/support-review",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/support-review",
+      "suggested_slug": "support-review",
+      "env": [
+        {
+          "name": "REVIEW_TITLE",
+          "required": false,
+          "default": "Support review",
+          "description": "The line the report opens with."
+        },
+        {
+          "name": "TEAMS",
+          "required": false,
+          "default": "Billing,Identity,Platform,Mobile",
+          "description": "Comma-separated team names. The first eight are used."
+        },
+        {
+          "name": "PERIOD_WEEKS",
+          "required": false,
+          "default": "12",
+          "description": "How many weeks the review covers. Clamped to 4-52."
+        },
+        {
+          "name": "SLA_HOURS",
+          "required": false,
+          "default": "8",
+          "description": "The first-response target in hours. Clamped to 1-168."
+        }
+      ],
+      "notes": "The cells run with the app's whole environment and whatever they print is in the published document — on a public app, published means the internet. Nothing is redacted, because the platform cannot know which cell output is a secret; the build log lists the variable names that were exported, never their values."
+    },
+    {
+      "id": "8d54b91e-2c73-4a06-b6ef-51f9c0a3d284",
+      "kind": "example",
+      "name": "Runway",
+      "summary": "A reactive twenty-four month plan on marimo — nine sliders and no hidden state.",
+      "description": "The gallery's two documents — a Jupyter notebook and an R Markdown report — are executed once at build time and nothing in them moves. marimo is the other thing: Toft runs `marimo run` and executes the file **per viewer session**, which is why this is the only notebook-shaped app here with a slider in it. Move one and marimo re-runs the cells that depend on what changed, in dependency order, with no hidden state and no *run all above*. That property is worth an example of its own, and a plan is the honest case for it: nine assumptions, everybody who reads it wants to change one, and the whole value is what happens when they do. Break-even, runway, peak burn and where the business is at month 24, two charts drawn as inline SVG, and all twenty-four rows because a chart is a rounding of the model and somebody always wants the number. Nothing outside marimo and the standard library.",
+      "author": "Toft",
+      "language": "Python",
+      "tags": [
+        "marimo",
+        "python",
+        "reactive",
+        "notebook",
+        "modelling",
+        "example"
+      ],
+      "version": "1.1.0",
+      "min_platform_version": "0.7.0",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/marimo-runway/v1.1.0.zip",
+      "path": "examples/marimo-runway",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/marimo-runway",
+      "suggested_slug": "runway",
+      "env": [],
+      "notes": "What makes this a marimo app is a `.py` at the root that imports marimo and constructs a `marimo.App` — `marimo` in `requirements.txt` is deliberately not the trigger, because it is a library people import into ordinary programs. There may be exactly one such file at the root. One process serves a session, so a heavy model is a queue for whoever is sharing it."
+    },
+    {
+      "id": "57c7b315-cbf6-406f-bdfa-a036ab7f373c",
+      "kind": "example",
+      "name": "Next.js Dashboard",
+      "summary": "Stat tiles, a range switcher and a line chart — with no chart library.",
+      "description": "Ninety days of generated data, four metrics, a range switcher and a line chart drawn as one SVG path — no chart library, because a dependency that pulled 300 kB into the bundle would be the largest thing in the example. Everything renders on the server except the chart, which needs a hover handler; the range and the metric live in the URL rather than in React state, so a view is a link somebody can paste into a chat and the back button does what it looks like it does. The capability rail reads the environment on the server, because handing a browser the whole environment is how a secret ends up in a bundle.",
+      "author": "Toft",
+      "language": "JavaScript",
+      "tags": [
+        "nextjs",
+        "react",
+        "dashboard",
+        "server-components",
+        "example"
+      ],
+      "version": "1.2.0",
+      "min_platform_version": "0.7.0",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/nextjs-dashboard/v1.2.0.zip",
+      "path": "examples/nextjs-dashboard",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/nextjs-dashboard",
+      "suggested_slug": "nextjs-dashboard",
+      "env": [],
+      "notes": "`basePath` is injected into a generated `next.config` wrapper before the build, which is when Next bakes the prefix into every asset URL. Do not set `output`: `next start` ignores a standalone build and `export` cannot build route handlers, and the wrapper warns in the build log rather than rewriting your config."
+    },
+    {
+      "id": "950ef10f-917e-44e2-b0a3-b0df25d15ce7",
+      "kind": "example",
+      "name": "Node API",
+      "summary": "A REST API, the page that uses it, and the caller's role on the three routes that write.",
+      "description": "A task list on Express — one dependency, no build step, everything in memory and honest about it. The generic Node path: any `package.json` with a `start` script, told its mount point with `BASE_PATH`. Four things it is careful about, and each is the difference between working locally and working here: it binds `HOST` rather than `0.0.0.0`, listens on `PORT`, builds the page's fetch URLs relative to the document, and puts the **caller's role** in front of POST, PATCH and DELETE. That last one is the interesting part: the platform signs a role onto every forwarded request, the SDK verifies it in-process with no round trip, and an `lp_` app key minted carrying `viewer` can read the list and cannot edit it. A rung is not a human, and nothing here pretends it can tell you one is there.",
+      "author": "Toft",
+      "language": "JavaScript",
+      "tags": [
+        "node",
+        "express",
+        "api",
+        "roles",
+        "app-keys",
+        "example"
+      ],
+      "version": "1.2.0",
+      "min_platform_version": "0.7.0",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/node-api/v1.2.0.zip",
+      "path": "examples/node-api",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/node-api",
+      "suggested_slug": "node-api",
+      "env": [],
+      "notes": "The refusal names the role it saw and the one it wanted, and the page keeps the controls visible rather than hiding them — an action you cannot see is an action you cannot ask about."
+    },
+    {
+      "id": "dbf515d5-b672-4aba-bbbe-4169dc25d033",
+      "kind": "example",
+      "name": "Stockroom",
+      "summary": "An inventory register that gets its own report out: PDF, Slack, email, on demand or on a schedule.",
+      "description": "Five aisles, forty lines, and every receipt and issue on a ledger written in the same transaction as the count it changes. Go with the standard library and `html/template`; SQLite embedded through `modernc.org/sqlite`, because Toft builds Go apps with CGO off. One report is built once and rendered three ways, so the PDF, the Slack comment and the email body cannot quote different numbers. This is the example to read for an app talking back to Toft **without an SDK**: `/api/v1/app/self`, the two notify routes, the run list and a scheduled task's own log, spoken directly in about two hundred lines. Its capability rail is read from the platform on every render rather than written down, so an administrator attaching Slack shows up on the next page load.",
+      "author": "Toft",
+      "language": "Go",
+      "tags": [
+        "go",
+        "sqlite",
+        "crud",
+        "reporting",
+        "slack",
+        "scheduled-tasks",
+        "example"
+      ],
+      "version": "1.2.0",
+      "min_platform_version": "0.7.0",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/stockroom/v1.2.0.zip",
+      "path": "examples/stockroom",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/stockroom",
+      "suggested_slug": "stockroom",
+      "env": [
+        {
+          "name": "APP_NAME",
+          "required": false,
+          "default": "Stockroom",
+          "description": "The wordmark, the PDF header, and the name this app's mail is sent under."
+        },
+        {
+          "name": "STOCKROOM_DATA_DIR",
+          "required": false,
+          "default": "",
+          "description": "Where the SQLite file goes. Leave it unset: the app prefers a writable storage mount, then the scratch directory, and says on its Platform tab which one it picked."
+        }
+      ],
+      "notes": "Slack and email are absent until an administrator attaches them on the app's Integrations tab, and the app says so rather than offering a button that cannot work. On a shared-mode install the register lives on scratch, so a redeploy re-seeds it — which is the point of the example, not a limitation of it."
+    },
+    {
+      "id": "a413936d-2f23-47a4-b658-896d194216f9",
+      "kind": "example",
+      "name": "A/B Test",
+      "summary": "Two variants' visitors and conversions in, and a difference, a confidence interval and a p-value out.",
+      "description": "Two variants' visitors and conversions in, and a difference, a confidence interval and a p-value out — plus a second tab that answers the question people actually ask first: how many visitors would it take to detect a lift this size. Base R's `prop.test` and `power.prop.test`; no modelling package. Every computation is microseconds, and that is the thing to copy rather than an accident: Toft runs **one R process per Shiny app**, so a slow reactive is a queue for every viewer at once and not just the one who triggered it. Replicas stay at one, which is what makes Shiny deployable here at all. Nothing is stored — every number on the page comes from the inputs.",
+      "author": "Toft",
+      "language": "R",
+      "tags": [
+        "shiny",
+        "r",
+        "statistics",
+        "ab-testing",
+        "example"
+      ],
+      "version": "1.2.0",
+      "min_platform_version": "0.7.0",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/shiny-abtest/v1.2.0.zip",
+      "path": "examples/shiny-abtest",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/shiny-abtest",
+      "suggested_slug": "ab-test",
+      "env": [
+        {
+          "name": "APP_TITLE",
+          "required": false,
+          "default": "A/B Test",
+          "description": "Page title and heading."
+        },
+        {
+          "name": "SIGNIFICANCE_LEVEL",
+          "required": false,
+          "default": "0.05",
+          "description": "The threshold, as a proportion. Anything outside 0 to 0.5 falls back to 0.05."
+        }
+      ],
+      "notes": "Started by evaluating `shiny::runApp` with the entrypoint, host and port as arguments — R has no `--port` flag, so no repository content is ever pasted into R source the platform evaluates. Shiny keeps its `/apps/{slug}` prefix and needs the trailing slash."
+    },
+    {
+      "id": "aa251fc3-eaba-4edb-8071-a6a60bc8e66a",
+      "kind": "example",
+      "name": "Stats API",
+      "summary": "R's base statistics behind five HTTP routes — and a console on the front page that calls them.",
+      "description": "Five routes for a service that would rather not reimplement quartiles, Tukey outliers, a least-squares forecast, Welch's t-test and Mann-Whitney. Everything takes and returns JSON except the histogram, which returns a PNG for pasting into a ticket. `/compare` runs both tests rather than one, because the parametric answer is the one people expect and the rank-based one is the one that survives a skewed sample — and when they disagree, that disagreement is the finding. One error handler for the whole API, so a validation failure is a 400 with a sentence in it rather than a 500 and a stack trace. An API is still a page when somebody opens its root in a browser, so `GET /` is a console that actually calls it.",
+      "author": "Toft",
+      "language": "R",
+      "tags": [
+        "plumber",
+        "r",
+        "api",
+        "statistics",
+        "console",
+        "example"
+      ],
+      "version": "1.2.0",
+      "min_platform_version": "0.7.0",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/plumber-stats/v1.2.0.zip",
+      "path": "examples/plumber-stats",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/plumber-stats",
+      "suggested_slug": "stats-api",
+      "env": [
+        {
+          "name": "API_TITLE",
+          "required": false,
+          "default": "Stats API",
+          "description": "Heading on the index page and in /health."
+        },
+        {
+          "name": "MAX_VALUES",
+          "required": false,
+          "default": "10000",
+          "description": "Most values one request may carry. Anything below 10 falls back to the default."
+        }
+      ],
+      "notes": "`renv.lock` is committed, which is not optional in spirit: without one nothing is installed, the deploy succeeds, and the app fails at its first `library()` call. Packages come as binaries from the repository the operator names."
+    },
+    {
+      "id": "fe590d58-6c6a-492f-b4be-1a848bad4c9c",
+      "kind": "example",
+      "name": "Data Quality Report",
+      "summary": "Point it at a CSV and it renders a page saying what is wrong with the file.",
+      "description": "Point it at a CSV and it renders a page saying what is wrong with the file: shape, missing values per column and per row, duplicate keys, categories that are the same thing spelled differently, Tukey outliers, non-positive numbers, and a histogram per numeric column. Seven checks, base R only, and nothing specific to the sample — point `REPORT_DATA` at any CSV and the same seven run. Rendered once at build time with `rmarkdown::render` into `toft-render/` and served as a document; a missing file is a first-class outcome the front page states rather than a build that dies with `cannot open file`.",
+      "author": "Toft",
+      "language": "R",
+      "tags": [
+        "rmarkdown",
+        "r",
+        "reporting",
+        "data-quality",
+        "example"
+      ],
+      "version": "1.2.0",
+      "min_platform_version": "0.7.0",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/rmarkdown-quality/v1.2.0.zip",
+      "path": "examples/rmarkdown-quality",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/rmarkdown-quality",
+      "suggested_slug": "data-quality",
+      "env": [
+        {
+          "name": "REPORT_TITLE",
+          "required": false,
+          "default": "Data Quality Report",
+          "description": "Document title."
+        },
+        {
+          "name": "REPORT_DATA",
+          "required": false,
+          "default": "data/deliveries.csv",
+          "description": "The CSV to profile, relative to the release directory."
+        },
+        {
+          "name": "REPORT_KEY",
+          "required": false,
+          "default": "",
+          "description": "The column expected to be unique. Defaults to the first column."
+        },
+        {
+          "name": "REPORT_MAX_ROWS",
+          "required": false,
+          "default": "200000",
+          "description": "Row cap on the read. The report says when it hit it."
+        }
+      ],
+      "notes": "Toft decides which document is the app by counting the .Rmd files at the repository root, so there is exactly one here; two is ambiguous and the deploy refuses by name. That is also why the sample generator lives in data/ rather than beside the document — a root .R file is scanned for plumber annotations, so a helper script could otherwise decide the whole repository's framework. To refresh the numbers, deploy again, or give the app a render schedule, which is a full deploy on a cron expression."
+    },
+    {
+      "id": "c62e0f37-9a41-4b8d-83c5-7e14d29b6f50",
+      "kind": "example",
+      "name": "Service Review",
+      "summary": "A quarterly review in Quarto with the knitr engine — cross-references, callouts and tabsets.",
+      "description": "Ten services, 148 incidents and one quarter: availability against target, where the time went, and the ratio of detection to restoration that is usually the cheapest thing on the page to improve. Base R graphics, no ggplot2, no chart library. It is here to show the half of Quarto an R Markdown report cannot do — a numbered contents rail, cross-references that cannot be renumbered by hand into disagreeing with each other, callouts, tabsets, and the code behind every chart folded closed. Quarto is what to reach for when the output is meant to be read by somebody who did not write it. A missing data file is a first-class outcome the front page states rather than a build that dies.",
+      "author": "Toft",
+      "language": "R",
+      "tags": [
+        "quarto",
+        "knitr",
+        "r",
+        "reporting",
+        "sla",
+        "example"
+      ],
+      "version": "1.1.0",
+      "min_platform_version": "0.7.0",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/quarto-service-review/v1.1.0.zip",
+      "path": "examples/quarto-service-review",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/quarto-service-review",
+      "suggested_slug": "service-review",
+      "env": [
+        {
+          "name": "REVIEW_DATA_DIR",
+          "required": false,
+          "default": "data",
+          "description": "Where `incidents.csv` and `services.csv` are read from. Point it at a storage mount to review a real quarter."
+        }
+      ],
+      "notes": "**Quarto is not bundled.** On an install without it a `.qmd` fails the deploy naming `QUARTO_BIN` — refused, never quietly rendered with the other engine. The engine is declared in `toft.toml` and confirmed by the YAML header and the `{r}` chunks, so no future edit can move this document into the Python family. The chunks run at deploy time with the app's whole environment, and whatever they print is in the published document."
+    },
+    {
+      "id": "edadd889-75db-4b0f-b48e-ceb95aa6fc06",
+      "kind": "example",
+      "name": "Service Catalog",
+      "summary": "A directory of what runs, who owns it, and what calls what — one page and one JSON file.",
+      "description": "Twenty-four services, who owns them, and what calls what — one page, one JSON file, and a dependency diagram drawn as SVG. Nothing is installed and nothing is compiled: the workload is a `serve-static` subcommand of a binary that is already there, over an image under 10 MB. Static is detected **last**, and only when the tree carries none of `package.json`, `requirements.txt`, `pyproject.toml`, `Pipfile` or `go.mod` — that list is the specification, and it exists because a Vite repository read as static would deploy successfully and serve a blank page forever. The one thing to get right is on the page: relative URLs work and root-absolute ones ask the platform for a file it does not have.",
+      "author": "Toft",
+      "language": "Static",
+      "tags": [
+        "static",
+        "html",
+        "javascript",
+        "catalog",
+        "no-build",
+        "example"
+      ],
+      "version": "1.2.0",
+      "min_platform_version": "0.7.0",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/service-catalog/v1.2.0.zip",
+      "path": "examples/service-catalog",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/service-catalog",
+      "suggested_slug": "service-catalog",
+      "env": [],
+      "notes": "The whole catalog is `data/services.json`; replace that one file and it is yours. `404.html` in the root is the body for an unmatched path, and it is the one page here that copies the palette rather than linking the stylesheet — an unmatched path can sit at any depth."
+    },
+    {
+      "id": "d001fb6f-8029-42f8-821b-82c44227aad2",
+      "kind": "extension",
+      "name": "Toft user guide",
+      "summary": "How to deploy, run and share an app on Toft.",
+      "description": "The manual for people who build and run apps on Toft, organised by what you are doing: deploying from a repository, from your machine, from an archive or from the gallery; what each framework is detected by and what it expects; language version pins; releases and rollback; sharing with people and groups, and asking for access to somebody else's app; scheduled tasks, jobs, app data and storage. Ends with the failures people actually hit and which log has the answer. A static site with its own search index — it makes no outbound request and works on an install with no route off the network.",
+      "author": "Toft",
+      "language": "Static",
+      "tags": [
+        "documentation",
+        "guide",
+        "static",
+        "reference"
+      ],
+      "icon": "book-open",
+      "version": "2.1.0",
+      "min_platform_version": "0.7.0",
+      "repo_url": "https://github.com/larchway-labs/toft-ext-user-guide",
+      "ref": "v2.1.0",
+      "source_url": "https://github.com/larchway-labs/toft-ext-user-guide",
+      "suggested_slug": "_user-guide",
+      "notes": "Installs on a reserved slug and is listed on the Documentation page rather than in the app list. It is an ordinary static app: it holds no credential and reaches nothing privileged."
+    },
+    {
+      "id": "a524b7ec-e094-41ac-a231-cdd3369910b1",
+      "kind": "extension",
+      "name": "Toft admin guide",
+      "summary": "Installing, configuring and running a Toft install.",
+      "description": "The install's own manual, one chapter per subsystem, with a reference at the back: every runtime setting and every environment variable in a table. Covers the two ways to install, first run and the built-in administrator, sign-in providers, directory groups and the SCIM feed, execution modes, the build pipeline and its cache, locking and quiet apps, and the security surfaces — anonymous access, reachability, trusted sources, dependency policy, at-rest encryption, machine credentials and the audit log. Also what an app has been given, what this install tells an assessor, and restricting a provider to named directory groups. Says what each switch takes away rather than what it offers, which is the part that is hard to find out by clicking.",
+      "author": "Toft",
+      "language": "Static",
+      "tags": [
+        "documentation",
+        "guide",
+        "static",
+        "administration"
+      ],
+      "icon": "book-open",
+      "version": "2.1.0",
+      "min_platform_version": "0.7.0",
+      "repo_url": "https://github.com/larchway-labs/toft-ext-admin-guide",
+      "ref": "v2.1.0",
+      "source_url": "https://github.com/larchway-labs/toft-ext-admin-guide",
+      "suggested_slug": "_admin-guide",
+      "notes": "Installs on a reserved slug and is listed on the Documentation page rather than in the app list. It is an ordinary static app: it holds no credential and reaches nothing privileged."
+    },
+    {
+      "id": "11c09f37-1521-460e-aa91-e26c5f66be5d",
+      "kind": "extension",
+      "name": "Toft CLI and SDK guide",
+      "summary": "The toft command-line client, and the app SDK your code calls back with.",
+      "description": "Reference for the two developer surfaces: toft's eighteen commands and its exit-code contract, and the app SDK in all four languages it ships in — Go, Node, Python and R. Covers the credential rules, what goes in a deploy bundle, app data, notifications, jobs, and the six role words an app verifies with no round trip.",
+      "author": "Toft",
+      "language": "Static",
+      "tags": [
+        "documentation",
+        "cli",
+        "sdk",
+        "static",
+        "reference"
+      ],
+      "icon": "book-open",
+      "version": "1.1.0",
+      "min_platform_version": "0.7.0",
+      "repo_url": "https://github.com/larchway-labs/toft-ext-cli-guide",
+      "ref": "v1.1.0",
+      "source_url": "https://github.com/larchway-labs/toft-ext-cli-guide",
+      "suggested_slug": "_cli-guide",
+      "notes": "Installs on a reserved slug and is listed on the Documentation page rather than in the app list. It is an ordinary static app: it holds no credential and reaches nothing privileged."
+    },
+    {
+      "id": "283a8f32-8536-45e7-b0c1-cc8c57d7252c",
+      "kind": "extension",
+      "name": "Security Probe",
+      "summary": "A deployed app that measures its own isolation: what it can and cannot reach, checked against what it should.",
+      "description": "Deploy it like any other app and open it. From inside its own per-app account it reports exactly what it can reach — other apps' files, the platform's secrets, cloud credentials, the network — with every result checked against what a correctly isolated app should see. A red result is a finding; an amber one is a documented, accepted trade of shared mode (apps share loopback; the platform API answers as anonymous; a TCP path to the database exists but is not authenticable). The home page lists every check with its status and a Run button, plus Run-all with a pass/accepted/finding tally. Flask plus boto3; writes nothing, persists nothing.",
+      "author": "Toft",
+      "language": "Python",
+      "tags": [
+        "security",
+        "isolation",
+        "diagnostics",
+        "python",
+        "operations"
+      ],
+      "version": "1.1.0",
+      "min_platform_version": "0.7.0",
+      "repo_url": "https://github.com/larchway-labs/toft-gallery",
+      "ref": "security-probe/v1.1.0",
+      "path": "extensions/security-probe",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/extensions/security-probe",
+      "suggested_slug": "security-probe",
+      "env": [
+        {
+          "name": "SECLAB_DB_HOST",
+          "required": false,
+          "default": "",
+          "description": "An RDS/Postgres endpoint to test TCP reachability against. Reachability without the password is defence-in-depth, not access; leave empty to skip that one check."
+        }
+      ],
+      "notes": "Read-only and safe to run on any install: it writes nothing and the single write-confinement test cleans up after itself. It makes loopback requests to neighbouring apps and the platform API to prove what it can reach — expected of a probe, and it reads only what an unauthenticated caller could."
+    },
+    {
+      "id": "40ec7d70-2b4b-49fd-bc80-5eeeb49b48c8",
+      "kind": "example",
+      "name": "Nightly Digest",
+      "summary": "A scheduled Python batch job with no web server, which can email its report.",
+      "description": "A batch app: `[batch]` in `toft.toml`, so Toft installs the dependencies, starts nothing, and the app's work is one job. Every morning at 06:00 London time — read on the wall clock, so it does not drift at the clock change — it reports on how yesterday's deliveries went: the day comes from the run's own scheduled time, so a late start still reports on the right day, and `toft job run digest --for 2026-10-06` re-runs a past one. The digest is recorded as the run's log, its structured result and an output file, and with `REPORT_TO` set it is emailed with `toft.notify.email` from inside the job, through the email integration an administrator attaches. `expect_within` tells the owners if a day goes by without a successful digest. The data is generated with a fixed seed per day, so it runs anywhere and a re-run matches the first.",
+      "author": "Toft",
+      "language": "Python",
+      "tags": [
+        "python",
+        "batch",
+        "jobs",
+        "scheduling",
+        "email",
+        "reporting",
+        "example"
+      ],
+      "version": "1.1.0",
+      "min_platform_version": "0.7.0",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/batch-digest/v1.1.0.zip",
+      "path": "examples/batch-digest",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/batch-digest",
+      "suggested_slug": "nightly-digest",
+      "env": [
+        {
+          "name": "REPORT_TO",
+          "required": false,
+          "default": "",
+          "description": "Comma-separated addresses to email the digest to. Unset, the digest is recorded and nothing is sent. Sending needs Email attached to the app by an administrator."
+        },
+        {
+          "name": "REPORT_TITLE",
+          "required": false,
+          "default": "Nightly delivery digest",
+          "description": "The report's heading and the email's subject."
+        }
+      ],
+      "notes": "A batch app has no page: its runs are on the Automation tab. With REPORT_TO set, a send the platform refuses fails the run, so the owners are told rather than the report going nowhere."
+    }
+  ]
+}

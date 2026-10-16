@@ -1,0 +1,176 @@
+/* Service Catalog — what this app adds to the house style.
+ *
+ * `toft-kit.css` is loaded first and is byte-identical in every example in
+ * the Toft gallery. This file adds the four structures the kit knows
+ * nothing about, and it never redefines a kit token:
+ *
+ *   .rack / .svc     the service list, which is a two-line row rather than a
+ *                    table because a summary belongs under a name
+ *   .detail          the panel beside it
+ *   .patch           the dependency diagram, drawn as SVG by catalog.js
+ *   .facts / .tags   the two blocks under it
+ */
+
+/* ── the board: list on the left, one service on the right ─────────────── */
+
+.board {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+@media (max-width: 900px) { .board { grid-template-columns: 1fr; } }
+
+.rack {
+  background: var(--lp-card);
+  border: 1px solid var(--lp-rule);
+  border-radius: var(--lp-r);
+  overflow: hidden;
+}
+.rack-hd {
+  padding: .75rem 1rem;
+  border-bottom: 1px solid var(--lp-rule-2);
+  background: linear-gradient(180deg, #fff, var(--lp-paper));
+  font: 600 .6875rem/1.4 var(--lp-sans);
+  letter-spacing: .085em; text-transform: uppercase; color: var(--lp-ink-3);
+}
+.list { max-height: 34rem; overflow-y: auto; }
+.list:focus { outline: none; }
+
+/* A row is a button, because it is a thing you press and a thing you reach
+   with the keyboard. Two lines: the name, and what the service is for. */
+.svc {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+  grid-template-areas: "tier name meta" "tier summary meta";
+  gap: 0 .75rem;
+  width: 100%; text-align: left; cursor: pointer;
+  appearance: none; background: none; border: 0;
+  border-bottom: 1px solid var(--lp-rule-2);
+  padding: .6875rem 1rem .6875rem .8125rem;
+  font: inherit; color: inherit; position: relative;
+}
+.svc::before {
+  content: ""; position: absolute; inset: 0 auto 0 0; width: 3px;
+  background: var(--lp-primary);
+  transform: scaleY(0); transform-origin: center;
+  transition: transform .12s ease;
+}
+.svc:hover { background: var(--lp-paper); }
+.svc:hover::before, .svc[aria-current="true"]::before { transform: scaleY(1); }
+.svc[aria-current="true"] { background: var(--lp-primary-sur); }
+.svc:last-child { border-bottom: 0; }
+
+.svc-tier {
+  grid-area: tier; align-self: center;
+  font: 620 .6875rem/1 var(--lp-mono);
+  border: 1px solid var(--lp-rule); border-radius: 999px;
+  padding: .22rem 0; text-align: center; color: var(--lp-ink-2);
+  background: var(--lp-card);
+}
+.svc[data-tier="1"] .svc-tier { border-color: var(--lp-dan-brd);  background: var(--lp-dan-sur);  color: var(--lp-dan-fg); }
+.svc[data-tier="2"] .svc-tier { border-color: var(--lp-att-brd);  background: var(--lp-att-sur);  color: var(--lp-att-fg); }
+.svc[data-tier="3"] .svc-tier { border-color: var(--lp-info-brd); background: var(--lp-info-sur); color: var(--lp-info-fg); }
+
+.svc-name { grid-area: name; font-weight: 600; font-size: .9375rem; }
+.svc-summary {
+  grid-area: summary; font-size: .8125rem; color: var(--lp-ink-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.svc-summary mark, .svc-name mark {
+  background: #FDF0A6; color: inherit; border-radius: 2px; padding: 0 .1em;
+}
+.svc-meta {
+  grid-area: meta; align-self: center; text-align: right;
+  display: flex; flex-direction: column; gap: .1rem;
+  font-size: .75rem; color: var(--lp-ink-3);
+}
+.svc-team { color: var(--lp-ink-2); }
+.svc-fan { font-variant-numeric: tabular-nums; font-family: var(--lp-mono); }
+
+/* ── the detail panel ──────────────────────────────────────────────────── */
+
+.detail {
+  background: var(--lp-card);
+  border: 1px solid var(--lp-rule);
+  border-radius: var(--lp-r);
+  position: sticky; top: 4.25rem;
+}
+.detail-in { padding: 1rem; }
+.detail-in > * + * { margin-top: 1rem; }
+.detail-hd { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; }
+.detail-name { font-size: 1.0625rem; font-weight: 640; letter-spacing: -.015em; }
+.detail-tier {
+  font: 560 .75rem/1.5 var(--lp-sans); white-space: nowrap;
+  border: 1px solid var(--lp-neu-brd); background: var(--lp-neu-sur);
+  color: var(--lp-neu-fg); border-radius: 999px; padding: .16rem .5rem;
+}
+.detail-summary { font-size: .875rem; color: var(--lp-ink-2); }
+.detail-empty { padding: 2.5rem 1.25rem; text-align: center; color: var(--lp-ink-2); font-size: .875rem; }
+
+.patch, .facts, .tags { border-top: 1px solid var(--lp-rule-2); padding-top: 1rem; }
+.patch h3, .facts h3, .tags h3 {
+  font: 640 .6875rem/1.4 var(--lp-sans);
+  letter-spacing: .085em; text-transform: uppercase; color: var(--lp-ink-3);
+  margin-bottom: .625rem;
+}
+
+/* ── the dependency diagram ────────────────────────────────────────────────
+   One SVG, written by catalog.js. Upstream is drawn in the brand colour and
+   downstream in the second series colour, because "what calls me" and "what I
+   call" are the two questions and a single colour makes them one. */
+
+.patch svg { display: block; width: 100%; height: auto; overflow: visible; }
+.patch .cable { fill: none; stroke-width: 1.25; opacity: .85; }
+.patch .cable-in  { stroke: var(--lp-c1); }
+.patch .cable-out { stroke: var(--lp-c2); }
+.patch .port { fill: var(--lp-card); stroke-width: 1.25; }
+.patch .port-in  { stroke: var(--lp-c1); }
+.patch .port-out { stroke: var(--lp-c2); }
+.patch .hub { fill: var(--lp-ink); }
+.patch text { fill: var(--lp-ink-2); font: 500 9.5px var(--lp-mono); }
+.patch text.hub-label { fill: var(--lp-ink); font-weight: 700; }
+.patch .lane { fill: var(--lp-ink-3); font: 600 8px var(--lp-sans); letter-spacing: .08em; text-transform: uppercase; }
+.patch .node { cursor: pointer; }
+.patch .node:hover text { fill: var(--lp-ink); }
+.patch .node:hover .port { fill: var(--lp-primary-sur); }
+.patch .none { font-size: 8px; fill: var(--lp-ink-3); }
+
+.facts dl { display: grid; grid-template-columns: 7rem minmax(0, 1fr); gap: .4rem .75rem; font-size: .875rem; }
+.facts dt { color: var(--lp-ink-3); font-size: .8125rem; }
+.facts dd { margin: 0; overflow-wrap: anywhere; }
+.facts dd.stale { color: var(--lp-dan-fg); font-weight: 560; }
+
+.tag-list { display: flex; flex-wrap: wrap; gap: .375rem; }
+.tag-list button {
+  appearance: none; cursor: pointer;
+  font: 500 .75rem/1.5 var(--lp-sans);
+  border: 1px solid var(--lp-rule); border-radius: 999px;
+  background: var(--lp-card); color: var(--lp-ink-2); padding: .16rem .55rem;
+}
+.tag-list button:hover { border-color: var(--lp-primary-brd); color: var(--lp-primary); background: var(--lp-primary-sur); }
+
+/* The `/` hint that lives in the search box. */
+.field-search { position: relative; }
+.field-search .hint {
+  position: absolute; right: .5rem; bottom: .45rem;
+  font: 500 .6875rem/1 var(--lp-mono);
+  border: 1px solid var(--lp-rule); border-bottom-width: 2px; border-radius: 3px;
+  padding: .18rem .3rem; background: var(--lp-sunk); color: var(--lp-ink-3);
+  pointer-events: none;
+}
+.field-search:focus-within .hint { opacity: 0; }
+
+.count { font-size: .8125rem; color: var(--lp-ink-2); align-self: end; padding-bottom: .45rem; }
+.keys kbd { margin-right: .125rem; }
+kbd {
+  font: 500 .6875rem/1 var(--lp-mono);
+  border: 1px solid var(--lp-rule); border-bottom-width: 2px; border-radius: 3px;
+  padding: .18rem .32rem; background: var(--lp-sunk); color: var(--lp-ink-2);
+}
+
+/* The detail heading takes the same tier tone the row badge does, from the same
+   attribute, so a service is the same colour in both places. */
+.detail[data-tier="1"] .detail-tier { border-color: var(--lp-dan-brd);  background: var(--lp-dan-sur);  color: var(--lp-dan-fg); }
+.detail[data-tier="2"] .detail-tier { border-color: var(--lp-att-brd);  background: var(--lp-att-sur);  color: var(--lp-att-fg); }
+.detail[data-tier="3"] .detail-tier { border-color: var(--lp-info-brd); background: var(--lp-info-sur); color: var(--lp-info-fg); }

@@ -1,0 +1,4 @@
+# fastapi is what Toft's detector looks for: it starts the app with
+# `uvicorn main:app --root-path /apps/{slug}`.
+fastapi>=0.110,<1.0
+uvicorn>=0.27

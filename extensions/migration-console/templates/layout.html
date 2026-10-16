@@ -1,0 +1,102 @@
+{{/* The shell.
+
+     This app's own header names this app. There is deliberately no imitation of
+     Toft's left nav, no page shaped like an Admin page, and no breadcrumb
+     that appears to lead back into the platform: the frame around this console
+     is Toft's own, and an app never speaks in the platform's voice. */}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} · Migration console</title>
+<link rel="stylesheet" href="{{url "/static/app.css"}}">
+{{/* Vendored, not fetched. An on-premises install may have no egress at all,
+     and an extension that needs a CDN to render its own buttons breaks the rule
+     every optional capability in this product already keeps. */}}
+<script src="{{url "/static/htmx.min.js"}}" defer></script>
+</head>
+<body>
+
+<a class="skiplink" href="#main">Skip to content</a>
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="{{url "/"}}"><span class="mark" aria-hidden="true">MC</span>Migration console
+      <span>· change requests</span></a>
+    <nav class="topnav" aria-label="Sections">
+      <a href="{{url "/"}}" {{if eq .Nav "queue"}}aria-current="page"{{end}}>Requests</a>
+      {{if .Caller.Editor}}
+      <a href="{{url "/targets"}}" {{if eq .Nav "targets"}}aria-current="page"{{end}}>Targets</a>
+      <a href="{{url "/reviewers"}}" {{if eq .Nav "reviewers"}}aria-current="page"{{end}}>Reviewers</a>
+      {{end}}
+      {{/* Links is the one configuration page a reviewer reaches, and it is
+           what makes fast-track reachable at all: the button needs the roster,
+           and the roster is deliberately not the administrators, so a nav item
+           only editors could see hid the control from everybody entitled to use
+           it. The page itself still keeps Delete for editors. */}}
+      {{if or .Caller.Editor .Caller.Reviewer}}
+      <a href="{{url "/links"}}" {{if eq .Nav "links"}}aria-current="page"{{end}}>Links</a>
+      {{end}}
+      {{if .Caller.Editor}}
+      <a href="{{url "/settings"}}" {{if eq .Nav "settings"}}aria-current="page"{{end}}>Settings</a>
+      {{end}}
+      <a href="{{url "/health"}}" {{if eq .Nav "health"}}aria-current="page"{{end}}>Install</a>
+    </nav>
+    {{/* The palette has always been there and ⌘K has always opened it; until
+         now the only place that said so was a sentence on one page. A control
+         beside the shortcut is the rule this app already claims to keep. */}}
+    <button type="button" class="topsearch" data-palette>
+      <span aria-hidden="true">⌕</span> Search <kbd>⌘K</kbd>
+    </button>
+  </div>
+</header>
+
+<main class="wrap" id="main">
+  {{if .Caller.IdentityOff}}
+    {{template "_notice" dict "Tone" "attention" "Title" "This install is not finished"
+        "Body" "Viewer identity is switched off for this app, so the console cannot tell who you are — which means it cannot record who raised or approved anything. A Toft administrator turns it on from this app’s settings. Until then nothing here can be submitted."}}
+  {{end}}
+  {{if .Notice}}{{template "_notice" .Notice}}{{end}}
+  {{template "content" .}}
+</main>
+
+<script>
+/* Keyboard-first, never keyboard-only. Every shortcut below has a control
+   beside it on the page; this is the accelerator for somebody clearing six
+   requests on a Friday, not the only route to any of them. */
+(function () {
+  var rows = function () { return Array.prototype.slice.call(document.querySelectorAll('tr[data-row]')); };
+  var i = -1;
+  function openPalette() {
+    var d = document.getElementById('palette');
+    if (!d) return;
+    d.showModal();
+    var q = d.querySelector('input');
+    if (q) { q.value = ''; q.focus(); }
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('[data-palette]'), function (b) {
+    b.addEventListener('click', openPalette);
+  });
+  function focusRow(n) {
+    var rs = rows(); if (!rs.length) return;
+    i = Math.max(0, Math.min(rs.length - 1, n));
+    rs.forEach(function (r, k) { r.classList.toggle('kbfocus', k === i); });
+    rs[i].scrollIntoView({ block: 'nearest' });
+  }
+  document.addEventListener('keydown', function (e) {
+    var t = e.target && e.target.tagName;
+    if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT') return;
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openPalette(); return; }
+    if (e.key === 'j') { e.preventDefault(); focusRow(i + 1); }
+    if (e.key === 'k') { e.preventDefault(); focusRow(i - 1); }
+    if (e.key === 'Enter' && i >= 0) {
+      var link = rows()[i] && rows()[i].querySelector('a[data-open]');
+      if (link) { e.preventDefault(); link.click(); }
+    }
+  });
+})();
+</script>
+
+{{template "_palette" .}}
+</body>
+</html>

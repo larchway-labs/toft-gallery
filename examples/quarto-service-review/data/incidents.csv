@@ -1,0 +1,149 @@
+id,opened,service,tier,severity,region,cause,minutes,detect_minutes,change_related
+INC-2652,2026-04-02 02:46,Notifications,Tier 2,S3,North,Change,28,5,yes
+INC-2697,2026-04-05 09:46,Warehouse,Tier 1,S3,North,Dependency,6,1,no
+INC-2731,2026-04-05 20:43,Partner API,Tier 2,S3,Midlands,Capacity,39,10,no
+INC-2707,2026-04-07 01:00,Partner API,Tier 2,S3,Benelux,Dependency,33,7,no
+INC-2691,2026-04-07 22:40,Ordering,Tier 1,S3,South,Change,20,1,yes
+INC-2674,2026-04-08 02:28,Fleet tracking,Tier 3,S3,Midlands,Change,30,3,yes
+INC-2721,2026-04-08 02:35,Notifications,Tier 2,S3,Benelux,Configuration,23,2,no
+INC-2636,2026-04-08 04:46,Ordering,Tier 1,S2,Midlands,Configuration,99,36,no
+INC-2645,2026-04-09 16:02,Customer portal,Tier 2,S3,Benelux,Change,43,12,yes
+INC-2603,2026-04-10 09:09,Warehouse,Tier 1,S2,North,Change,75,1,yes
+INC-2681,2026-04-11 08:13,Payments,Tier 1,S3,Benelux,Capacity,21,3,no
+INC-2666,2026-04-11 20:15,Notifications,Tier 2,S3,Ireland,Hardware,40,10,no
+INC-2605,2026-04-12 10:52,Fleet tracking,Tier 3,S3,South,Hardware,17,2,no
+INC-2663,2026-04-13 00:50,Warehouse,Tier 1,S3,Midlands,Change,8,1,no
+INC-2632,2026-04-13 05:25,Partner API,Tier 2,S3,South,Configuration,47,8,no
+INC-2705,2026-04-13 17:26,Fleet tracking,Tier 3,S3,North,Hardware,31,10,no
+INC-2643,2026-04-13 19:46,Payments,Tier 1,S3,Benelux,Unknown,71,26,no
+INC-2656,2026-04-14 01:56,Customer portal,Tier 2,S2,Benelux,Unknown,66,16,no
+INC-2704,2026-04-14 20:22,Expenses,Tier 3,S3,South,Configuration,35,13,no
+INC-2710,2026-04-15 02:48,Warehouse,Tier 1,S2,Ireland,Hardware,139,93,no
+INC-2679,2026-04-15 04:15,Partner API,Tier 2,S2,Ireland,Dependency,89,16,no
+INC-2739,2026-04-15 22:01,Ordering,Tier 1,S3,Ireland,Unknown,39,10,no
+INC-2689,2026-04-15 23:07,Reporting,Tier 2,S3,North,Capacity,37,6,no
+INC-2631,2026-04-16 08:10,Partner API,Tier 2,S3,Midlands,Hardware,25,3,no
+INC-2688,2026-04-17 01:03,Warehouse,Tier 1,S3,Ireland,Change,44,9,no
+INC-2633,2026-04-18 15:00,Warehouse,Tier 1,S2,North,Change,130,20,yes
+INC-2711,2026-04-18 17:06,Expenses,Tier 3,S3,Benelux,Capacity,62,1,no
+INC-2673,2026-04-18 20:46,Customer portal,Tier 2,S3,Midlands,Change,19,5,yes
+INC-2738,2026-04-20 10:21,Notifications,Tier 2,S3,Benelux,Capacity,59,5,no
+INC-2654,2026-04-21 13:22,Warehouse,Tier 1,S2,Benelux,Dependency,82,11,no
+INC-2741,2026-04-21 19:23,Warehouse,Tier 1,S3,North,Dependency,32,1,no
+INC-2672,2026-04-22 00:17,Payments,Tier 1,S3,Benelux,Capacity,40,1,no
+INC-2726,2026-04-22 17:49,Internal wiki,Tier 3,S3,Ireland,Hardware,74,21,no
+INC-2642,2026-04-23 19:41,Reporting,Tier 2,S3,South,Change,65,23,yes
+INC-2737,2026-04-24 20:37,Expenses,Tier 3,S3,South,Capacity,15,4,no
+INC-2611,2026-04-25 16:42,Payments,Tier 1,S3,South,Configuration,47,12,no
+INC-2647,2026-04-26 04:14,Notifications,Tier 2,S3,Ireland,Change,60,8,no
+INC-2615,2026-04-26 05:47,Internal wiki,Tier 3,S3,North,Change,57,4,yes
+INC-2609,2026-04-27 05:57,Reporting,Tier 2,S2,South,Change,64,25,yes
+INC-2709,2026-04-27 10:25,Internal wiki,Tier 3,S2,Midlands,Change,146,19,yes
+INC-2649,2026-04-28 08:07,Fleet tracking,Tier 3,S3,Benelux,Capacity,26,5,no
+INC-2616,2026-04-29 14:10,Ordering,Tier 1,S3,Ireland,Change,75,1,yes
+INC-2637,2026-04-30 15:19,Customer portal,Tier 2,S3,Midlands,Configuration,36,6,no
+INC-2644,2026-05-01 06:09,Internal wiki,Tier 3,S2,Midlands,Change,47,14,no
+INC-2719,2026-05-01 18:46,Warehouse,Tier 1,S1,Ireland,Dependency,348,88,no
+INC-2699,2026-05-02 07:50,Notifications,Tier 2,S3,South,Change,6,1,no
+INC-2728,2026-05-02 08:19,Expenses,Tier 3,S2,Ireland,Hardware,38,15,no
+INC-2601,2026-05-04 17:15,Partner API,Tier 2,S3,Benelux,Dependency,55,17,no
+INC-2620,2026-05-04 21:51,Customer portal,Tier 2,S2,Benelux,Dependency,194,44,no
+INC-2687,2026-05-05 00:02,Reporting,Tier 2,S2,Benelux,Change,108,16,yes
+INC-2614,2026-05-05 07:32,Partner API,Tier 2,S2,Benelux,Configuration,134,1,no
+INC-2678,2026-05-05 10:00,Expenses,Tier 3,S3,South,Configuration,52,4,no
+INC-2682,2026-05-05 15:00,Ordering,Tier 1,S2,Benelux,Capacity,171,29,no
+INC-2735,2026-05-06 01:31,Partner API,Tier 2,S3,Ireland,Unknown,86,8,no
+INC-2607,2026-05-07 01:32,Customer portal,Tier 2,S3,South,Capacity,22,3,no
+INC-2725,2026-05-07 12:26,Notifications,Tier 2,S3,Ireland,Dependency,48,16,no
+INC-2706,2026-05-07 18:42,Notifications,Tier 2,S3,North,Configuration,24,3,no
+INC-2696,2026-05-08 16:35,Reporting,Tier 2,S2,Benelux,Dependency,120,5,no
+INC-2732,2026-05-08 21:45,Fleet tracking,Tier 3,S3,Midlands,Configuration,31,8,no
+INC-2727,2026-05-08 22:22,Ordering,Tier 1,S3,South,Unknown,16,4,no
+INC-2623,2026-05-09 14:12,Ordering,Tier 1,S3,Ireland,Change,19,6,no
+INC-2695,2026-05-10 12:30,Notifications,Tier 2,S2,Midlands,Change,142,43,no
+INC-2736,2026-05-10 17:37,Warehouse,Tier 1,S3,Ireland,Capacity,51,13,no
+INC-2629,2026-05-11 03:07,Internal wiki,Tier 3,S2,Midlands,Change,68,17,yes
+INC-2619,2026-05-11 18:29,Ordering,Tier 1,S3,North,Capacity,37,5,no
+INC-2653,2026-05-12 00:31,Payments,Tier 1,S1,Benelux,Configuration,49,4,no
+INC-2733,2026-05-12 02:42,Fleet tracking,Tier 3,S3,Midlands,Change,34,8,yes
+INC-2700,2026-05-12 03:03,Warehouse,Tier 1,S3,Ireland,Dependency,30,3,no
+INC-2660,2026-05-13 22:57,Notifications,Tier 2,S3,Midlands,Capacity,40,12,no
+INC-2612,2026-05-14 20:41,Expenses,Tier 3,S3,Ireland,Unknown,21,6,no
+INC-2734,2026-05-16 10:48,Reporting,Tier 2,S3,North,Unknown,60,6,no
+INC-2718,2026-05-16 16:56,Reporting,Tier 2,S3,South,Change,41,1,no
+INC-2722,2026-05-17 07:11,Notifications,Tier 2,S3,North,Dependency,18,1,no
+INC-2692,2026-05-17 16:44,Reporting,Tier 2,S2,Midlands,Unknown,159,87,no
+INC-2626,2026-05-19 01:11,Reporting,Tier 2,S3,North,Unknown,64,11,no
+INC-2685,2026-05-19 03:32,Customer portal,Tier 2,S3,Midlands,Dependency,55,5,no
+INC-2658,2026-05-19 11:23,Reporting,Tier 2,S1,North,Dependency,270,47,no
+INC-2657,2026-05-19 14:11,Customer portal,Tier 2,S2,South,Change,57,13,yes
+INC-2715,2026-05-19 21:30,Payments,Tier 1,S2,Midlands,Dependency,45,6,no
+INC-2747,2026-05-19 22:50,Reporting,Tier 2,S1,Ireland,Capacity,237,50,no
+INC-2628,2026-05-20 08:27,Customer portal,Tier 2,S3,Ireland,Dependency,48,7,no
+INC-2714,2026-05-21 08:44,Ordering,Tier 1,S3,South,Dependency,56,16,no
+INC-2659,2026-05-22 05:02,Payments,Tier 1,S3,Midlands,Dependency,51,12,no
+INC-2708,2026-05-23 08:17,Warehouse,Tier 1,S3,South,Dependency,16,1,no
+INC-2683,2026-05-23 21:10,Fleet tracking,Tier 3,S3,Benelux,Change,43,11,yes
+INC-2669,2026-05-26 06:17,Reporting,Tier 2,S3,South,Capacity,6,1,no
+INC-2640,2026-05-26 10:43,Reporting,Tier 2,S3,Benelux,Dependency,15,1,no
+INC-2698,2026-05-26 16:30,Fleet tracking,Tier 3,S3,Midlands,Change,37,17,yes
+INC-2676,2026-05-27 11:27,Warehouse,Tier 1,S1,Midlands,Unknown,285,104,no
+INC-2664,2026-05-28 05:12,Customer portal,Tier 2,S3,Midlands,Dependency,40,8,no
+INC-2703,2026-05-28 13:02,Expenses,Tier 3,S3,North,Dependency,27,5,no
+INC-2639,2026-05-28 14:34,Ordering,Tier 1,S3,Benelux,Capacity,57,1,no
+INC-2730,2026-05-29 11:15,Internal wiki,Tier 3,S3,Midlands,Change,50,11,yes
+INC-2745,2026-05-29 15:31,Partner API,Tier 2,S3,Midlands,Dependency,57,13,no
+INC-2665,2026-05-30 19:17,Expenses,Tier 3,S3,South,Change,20,3,yes
+INC-2646,2026-05-30 23:30,Reporting,Tier 2,S2,Midlands,Change,14,1,yes
+INC-2617,2026-05-31 00:34,Notifications,Tier 2,S1,Ireland,Capacity,205,28,no
+INC-2602,2026-05-31 05:32,Customer portal,Tier 2,S3,North,Configuration,52,11,no
+INC-2627,2026-05-31 12:57,Internal wiki,Tier 3,S2,North,Change,99,16,yes
+INC-2746,2026-06-01 17:48,Reporting,Tier 2,S3,Ireland,Dependency,18,4,no
+INC-2701,2026-06-02 00:37,Warehouse,Tier 1,S3,Benelux,Capacity,37,1,no
+INC-2744,2026-06-02 05:06,Ordering,Tier 1,S3,Ireland,Capacity,67,15,no
+INC-2716,2026-06-03 12:46,Fleet tracking,Tier 3,S3,Benelux,Dependency,18,2,no
+INC-2624,2026-06-04 01:12,Expenses,Tier 3,S3,Benelux,Change,48,6,yes
+INC-2720,2026-06-04 23:55,Internal wiki,Tier 3,S3,Midlands,Unknown,58,6,no
+INC-2693,2026-06-06 04:49,Expenses,Tier 3,S3,Midlands,Configuration,6,1,no
+INC-2610,2026-06-06 17:27,Fleet tracking,Tier 3,S3,Midlands,Change,64,18,no
+INC-2671,2026-06-06 21:40,Payments,Tier 1,S3,Midlands,Dependency,35,6,no
+INC-2667,2026-06-07 22:10,Reporting,Tier 2,S1,Ireland,Configuration,210,43,no
+INC-2618,2026-06-08 23:15,Payments,Tier 1,S3,North,Change,29,6,yes
+INC-2680,2026-06-10 15:19,Payments,Tier 1,S3,Benelux,Change,31,9,yes
+INC-2740,2026-06-11 04:39,Payments,Tier 1,S2,Midlands,Configuration,112,17,no
+INC-2625,2026-06-11 06:11,Reporting,Tier 2,S3,North,Capacity,44,7,no
+INC-2717,2026-06-11 19:38,Warehouse,Tier 1,S3,Midlands,Dependency,40,5,no
+INC-2713,2026-06-13 02:42,Ordering,Tier 1,S3,South,Change,36,7,yes
+INC-2694,2026-06-13 05:50,Notifications,Tier 2,S3,South,Capacity,56,14,no
+INC-2634,2026-06-13 22:19,Fleet tracking,Tier 3,S3,North,Dependency,41,1,no
+INC-2729,2026-06-13 23:01,Payments,Tier 1,S2,Ireland,Unknown,108,1,no
+INC-2650,2026-06-14 03:30,Expenses,Tier 3,S2,North,Dependency,121,40,no
+INC-2655,2026-06-14 09:50,Customer portal,Tier 2,S3,North,Configuration,54,1,no
+INC-2604,2026-06-14 16:23,Ordering,Tier 1,S2,South,Dependency,108,3,no
+INC-2608,2026-06-14 19:58,Payments,Tier 1,S3,Benelux,Change,70,13,no
+INC-2638,2026-06-16 23:23,Customer portal,Tier 2,S3,Ireland,Capacity,26,1,no
+INC-2600,2026-06-18 00:09,Reporting,Tier 2,S2,Benelux,Configuration,129,28,no
+INC-2662,2026-06-18 02:58,Expenses,Tier 3,S2,Midlands,Configuration,177,3,no
+INC-2622,2026-06-19 06:36,Reporting,Tier 2,S3,Ireland,Change,38,1,no
+INC-2661,2026-06-19 22:24,Partner API,Tier 2,S3,South,Unknown,61,18,no
+INC-2635,2026-06-19 22:39,Warehouse,Tier 1,S3,Benelux,Configuration,37,4,no
+INC-2684,2026-06-21 05:59,Payments,Tier 1,S2,South,Change,134,40,yes
+INC-2651,2026-06-21 19:24,Customer portal,Tier 2,S3,Benelux,Dependency,35,11,no
+INC-2606,2026-06-21 22:50,Customer portal,Tier 2,S1,South,Change,366,93,yes
+INC-2670,2026-06-22 17:55,Ordering,Tier 1,S3,Midlands,Capacity,51,1,no
+INC-2630,2026-06-23 02:07,Notifications,Tier 2,S3,North,Dependency,35,8,no
+INC-2621,2026-06-23 04:52,Reporting,Tier 2,S3,Ireland,Change,33,3,yes
+INC-2690,2026-06-24 09:53,Expenses,Tier 3,S3,South,Capacity,32,11,no
+INC-2712,2026-06-25 16:09,Notifications,Tier 2,S2,North,Change,53,8,yes
+INC-2613,2026-06-25 22:44,Ordering,Tier 1,S3,Midlands,Unknown,27,8,no
+INC-2686,2026-06-26 07:54,Reporting,Tier 2,S3,South,Configuration,43,9,no
+INC-2702,2026-06-26 09:08,Partner API,Tier 2,S3,Benelux,Capacity,14,2,no
+INC-2677,2026-06-26 16:25,Partner API,Tier 2,S2,Midlands,Change,29,4,no
+INC-2668,2026-06-26 20:59,Warehouse,Tier 1,S3,Midlands,Hardware,45,5,no
+INC-2641,2026-06-27 04:03,Warehouse,Tier 1,S3,Benelux,Capacity,51,9,no
+INC-2648,2026-06-27 16:29,Fleet tracking,Tier 3,S3,Midlands,Dependency,20,3,no
+INC-2675,2026-06-29 06:38,Payments,Tier 1,S3,Benelux,Change,9,1,yes
+INC-2723,2026-06-29 07:23,Internal wiki,Tier 3,S2,Benelux,Capacity,21,8,no
+INC-2742,2026-06-30 03:29,Warehouse,Tier 1,S3,Ireland,Dependency,46,17,no
+INC-2724,2026-06-30 06:00,Customer portal,Tier 2,S2,Benelux,Capacity,171,1,no
+INC-2743,2026-06-30 17:40,Internal wiki,Tier 3,S3,North,Unknown,28,7,no

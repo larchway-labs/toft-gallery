@@ -1,0 +1,115 @@
+{{ define "content" }}
+{{ $d := .Data }}
+
+<div class="page-head">
+  <div>
+    <h1>Platform</h1>
+    <p>What Toft told this app about itself, and what the app did with it.</p>
+  </div>
+</div>
+
+<div class="split">
+
+  <section class="card card-wide">
+    <header class="card-head"><h2>This app</h2></header>
+
+    {{ if not $d.OnPlat }}
+      <p class="card-empty">Running outside Toft. <span class="mono">TOFT_API_URL</span> and
+      <span class="mono">TOFT_APP_TOKEN</span> are absent, so there is no platform to ask — and every
+      surface that would send something says so rather than offering a button that cannot work.</p>
+    {{ else if $d.SelfErr }}
+      <p class="card-empty">Toft did not answer <span class="mono">/api/v1/app/self</span>: {{ $d.SelfErr }}</p>
+    {{ else }}
+      <dl class="spec spec-wide">
+        <dt>Name</dt><dd>{{ $d.Self.Name }}</dd>
+        <dt>Slug</dt><dd class="mono">{{ $d.Self.Slug }}</dd>
+        <dt>App id</dt><dd class="mono">{{ $d.Self.ID }}</dd>
+        <dt>Execution mode</dt><dd class="mono">{{ $d.Self.Mode }}</dd>
+        <dt>Mounted at</dt><dd class="mono">{{ if .Cfg.BasePath }}{{ .Cfg.BasePath }}{{ else }}/ (no prefix){{ end }}</dd>
+      </dl>
+
+      <h3 class="sub">What this app may do</h3>
+      <ul class="caps">
+        {{ template "cap" dict "Caps" $d.Self.Capabilities "Key" "slack.post"   "Label" "Post messages to Slack" }}
+        {{ template "cap" dict "Caps" $d.Self.Capabilities "Key" "slack.file"   "Label" "Upload files to Slack" }}
+        {{ template "cap" dict "Caps" $d.Self.Capabilities "Key" "email.send"   "Label" "Send email" }}
+        {{ template "cap" dict "Caps" $d.Self.Capabilities "Key" "email.attach" "Label" "Attach files to email" }}
+      </ul>
+      <p class="card-foot">A capability is an administrator's decision, made on the app's Integrations tab.
+        The app is told what it may do and never why not — the reason is the administrator's business.</p>
+    {{ end }}
+  </section>
+
+  <section class="card">
+    <header class="card-head"><h2>Where the data lives</h2></header>
+    <dl class="spec">
+      <dt>Database</dt><dd class="mono block">{{ .Cfg.DataDir }}/stockroom.db</dd>
+    </dl>
+    <p class="prose-note">{{ .Cfg.DataNote }}</p>
+
+    {{ if $d.Mounts }}
+      <h3 class="sub">Storage mapped to this app</h3>
+      <table class="grid">
+        <thead><tr><th>Name</th><th>Kind</th><th>Path</th><th>Access</th></tr></thead>
+        <tbody>
+          {{ range $d.Mounts }}
+          <tr><td>{{ .Name }}</td><td class="mono">{{ .Kind }}</td>
+              <td class="mono">{{ .Path }}</td><td class="mono">{{ .Access }}</td></tr>
+          {{ end }}
+        </tbody>
+      </table>
+      <p class="card-foot">Resolved by name, never by path, so an administrator can move a resource without
+        this app being edited.</p>
+    {{ else }}
+      <p class="card-foot">No durable storage is mapped. Storage is attached below an isolated workload's
+        boundary, which a shared-mode process does not have — so on a shared install the register lives on
+        scratch and is rebuilt, seeded, on every deploy.</p>
+    {{ end }}
+  </section>
+
+</div>
+
+<section class="card">
+  <header class="card-head"><h2>How this app talks to Toft</h2></header>
+  <div class="prose prose-cols">
+    <div>
+      <h3 class="sub">What it reads from the environment</h3>
+      <dl class="spec">
+        <dt class="mono">PORT</dt><dd>the port to serve on, bound to 127.0.0.1 and nothing else</dd>
+        <dt class="mono">BASE_PATH</dt><dd>the mount prefix; the proxy strips it, so every link is written back with it</dd>
+        <dt class="mono">TOFT_API_URL</dt><dd>where the app API is</dd>
+        <dt class="mono">TOFT_APP_TOKEN</dt><dd>this app's outbound identity, rotated by every deploy</dd>
+        <dt class="mono">TOFT_SCRATCH_DIR</dt><dd>ephemeral space; wiped on deploy and restart</dd>
+        <dt class="mono">TOFT_STORAGE</dt><dd>durable mounts, when any are mapped</dd>
+      </dl>
+    </div>
+    <div>
+      <h3 class="sub">What it calls</h3>
+      <dl class="spec">
+        <dt class="mono">GET /app/self</dt><dd>who this app is and what it may do</dd>
+        <dt class="mono">POST /app/notify/slack/file</dt><dd>the report PDF, into the channel its owners chose</dd>
+        <dt class="mono">POST /app/notify/email</dt><dd>the report, to addresses somebody typed here</dd>
+        <dt class="mono">GET /app/runs</dt><dd>this app's scheduled runs, for the Activity tab</dd>
+        <dt class="mono">POST /app/runs/{id}/logs</dt><dd>lines into a running task's own log</dd>
+      </dl>
+      <h3 class="sub">What Toft sends it</h3>
+      <dl class="spec">
+        <dt class="mono">X-Toft-Session</dt><dd>an opaque per-session id — enough to tell two people's
+          edits apart, never enough to name either</dd>
+        <dt class="mono">X-Toft-Cron</dt><dd>set when the request is a scheduled firing</dd>
+        <dt class="mono">X-Toft-Run</dt><dd>the run id to push log lines against</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+{{ end }}
+
+
+{{ define "cap" }}
+  <li class="cap {{ if has .Caps .Key }}cap-on{{ else }}cap-off{{ end }}">
+    <span class="cap-mark" aria-hidden="true"></span>
+    <span class="cap-label">{{ .Label }}</span>
+    <span class="cap-key mono">{{ .Key }}</span>
+  </li>
+{{ end }}

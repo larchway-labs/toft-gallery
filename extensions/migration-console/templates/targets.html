@@ -1,0 +1,148 @@
+{{define "content"}}
+{{$d := .Data}}
+<div class="pagehead">
+  <div>
+    <h1>Targets</h1>
+    <p>Where this console can push, and the one row describing this install — the source, holding the
+       read-scoped key it pulls with. One place where the console’s credentials live, and one place
+       to look after an incident.</p>
+  </div>
+</div>
+
+<div class="stack">
+  <div class="card">
+    <div class="cardhead"><h2>This install</h2></div>
+    {{if $d.Source}}
+      <div class="tablewrap"><table><tbody>{{template "targetrow" $d.Source}}</tbody></table></div>
+    {{else}}
+      <div class="empty">
+        <h3>The source has not been added</h3>
+        <p>Mint a deploy key on this install with the <strong>read</strong> scope and add it below.
+           Read-scoped on purpose: the credential this console holds on the install it runs on can
+           pull a release and cannot deploy anything, including to itself.</p>
+      </div>
+    {{end}}
+  </div>
+
+  <div class="card">
+    <div class="cardhead"><h2>Targets</h2></div>
+    {{if not $d.Targets}}
+      <div class="empty"><h3>No targets</h3>
+        <p>An administrator on the other install mints a <strong>deploy</strong>-scoped key there and
+           pastes it here. No credential travels between installs on its own, and no Toft can
+           mint one for another.</p></div>
+    {{else}}
+    <div class="tablewrap"><table>
+      <thead><tr><th>Label</th><th>Address</th><th>Key</th><th>Last test</th><th class="drop-lg">Owner group</th><th></th></tr></thead>
+      <tbody>{{range $d.Targets}}{{template "targetrow" .}}{{end}}</tbody>
+    </table></div>
+    {{end}}
+  </div>
+
+  {{$e := $d.Editing}}
+  <form class="card measure" id="targetform" method="post" action="{{url "/targets"}}">
+    <div class="cardhead"><h2>{{if $e}}Replacing {{$e.Label}}{{else}}Add or replace{{end}}</h2>
+      {{if $e}}<a class="small" style="margin-left:auto" href="{{url "/targets"}}">Add a new one instead</a>{{end}}</div>
+    <div class="body stack">
+      {{if $e}}<input type="hidden" name="id" value="{{$e.ID}}">{{end}}
+      <div class="row">
+        <div class="field">
+          <label for="kind">What this is</label>
+          <select id="kind" name="kind">
+            <option value="target" {{if $e}}{{if eq $e.Kind "target"}}selected{{end}}{{end}}>A target to push to</option>
+            <option value="source" {{if $e}}{{if eq $e.Kind "source"}}selected{{end}}{{end}}>This install (the source)</option>
+          </select>
+        </div>
+        <div class="field"><label for="label">Label</label>
+          <input id="label" name="label" required placeholder="Production" value="{{if $e}}{{$e.Label}}{{end}}">
+          <p class="hint">Name it after the environment, not the machine.</p></div>
+      </div>
+      <div class="field"><label for="base">Address</label>
+        <input id="base" name="base_url" type="url" required placeholder="https://toft.example.com" value="{{if $e}}{{$e.BaseURL}}{{end}}">
+        <p class="hint">https only, no credentials in the URL, and no private address unless the
+           range is allowed on Settings. That last exception exists because an on-premises estate’s
+           other installs are frequently on RFC1918.</p></div>
+      <div class="field"><label for="key">Deploy key</label>
+        <input id="key" name="deploy_key" type="password" placeholder="toftd_…" autocomplete="off">
+        <p class="hint">Entered once and never shown again — afterwards only its prefix.
+           {{if $e}}Leave it blank to keep the one already stored ({{$e.KeyPrefix}}…); typing one
+           replaces it.{{else}}Leave blank when editing to keep the stored key. Changing it is
+           replacing it.{{end}}</p></div>
+      {{/* A picker once the row exists, a text field before it does — and the
+           asymmetry is not an oversight. The groups are on *that* install, so
+           asking for them needs its address and its key, which is precisely
+           what this form is in the middle of collecting. On an edit both are
+           already stored and tested, so the list is there to be read; on a
+           create there is nothing to ask yet, and a picker that could only ever
+           be empty is worse than the box it replaced. */}}
+      {{if and $e $d.EditingGroups}}
+      <div class="field">
+        <label for="grp">Default owning group on {{$e.Label}}</label>
+        <select id="grp" name="default_owner_group_id">
+          <option value="">None — the approver picks one each time</option>
+          {{range $d.EditingGroups}}
+            <option value="{{.ID}}" {{if eq .ID $e.DefaultOwnerGroupID}}selected{{end}} {{if eq .Members 0}}disabled{{end}}>
+              {{.Name}}{{if eq .Members 0}} — empty, cannot own an app{{else}} · {{.Members}} member(s){{end}}
+            </option>
+          {{end}}
+        </select>
+        <p class="hint">Read from {{$e.Label}} now, with the key stored for it. Pre-selected when an
+           approver creates an app there; they can override it on the request. An empty group is
+           shown and refused, because the far side refuses it too.</p>
+      </div>
+      {{else}}
+      <div class="row">
+        <div class="field"><label for="grp">Default owning group id (targets)</label>
+          <input id="grp" name="default_owner_group_id" placeholder="group id on that install" value="{{if $e}}{{$e.DefaultOwnerGroupID}}{{end}}">
+          <p class="hint">Pre-selected when an approver creates an app there; they can override it.
+            {{if $e}}{{if $d.EditingGroupsWhy}}<br>{{$d.EditingGroupsWhy}}{{end}}
+            {{else}}Save this target first and edit it, and this becomes a list read from that
+            install.{{end}}</p></div>
+        <div class="field"><label for="grpn">Its name</label><input id="grpn" name="default_owner_group_name" value="{{if $e}}{{$e.DefaultOwnerGroupName}}{{end}}"></div>
+      </div>
+      {{end}}
+      <div class="field">
+        <label class="inline"><input type="checkbox" name="fast_track" style="width:auto"
+          {{if $e}}{{if $e.FastTrack}}checked{{end}}{{end}}> Allow a one-person send on an established link</label>
+        <p class="hint">Off by default. With it on, somebody who is both a reviewer and can see the
+           link may send the source’s current release to an app this console already deployed to —
+           with a reason, and flagged in the ledger. It collapses the second pair of eyes, which is
+           why it is per target: an install can run UAT with one click and production with two.</p>
+      </div>
+      <div class="inline">
+        <button class="primary" type="submit">Test and save</button>
+        <span class="hint">Nothing is saved on a failed test.</span>
+      </div>
+    </div>
+  </form>
+</div>
+{{end}}
+
+{{define "targetrow"}}
+<tr id="target-{{.ID}}">
+  <td><strong>{{.Label}}</strong>
+    {{if eq .Kind "source"}}<div class="xs muted">read-scoped, pulls only</div>{{end}}
+    {{if .FastTrack}}<div><span class="chip attention">One-person send allowed</span></div>{{end}}</td>
+  <td class="mono small">{{.BaseURL}}</td>
+  <td class="mono xs muted">{{.KeyPrefix}}…</td>
+  <td>
+    {{if .LastTestedAt}}
+      {{if .Reached}}<span class="chip ok">Reached</span>{{else}}<span class="chip danger">Failed</span>{{end}}
+      <div class="lastlooked">{{ago .LastTestedAt}}</div>
+      <div class="xs muted">{{.LastTestResult}}</div>
+    {{else}}<span class="chip neutral">Not checked</span>{{end}}
+  </td>
+  <td class="drop-lg small">{{if .DefaultOwnerGroupName}}{{.DefaultOwnerGroupName}}{{else}}<span class="muted">—</span>{{end}}</td>
+  <td>
+    <div class="inline rowactions">
+      <button class="small" hx-post="{{url (printf "/targets/%s/test" .ID)}}"
+              hx-target="#target-{{.ID}}" hx-swap="outerHTML">Test</button>
+      <a class="btn small" href="{{url (printf "/targets?edit=%s" .ID)}}#targetform">Edit</a>
+      <form method="post" action="{{url (printf "/targets/%s/delete" .ID)}}"
+            onsubmit="return confirm('Remove {{.Label}}? Requests already raised against it keep their record.')">
+        <button class="small" type="submit">Remove</button>
+      </form>
+    </div>
+  </td>
+</tr>
+{{end}}

@@ -1,0 +1,130 @@
+{{define "content"}}
+{{$d := .Data}}
+<div class="pagehead">
+  <div>
+    <h1>{{if $d.App}}{{$d.App.Name}}{{else}}This app{{end}}</h1>
+    <p>Everything ever shipped from this app, across every target.
+       Neither install can answer that on its own — the source records nothing when a release is
+       downloaded, and the target’s log names a deploy key and not the request behind it.</p>
+  </div>
+  <div class="actions">
+    {{if $d.MayRaise}}<a class="btn primary" href="{{url (printf "/requests/new?app=%s" $d.AppID)}}">New request</a>{{end}}
+  </div>
+</div>
+
+<div class="stack">
+  {{template "appnote" $d}}
+
+  {{if $d.Links}}
+  <div class="card">
+    <div class="cardhead"><h2>Where it is now</h2></div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Target</th><th>As</th><th>State</th><th class="drop-md">Detail</th><th class="drop-lg">Last looked</th></tr></thead>
+      <tbody>{{range $d.Links}}
+        <tr><td>{{.TargetLabel}}</td>
+            <td class="mono">{{.TargetAppSlug}}</td>
+            <td>{{template "_chip" .State}}</td>
+            <td class="drop-md small">{{.Detail}}</td>
+            <td class="drop-lg lastlooked">{{ago .CheckedAt}}</td></tr>
+      {{end}}</tbody>
+    </table></div>
+    <div class="body"><p class="hint">Derived when this page was opened, never stored.
+       <em>Not checked</em> means the console could not reach one of the two installs — it is not
+       agreement.</p></div>
+  </div>
+  {{end}}
+
+  {{template "appattachments" $d}}
+
+  <div class="card">
+    <div class="cardhead"><h2>Requests</h2></div>
+    {{if not $d.Requests}}
+      <div class="empty"><h3>Nothing has been raised for this app</h3>
+        <p>A request pins one release and a reviewer approves those bytes.</p></div>
+    {{else}}
+    <div class="tablewrap"><table>
+      <thead><tr><th>Request</th><th>Target</th><th>State</th><th class="drop-md">Release</th><th class="drop-lg">Raised</th></tr></thead>
+      <tbody>{{range $d.Requests}}
+        <tr data-row>
+          <td><a data-open href="{{url (printf "/requests/%s" .ID)}}">#{{.Seq}}</a>
+              <div class="xs muted">{{.RequesterName}}</div></td>
+          <td>{{index $d.TargetLabel .TargetID}}</td>
+          <td>{{template "_chip" .Status}}{{if .DriftNote}} <span class="chip attention">Drift</span>{{end}}</td>
+          <td class="drop-md">
+            <span class="mono">{{relref .SourceReleaseLabel}}</span>
+            <div class="xs muted sub nowrap">{{relwhen .SourceReleaseLabel}}</div>
+          </td>
+          <td class="drop-lg small muted">{{ago .CreatedAt}}</td>
+        </tr>
+      {{end}}</tbody>
+    </table></div>
+    {{end}}
+  </div>
+
+  <div class="card">
+    <div class="cardhead"><h2>History</h2></div>
+    <div class="body"><ul class="events">
+      {{range $d.Events}}
+      <li><time>{{when .At}}</time>
+        <div><strong>{{.Action}}</strong>{{if .ActorName}} <span class="muted">· {{.ActorName}}</span>{{end}}
+          {{if .Detail}}<div class="small detail">{{.Detail}}</div>{{end}}</div></li>
+      {{end}}
+    </ul></div>
+  </div>
+</div>
+{{end}}
+
+{{define "appnote"}}
+<div class="card" id="appnote">
+  <div class="cardhead"><h2>About this app</h2>
+    {{if .Note}}<span class="muted xs" style="margin-left:auto">last edited by {{.Note.UpdatedByName}}, {{ago .Note.UpdatedAt}}</span>{{end}}
+  </div>
+  <div class="body">
+    {{if .MayEdit}}
+    <form hx-post="{{url (printf "/apps/%s/note" .AppID)}}" hx-target="#appnote" hx-swap="outerHTML">
+      <textarea name="body" placeholder="What a reviewer needs to know about this app every time — the change reference, the on-call rota, the thing that broke last quarter.">{{if .Note}}{{.Note.Body}}{{end}}</textarea>
+      <div class="inline" style="margin-top:8px"><button type="submit">Save</button>
+        <span class="hint">Shown on every request raised for this app, so it is written once rather than pasted into each one.</span></div>
+    </form>
+    {{else if .Note}}
+      <div style="white-space:pre-wrap">{{.Note.Body}}</div>
+    {{else}}
+      <p class="muted small">No note.</p>
+    {{end}}
+  </div>
+</div>
+{{end}}
+
+{{define "appattachments"}}
+<div class="card" id="appattachments">
+  <div class="cardhead"><h2>Standing paperwork</h2></div>
+  <div class="body">
+    {{if not .Attachments}}
+      <p class="muted small">Nothing attached to the app itself.</p>
+    {{else}}
+    <ul class="attachments">
+      {{range .Attachments}}
+      <li><a class="name" href="{{url (printf "/attachments/%s" .ID)}}">{{.Filename}}</a>
+        <span class="muted xs">{{bytes .SizeBytes}} · {{.UploadedByName}} · {{ago .UploadedAt}}</span>
+        <span class="mono xs muted" style="margin-left:auto">{{short 12 .SHA256}}…</span>
+        {{if $.MayEdit}}
+        <form hx-post="{{url (printf "/attachments/%s/delete" .ID)}}" hx-target="#appattachments" hx-swap="outerHTML">
+          <button class="small" type="submit">Remove</button></form>
+        {{end}}
+      </li>
+      {{end}}
+    </ul>
+    {{end}}
+    {{if .MayEdit}}
+    <form style="margin-top:12px" hx-post="{{url (printf "/apps/%s/attachments" .AppID)}}"
+          hx-encoding="multipart/form-data" hx-target="#appattachments" hx-swap="outerHTML">
+      <div class="field"><label for="af">Attach a document to the app</label>
+        <input id="af" type="file" name="file" required>
+        <p class="hint">Every request raised for this app shows these, so the architecture note is
+           attached once instead of to every migration.</p></div>
+      <button type="submit">Attach</button>
+    </form>
+    {{end}}
+  </div>
+</div>
+{{end}}

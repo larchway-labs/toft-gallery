@@ -1,0 +1,72 @@
+{{define "content"}}
+{{$d := .Data}}
+<div class="pagehead"><div><h1>Settings</h1>
+  <p>The console’s own configuration. Nothing here changes anything on Toft.</p></div></div>
+
+<form class="card measure" method="post" action="{{url "/settings"}}">
+  <div class="body stack">
+
+    {{if $d.EmailOn}}
+    <div class="field">
+      <label for="ag">Administrators’ group</label>
+      <select id="ag" name="admin_group_id">
+        <option value="">Nobody — failures stay in the ledger</option>
+        {{range $d.Groups}}
+          <option value="{{.ID}}" {{if eq .ID (index $d.Settings "admin_group_id")}}selected{{end}}>
+            {{.Name}}{{if not .Email}} — no address{{end}}</option>
+        {{end}}
+      </select>
+      <p class="hint">A push that failed, an archive that answered 410, a scheduled migration that
+         could not run, a link whose target app has gone, and a target whose daily test went from
+         green to red. The console mails the group’s <strong>own address</strong> and refuses to save
+         a group that has none — it cannot read who is in a group, so accepting one without an
+         address would mean mailing nobody, silently, on exactly these events.</p>
+    </div>
+
+    <div class="field">
+      <label class="inline"><input type="checkbox" name="notify_by_default"
+        {{if eq (index $d.Settings "notify_requester_by_default") "true"}}checked{{end}} style="width:auto">
+        Tick “email me when it finishes” on a new request by default</label>
+    </div>
+    {{else}}
+    {{/* Absent, not off: with no email connection attached, the notification
+         settings are not in the interface at all. */}}
+    <div class="field">
+      <p class="small muted">Notification settings appear here once an administrator attaches an
+         email connection to this app on Toft. Until then the console keeps every outcome in its
+         own ledger and sends nothing.</p>
+    </div>
+    {{end}}
+
+    <div class="field">
+      <label class="inline"><input type="checkbox" name="require_note"
+        {{if eq (index $d.Settings "require_note_on_new_request") "true"}}checked{{end}} style="width:auto">
+        A new request must carry a note for the reviewer</label>
+      <p class="hint">Off by default. On, a request with an empty note is refused when it is
+         raised rather than sent back later — a change board whose requests arrive blank is one
+         that does its reading somewhere else.</p>
+    </div>
+
+    <div class="field">
+      <label for="amax">Largest attachment (MB)</label>
+      <input id="amax" name="attachment_max_mb" type="text" inputmode="numeric"
+             value="{{index $d.Settings "attachment_max_mb"}}" placeholder="25">
+      <p class="hint">Between 1 and 100. Documents live in the console’s own database, so this is
+         also how much of that database one request can use.</p>
+    </div>
+
+    <div class="field">
+      <label for="ranges">Private ranges a target may be in</label>
+      <input id="ranges" name="private_ranges_allowed"
+             value="{{index $d.Settings "private_ranges_allowed"}}"
+             placeholder="10.0.0.0/8, 192.168.0.0/16">
+      <p class="hint">An address somebody types is server-side input, so the console refuses private,
+         loopback and link-local addresses — except the ranges named here. An on-premises estate’s
+         other installs are frequently on RFC1918, so this is an allow-list rather than a pretence
+         that the rule can be absolute. This is the console’s own check and not the platform’s.</p>
+    </div>
+
+    <button class="primary" type="submit">Save</button>
+  </div>
+</form>
+{{end}}

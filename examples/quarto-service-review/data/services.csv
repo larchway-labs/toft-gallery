@@ -1,0 +1,11 @@
+service,tier,target_pct,owner,region
+Ordering,Tier 1,99.9,Commerce,North
+Payments,Tier 1,99.95,Payments,South
+Warehouse,Tier 1,99.5,Logistics,Midlands
+Customer portal,Tier 2,99.5,Platform,Ireland
+Reporting,Tier 2,99.0,Workplace,Benelux
+Notifications,Tier 2,99.0,Commerce,North
+Partner API,Tier 2,99.5,Payments,South
+Internal wiki,Tier 3,98.0,Logistics,Midlands
+Expenses,Tier 3,98.0,Platform,Ireland
+Fleet tracking,Tier 3,98.5,Workplace,Benelux

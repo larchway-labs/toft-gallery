@@ -1,0 +1,17 @@
+# A batch app (Toft ADR §107): it serves no pages, and everything it does
+# is a job. The deploy installs the dependencies, starts nothing, and the app is
+# "ready".
+[batch]
+
+# The nightly digest. 06:00 London, whatever the time of year: the schedule is
+# read on the wall clock, so it does not drift an hour at the clock change.
+[jobs.digest]
+command       = "python digest.py"
+schedule      = "0 6 * * *"
+timezone      = "Europe/London"
+timeout       = 600
+memory        = 256
+retries       = 1
+# Tell the owners if a day goes by without a successful digest — paused,
+# refused by the queue, or failing quietly.
+expect_within = "26h"

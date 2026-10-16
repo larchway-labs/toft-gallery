@@ -1,0 +1,8 @@
+# The MCP SDK, and nothing else. It brings starlette and uvicorn with it, which
+# is what serves the streamable-HTTP transport.
+#
+# Note what is *not* here: no flask, fastapi or streamlit. That absence is what
+# puts this app on Toft's generic Python path — started as `python app.py`,
+# with the app owning its own server, bind address and port, which is what an
+# MCP server wants anyway.
+mcp>=2.0,<3

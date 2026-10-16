@@ -1,0 +1,111 @@
+/* Data Quality Report — the layer between rmarkdown's HTML and the house style.
+ *
+ * `toft-kit.css` is loaded first and is byte-identical in every example in
+ * the Toft gallery. This file does two things and no more: it hands the
+ * page the kit's paper and type, and it restyles the four structures rmarkdown
+ * builds that the kit knows nothing about — the title block, the floating
+ * contents rail, kable's table, and a code chunk.
+ *
+ * It never redefines a kit token. That is the rule for every example's own
+ * stylesheet in this gallery.
+ */
+
+body {
+  background: var(--lp-paper);
+  color: var(--lp-ink);
+  font-family: var(--lp-sans);
+  font-size: 15px;
+  line-height: 1.62;
+}
+
+.main-container { max-width: 62rem; }
+
+/* ── the title block ───────────────────────────────────────────────────────
+   Suppressed: the masthead below it says the same thing in the gallery's own
+   voice, and two headings arguing about which is the title is worse than one. */
+h1.title, .title, h4.date, .date { display: none; }
+
+h1 { font-size: 1.5rem;   font-weight: 640; letter-spacing: -.021em; margin-top: 2.5rem;
+     padding-bottom: .5rem; border-bottom: 1px solid var(--lp-rule); }
+h2 { font-size: 1.125rem; font-weight: 620; letter-spacing: -.014em; margin-top: 2rem; }
+h3 { font-size: .9375rem; font-weight: 620; margin-top: 1.5rem; }
+.lp-block h1, .lp-block h2, .lp-block h3 { margin-top: 0; border: 0; padding: 0; }
+
+/* ── the floating contents rail ─────────────────────────────────────────── */
+
+#TOC, .tocify {
+  font-size: .8125rem; border: 0; border-left: 1px solid var(--lp-rule);
+  border-radius: 0; padding-left: 1rem; background: none;
+}
+.tocify-header { text-indent: 0; }
+.tocify ul, .tocify li { border: 0; margin: 0; line-height: 1.5; }
+.tocify-item {
+  color: var(--lp-ink-2); padding: .18rem 0; background: none; border-radius: 0;
+}
+.tocify-item:hover { background: none; color: var(--lp-primary); }
+.tocify .active > a, .tocify-item.active {
+  background: none; color: var(--lp-primary); font-weight: 600;
+}
+.tocify-subheader > .tocify-item { padding-left: .75rem; font-size: .78rem; }
+
+/* ── kable's table ─────────────────────────────────────────────────────── */
+
+table, .table {
+  width: 100%; border-collapse: collapse; font-size: .875rem;
+  background: var(--lp-card); border: 1px solid var(--lp-rule);
+  border-radius: var(--lp-r); overflow: hidden; margin: 1rem 0 1.5rem;
+}
+table th, table td, .table > tbody > tr > td, .table > thead > tr > th {
+  padding: .5rem .75rem; border: 0; border-bottom: 1px solid var(--lp-rule-2);
+  text-align: left; vertical-align: top;
+}
+table thead th, .table > thead > tr > th {
+  font: 600 .6875rem/1.4 var(--lp-sans); letter-spacing: .07em; text-transform: uppercase;
+  color: var(--lp-ink-3); background: var(--lp-paper);
+  border-bottom: 1px solid var(--lp-rule); white-space: nowrap;
+}
+table tbody tr:last-child td { border-bottom: 0; }
+table tbody tr:hover { background: var(--lp-paper); }
+table td:not(:first-child) { font-variant-numeric: tabular-nums; }
+caption {
+  color: var(--lp-ink-2); font-size: .8125rem; text-align: left;
+  padding: .5rem 0; caption-side: top;
+}
+
+/* ── code, and the one thing a data-quality report prints a lot of ─────── */
+
+pre, pre.r, pre code {
+  background: #14161C; color: #D6D9E3; border: 0;
+  border-radius: var(--lp-r-sm); padding: .75rem .875rem;
+  font: 400 .8125rem/1.6 var(--lp-mono); overflow-x: auto;
+}
+code:not(pre code) {
+  background: var(--lp-sunk); border-radius: 4px; padding: .1em .32em;
+  font-size: .875em; color: var(--lp-ink); border: 0;
+}
+blockquote {
+  border: 1px solid var(--lp-rule); border-left: 3px solid var(--lp-info-solid);
+  background: var(--lp-info-sur); border-radius: var(--lp-r-sm);
+  padding: .75rem .875rem; margin: 1.25rem 0; color: var(--lp-ink-2); font-size: .9375rem;
+}
+
+img, .figure img { max-width: 100%; height: auto; border-radius: var(--lp-r-sm); }
+a { color: var(--lp-primary); }
+hr { border: 0; border-top: 1px solid var(--lp-rule); margin: 2rem 0; }
+
+/* The masthead block is the kit's and needs room. */
+.lp-block { margin-bottom: 1.75rem; }
+.lp-block .masthead { border-radius: var(--lp-r) var(--lp-r) 0 0; }
+.lp-block .rail { border-radius: 0 0 var(--lp-r) var(--lp-r); }
+.lp-block .tiles {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+}
+
+/* The one collision between the kit and Bootstrap, named rather than left to be
+   discovered: `.row` is a flex utility in the kit and a grid row in Bootstrap.
+   `html_document` is Bootstrap 3, whose row is floats and a clearfix, so the
+   kit's `display: flex` takes the columns out of the layout entirely. Bootstrap
+   wins inside its own container; the kit's utility still works outside it. */
+.main-container .row, .container-fluid .row {
+  display: block; gap: 0; align-items: initial; flex-wrap: initial;
+}

@@ -1,0 +1,150 @@
+{{ define "content" }}
+{{ $d := .Data }}
+
+<div class="page-head">
+  <div>
+    <h1>Reports</h1>
+    <p>One PDF, three ways out: downloaded here, posted to Slack, or emailed — by hand now, or on a schedule.</p>
+  </div>
+</div>
+
+<section class="card">
+  <header class="card-head"><h2>Send a report</h2></header>
+
+  <div class="picker">
+    {{ range $d.Kinds }}
+    <a class="pick{{ if eq $d.Selected .Key }} pick-on{{ end }}" href="{{ query "/reports" "report" .Key }}">
+      <span class="pick-title">{{ .Title }}</span>
+      <span class="pick-blurb">{{ .Blurb }}</span>
+    </a>
+    {{ end }}
+  </div>
+
+  <div class="sends">
+
+    <form method="post" action="{{ url "/reports/deliver" }}" class="send">
+      <input type="hidden" name="report" value="{{ $d.Selected }}">
+      <input type="hidden" name="channel" value="download">
+      <h3>Download</h3>
+      <p>The PDF, straight to this browser. Always available — it never leaves the app.</p>
+      <button class="btn btn-primary" type="submit">Download the PDF</button>
+    </form>
+
+    <form method="post" action="{{ url "/reports/deliver" }}" class="send">
+      <input type="hidden" name="report" value="{{ $d.Selected }}">
+      <input type="hidden" name="channel" value="slack">
+      <h3>Post to Slack</h3>
+      {{ if not $d.OnPlat }}
+        <p class="send-off">This app is not running on Toft, so there is no Slack to post to.</p>
+        <button class="btn" type="submit" disabled>Post to Slack</button>
+      {{ else if $d.SelfErr }}
+        <p class="send-off">Toft did not answer when asked what this app may do: {{ $d.SelfErr }}
+           The button still works — the platform checks again at send time.</p>
+        <button class="btn btn-primary" type="submit">Post to Slack</button>
+      {{ else if has $d.Self.Capabilities "slack.file" }}
+        <p>Posts the PDF, with the summary as its comment, to the channel this app's owners chose.</p>
+        <button class="btn btn-primary" type="submit">Post the PDF</button>
+      {{ else if has $d.Self.Capabilities "slack.post" }}
+        <p>This app may post messages but not files, so the summary goes without the PDF.
+           An administrator can allow file uploads on the app's Integrations tab.</p>
+        <button class="btn btn-primary" type="submit">Post the summary</button>
+      {{ else }}
+        <p class="send-off">Slack is not attached to this app. An administrator attaches it on the app's
+           Integrations tab and picks the channel; nothing here can turn it on.</p>
+        <button class="btn" type="submit" disabled>Post to Slack</button>
+      {{ end }}
+      <p class="send-note">The channel is not this app's to choose — its owners pick it, from the
+         channels the bot was invited into.</p>
+    </form>
+
+    <form method="post" action="{{ url "/reports/deliver" }}" class="send">
+      <input type="hidden" name="report" value="{{ $d.Selected }}">
+      <input type="hidden" name="channel" value="email">
+      <h3>Email it</h3>
+      {{ if not $d.OnPlat }}
+        <p class="send-off">This app is not running on Toft, so it has nothing to send mail through.</p>
+      {{ else if and (not $d.SelfErr) (not (has $d.Self.Capabilities "email.send")) }}
+        <p class="send-off">Email is not attached to this app. An administrator attaches it on the app's
+           Integrations tab.</p>
+      {{ else if and (not $d.SelfErr) (not (has $d.Self.Capabilities "email.attach")) }}
+        <p>This app may send email but not attachments, so recipients get the summary without the PDF.</p>
+      {{ else }}
+        <p>Sends the summary with the PDF attached, as “{{ .Deploy }} (via Toft)”.</p>
+      {{ end }}
+      <label class="field">
+        <span class="field-label">To</span>
+        <input name="to" type="text" placeholder="ops@example.com, facilities@example.com"
+               {{ if or (not $d.OnPlat) (and (not $d.SelfErr) (not (has $d.Self.Capabilities "email.send"))) }}disabled{{ end }}>
+        <span class="field-help">Recipients are the one destination an app chooses for itself.
+          Every address is written to the install's send log.</span>
+      </label>
+      <button class="btn btn-primary" type="submit"
+              {{ if or (not $d.OnPlat) (and (not $d.SelfErr) (not (has $d.Self.Capabilities "email.send"))) }}disabled{{ end }}>
+        Send the email
+      </button>
+    </form>
+
+  </div>
+</section>
+
+<div class="split">
+
+  <section class="card card-wide">
+    <header class="card-head">
+      <h2>What has gone out</h2>
+      <span class="card-note">what this app handed over — the install's Integration log has what arrived</span>
+    </header>
+    {{ if $d.Deliveries }}
+    <table class="grid">
+      <thead><tr><th>When</th><th>Report</th><th>Channel</th><th>Started by</th><th>To</th><th>Result</th></tr></thead>
+      <tbody>
+        {{ range $d.Deliveries }}
+        <tr>
+          <td class="mono muted nowrap">{{ fmtTime .At "02 Jan 15:04" }}</td>
+          <td>{{ .Report }}</td>
+          <td class="mono">{{ .Channel }}</td>
+          <td class="muted">{{ .Trigger }}</td>
+          <td class="muted">{{ .Target }}</td>
+          <td>
+            {{ if eq .Status "accepted" }}<span class="chip chip-ok">Accepted</span>
+            {{ else if eq .Status "ok" }}<span class="chip chip-ok">Done</span>
+            {{ else }}<span class="chip chip-bad">Failed</span>{{ end }}
+            {{ if .Detail }}<span class="cell-sub">{{ .Detail }}</span>{{ end }}
+            {{ if .SendID }}<span class="cell-sub mono">send {{ .SendID }}</span>{{ end }}
+          </td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+    {{ else }}
+      <p class="card-empty">Nothing has been sent yet. Everything sent from this tab — and everything the
+      schedule sends — is listed here.</p>
+    {{ end }}
+  </section>
+
+  <section class="card">
+    <header class="card-head"><h2>Send it on a schedule</h2></header>
+    <div class="prose">
+      <p>Toft calls a path this app publishes, on whatever schedule an administrator sets. Create the
+         task on the app's <b>Automation</b> tab with:</p>
+      <dl class="spec">
+        <dt>Path</dt><dd class="mono">/tasks/report</dd>
+        <dt>Method</dt><dd class="mono">POST</dd>
+        <dt>Parameters</dt>
+        <dd class="mono block">{"report": "low_stock",
+ "channel": "slack",
+ "to": "ops@example.com"}</dd>
+      </dl>
+      <p><code>report</code> is one of <span class="mono">inventory</span>,
+         <span class="mono">low_stock</span> or <span class="mono">movements</span>;
+         <code>channel</code> is <span class="mono">slack</span>, <span class="mono">email</span>
+         or <span class="mono">both</span>. Two schedules on the same path with different parameters is
+         the point — one report, weekly and monthly, without a second endpoint.</p>
+      <p class="prose-note">The run's log and its result appear on the Automation tab, and the delivery
+         appears in the table beside this. The work happens inside the request: if the task times out, the
+         run is a failure, so keep the window wide enough for the register you have.</p>
+    </div>
+  </section>
+
+</div>
+{{ end }}

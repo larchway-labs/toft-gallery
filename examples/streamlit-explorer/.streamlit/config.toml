@@ -1,0 +1,24 @@
+# Streamlit draws its own chrome, and the only honest way to make it match the
+# rest of the Toft gallery is to give it the kit's palette here and inject
+# the kit's stylesheet for everything else. These six values are the same hexes
+# `toft-kit.css` defines as tokens; there is no way to share them, so
+# `chrome.py` asserts they agree and says so on the page if they ever stop.
+
+[theme]
+base = "light"
+primaryColor = "#4338CA"
+backgroundColor = "#FAFAFB"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#14161C"
+linkColor = "#4338CA"
+borderColor = "#E5E6EA"
+font = "sans-serif"
+codeFont = "monospace"
+
+[server]
+# Toft passes --server.baseUrlPath and --server.enableCORS false on the
+# command line; nothing here needs to know the mount point.
+maxUploadSize = 50
+
+[browser]
+gatherUsageStats = false

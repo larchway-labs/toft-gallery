@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="en" data-base="{{ base }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reconcile — {{ period }}</title>
+<meta name="description" content="A month-end reconciliation desk. A Toft example, on FastAPI.">
+<link rel="icon" href="{{ base }}/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="{{ base }}/static/toft-kit.css">
+<link rel="stylesheet" href="{{ base }}/static/app.css">
+</head>
+<body>
+<a class="lp-skip" href="#main">Skip to content</a>
+
+<header class="masthead">
+  <div class="masthead-in">
+    <div>
+      <div class="wordmark">
+        <span class="mark" aria-hidden="true"></span>
+        <span class="wordmark-text">Toft example</span>
+      </div>
+      <h1>Reconcile</h1>
+      <p class="standfirst">
+        Two sides of a month, matched three ways, and the leftovers put in front of
+        somebody who can decide about them.
+      </p>
+    </div>
+    <div class="masthead-aside">
+      <span class="chip chip-lang">Python · FastAPI</span>
+      {% if app_info.available %}<span class="chip">{{ app_info.mode|title }} mode</span>{% endif %}
+      <form method="get" action="{{ base }}/" class="row" style="gap:.4rem">
+        <label class="sr" for="period">Period</label>
+        <select id="period" name="period" onchange="this.form.submit()" style="width:auto">
+          {% for p in periods %}<option value="{{ p }}" {% if p == period %}selected{% endif %}>{{ p }}</option>{% endfor %}
+        </select>
+        <noscript><button class="btn btn-sm" type="submit">Go</button></noscript>
+      </form>
+    </div>
+  </div>
+</header>
+
+<div class="rail">
+  <div class="rail-in">
+    <span class="rail-label">Toft</span>
+    {% for c in rail %}
+      <span class="cap {{ c.state }}" title="{{ c.note }}"><b>{{ c.label }}</b></span>
+    {% endfor %}
+  </div>
+</div>
+
+<nav class="tabs" data-tabs aria-label="Sections">
+  <div class="tabs-in">
+    <button class="tab" type="button" data-tab="overview">Overview</button>
+    <button class="tab" type="button" data-tab="exceptions">Exceptions
+      <span class="tab-count">{{ counts.open }}</span></button>
+    <button class="tab" type="button" data-tab="runs">Runs</button>
+    <button class="tab" type="button" data-tab="settings">Settings</button>
+    <button class="tab" type="button" data-tab="platform">Platform</button>
+    <button class="tab" type="button" data-tab="api">API</button>
+  </div>
+</nav>
+
+<main class="shell" id="main">
+
+{# ── Overview ────────────────────────────────────────────────────────── #}
+<section data-panel="overview">
+  {% if not close %}
+    <div class="empty">
+      <h3>{{ period }} has not been closed</h3>
+      <p>Nothing has been matched yet. Run the close and the exceptions appear here —
+         and on this install that either happens in a container of its own or, if the
+         rail above says jobs are off, in this web process.</p>
+      <div class="btns" style="justify-content:center;margin-top:1rem">
+        <button class="btn btn-primary" type="button" data-close="{{ period }}">Run the close</button>
+      </div>
+    </div>
+  {% else %}
+  <div class="tiles">
+    <div class="tile">
+      <div class="tile-k">Match rate</div>
+      <div class="tile-v">{{ '%.1f'|format(close['matched'] / close['ledger_rows'] * 100 if close['ledger_rows'] else 0) }}<small>%</small></div>
+      <div class="tile-n">{{ '{:,}'.format(close['matched']) }} of {{ '{:,}'.format(close['ledger_rows']) }} ledger entries</div>
+    </div>
+    <div class="tile {% if counts.open %}tone-att{% else %}tone-ok{% endif %}">
+      <div class="tile-k">Open exceptions</div>
+      <div class="tile-v">{{ '{:,}'.format(counts.open) }}</div>
+      <div class="tile-n">{{ counts.accepted }} accepted · {{ counts.written_off }} written off</div>
+    </div>
+    <div class="tile {% if counts.at_risk > 500000 %}tone-dan{% else %}tone-neu{% endif %}">
+      <div class="tile-k">Value at risk</div>
+      <div class="tile-v">{{ money(counts.at_risk) }}</div>
+      <div class="tile-n">The open rows, absolute</div>
+    </div>
+    <div class="tile tone-info">
+      <div class="tile-k">Statement lines</div>
+      <div class="tile-v">{{ '{:,}'.format(close['bank_rows']) }}</div>
+      <div class="tile-n">Closed {{ close['finished_at'] }} UTC</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="cards">
+      <div class="card">
+        <div class="card-hd">
+          <h2>Statement value by day</h2>
+          <span class="muted small">{{ period }}</span>
+        </div>
+        <div class="card-bd">
+          <div data-cols="{{ series }}" data-col-labels="{{ axis }}"></div>
+          <p class="small muted">Every line the bank sent, summed by value date. Drawn with
+             one div per day and a height in per cent — there is no chart library anywhere
+             in this gallery.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><h2>What did not match</h2></div>
+        <div class="card-bd">
+          {% if counts.by_kind %}
+            {% for kind, label in kind_labels.items() %}
+              {% set k = counts.by_kind.get(kind) %}
+              <div class="bar" style="margin-bottom:.6rem">
+                <span class="small" style="width:14rem;flex:none">{{ label }}</span>
+                <span class="bar-track">
+                  <span class="bar-fill tone-{{ kind_tones[kind] }}"
+                        style="width:{{ (k.n / counts.open * 100)|round(1) if k and counts.open else 0 }}%"></span>
+                </span>
+                <span class="bar-v">{{ k.n if k else 0 }}</span>
+              </div>
+            {% endfor %}
+            <p class="small muted">Four kinds and no fifth. A variance is a match
+               <em>and</em> an exception: the money moved, the wrong amount of it did.</p>
+          {% else %}
+            <p class="muted">Nothing left over. That happens on a seeded month about as
+               often as it happens on a real one.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="card">
+      <div class="card-hd">
+        <h2>Closes</h2>
+        <span class="muted small">This app's own record, beside the platform's</span>
+      </div>
+      <div class="card-bd" style="padding:0">
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead><tr>
+              <th>Period</th><th>Started</th><th>Where</th>
+              <th class="num">Matched</th><th class="num">Exceptions</th><th class="num">At risk</th>
+            </tr></thead>
+            <tbody>
+            {% for r in closes %}
+              <tr>
+                <td class="lead mono">{{ r['period'] }}</td>
+                <td class="muted small">{{ r['started_at'] }}</td>
+                <td>
+                  {% if r['trigger'] == 'job' %}<span class="badge tone-brand">job</span>
+                  {% elif r['trigger'] == 'schedule' %}<span class="badge tone-info">schedule</span>
+                  {% else %}<span class="badge">web process</span>{% endif %}
+                </td>
+                <td class="num">{{ '{:,}'.format(r['matched']) }}</td>
+                <td class="num">{{ '{:,}'.format(r['exceptions']) }}</td>
+                <td class="num mono">{{ money(r['value_at_risk']) }}</td>
+              </tr>
+            {% else %}
+              <tr><td colspan="6" class="muted">No closes recorded yet.</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</section>
+
+{# ── Exceptions ──────────────────────────────────────────────────────── #}
+<section data-panel="exceptions" hidden>
+  <div class="section-hd">
+    <div>
+      <h2>Exceptions</h2>
+      <p>Biggest first. Accepting a row says it is explained; writing one off says the
+         money is gone and somebody decided that on purpose.</p>
+    </div>
+    <div class="btns">
+      <button class="btn" type="button" data-announce="{{ period }}">Send the summary</button>
+      <button class="btn btn-primary" type="button" data-close="{{ period }}">Run the close</button>
+    </div>
+  </div>
+
+  {% if not who.may_edit %}
+    <div class="note tone-att" style="margin-bottom:1rem">
+      <strong>Read-only.</strong> Toft signed this request as
+      <code>{{ who.role }}</code>, and deciding an exception needs <code>editor</code> or
+      <code>owner</code>. The buttons below will refuse with that sentence rather than
+      disappearing — an action you cannot see is an action you cannot ask about.
+    </div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-hd">
+      <div class="row grow" style="gap:.75rem">
+        <input class="input" id="q" data-filter="#exceptions" data-filter-count="#shown"
+               placeholder="Reference, counterparty, kind…" style="max-width:22rem">
+        <span class="muted small"><span id="shown">{{ exceptions|length }}</span> shown</span>
+      </div>
+      <div class="seg" role="group" aria-label="Filter by kind">
+        <button type="button" class="is-on" data-kind="">All</button>
+        {% for kind, label in kind_labels.items() %}
+          <button type="button" data-kind="{{ kind }}" title="{{ label }}">{{ kind.replace('_',' ')|title }}</button>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="card-bd" style="padding:0">
+      <div class="tbl-wrap">
+        <table class="tbl" id="exceptions" data-sortable>
+          <thead><tr>
+            <th data-sort="text">Kind</th>
+            <th data-sort="text">Reference</th>
+            <th data-sort="text">Counterparty</th>
+            <th data-sort="date">Date</th>
+            <th data-sort="num" class="num">Amount</th>
+            <th data-sort="num" class="num">Variance</th>
+            <th data-sort="text">Status</th>
+            <th></th>
+          </tr></thead>
+          <tbody>
+          {% for e in exceptions %}
+            <tr data-kind="{{ e['kind'] }}" data-id="{{ e['id'] }}">
+              <td><span class="badge tone-{{ kind_tones[e['kind']] }}" title="{{ kind_labels[e['kind']] }}">
+                    {{ e['kind'].replace('_', ' ') }}</span></td>
+              <td class="mono small">{{ e['reference'] }}</td>
+              <td class="lead">{{ e['counterparty'] }}</td>
+              <td class="mono small">{{ e['txn_date'] }}</td>
+              <td class="num mono" data-v="{{ e['amount'] }}">{{ money(e['amount']) }}</td>
+              <td class="num mono" data-v="{{ e['delta'] }}">{{ money(e['delta']) if e['delta'] else '—' }}</td>
+              <td>
+                {% if e['status'] == 'open' %}<span class="badge tone-att">open</span>
+                {% elif e['status'] == 'accepted' %}<span class="badge tone-ok">accepted</span>
+                {% else %}<span class="badge">written off</span>{% endif %}
+                {% if e['note'] %}<div class="tiny muted">{{ e['note'] }}</div>{% endif %}
+              </td>
+              <td class="right nowrap">
+                <button class="btn btn-sm" type="button" data-decide="accepted">Accept</button>
+                <button class="btn btn-sm btn-danger" type="button" data-decide="written_off">Write off</button>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="empty" data-filter-empty hidden style="border:0">
+        <h3>Nothing matches</h3><p>Clear the search or pick another kind.</p>
+      </div>
+    </div>
+    <div class="card-ft">
+      Every row here is <code>GET /api/exceptions</code> and every button is
+      <code>POST /api/exceptions/{id}/decide</code> — the page is a client of the same
+      API your tooling would call.
+    </div>
+  </div>
+</section>
+
+{# ── Runs ────────────────────────────────────────────────────────────── #}
+<section data-panel="runs" hidden>
+  <div class="section-hd">
+    <div>
+      <h2>Runs</h2>
+      <p>A close is a <strong>job</strong>: a different entrypoint of this same repository,
+         run by Toft in a container of its own with a memory limit, a deadline and a
+         durable record. The page does not wait for it.</p>
+    </div>
+    <button class="btn btn-primary" type="button" data-close="{{ period }}">Run the close</button>
+  </div>
+
+  {% if not jobs_ok %}
+    <div class="note tone-att">
+      <strong>Jobs are not available here.</strong> {{ jobs_why }}
+      The close still runs — in this web process, which is what the job system exists to
+      avoid: a report that exhausts memory takes the pages down with it.
+    </div>
+  {% endif %}
+
+  <div class="card" style="margin-top:1rem">
+    <div class="card-hd">
+      <h2>Your closes</h2>
+      <span class="muted small">Resolved by the platform from the token this app relayed</span>
+    </div>
+    <div class="card-bd" style="padding:0">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Run</th><th>Status</th><th>Attempt</th><th>Started by</th><th>Result</th></tr></thead>
+          <tbody id="runs-body">
+          {% for r in runs %}
+            <tr>
+              <td class="mono small">{{ r.id[:12] }}</td>
+              <td>
+                {% if r.status == 'succeeded' %}<span class="badge tone-ok">succeeded</span>
+                {% elif r.status in ('failed','cancelled') %}<span class="badge tone-dan">{{ r.status }}</span>
+                {% elif r.status == 'running' %}<span class="badge tone-info">running {{ r.progress }}%</span>
+                {% else %}<span class="badge">{{ r.status }}</span>{% endif %}
+              </td>
+              <td class="num">{{ r.attempt }}</td>
+              <td>{% if r.started_by_viewer %}<span class="badge tone-brand">a person</span>
+                  {% else %}<span class="badge">the app</span>{% endif %}</td>
+              <td class="small muted">
+                {% if r.result %}{{ '{:,}'.format(r.result.get('matched', 0)) }} matched ·
+                  {{ '{:,}'.format(r.result.get('exceptions', 0)) }} exceptions
+                {% elif r.failure_reason %}{{ r.failure_reason }}
+                {% else %}—{% endif %}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5" class="muted">
+              {{ runs_note or 'No runs yet. Press “Run the close”.' }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card-ft">
+      The app never learns <em>which</em> person started a run — only that one did. It
+      hands back the opaque token it was given and Toft filters on whoever is behind it.
+    </div>
+  </div>
+</section>
+
+{# ── Settings ────────────────────────────────────────────────────────── #}
+<section data-panel="settings" hidden>
+  <div class="section-hd">
+    <div>
+      <h2>Settings</h2>
+      <p>Stored in this app's <strong>one JSON document</strong> — 256 KiB, no keys, no
+         queries, and it outlives a restart, a redeploy and a rollback. It needs nothing
+         switched on: no attachment, no capability, no administrator.</p>
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-hd">
+        <h2>Tolerances</h2>
+        <span class="badge">version {{ cfg_version }}</span>
+      </div>
+      <div class="card-bd">
+        {% if cfg_note %}<div class="note tone-att">{{ cfg_note }}</div>{% endif %}
+        <form id="settings-form" class="stack">
+          <div class="controls">
+            <div class="field">
+              <label for="tol">Amount tolerance (pence)</label>
+              <input id="tol" name="tolerance_pence" type="number" min="0" max="100000"
+                     value="{{ cfg.tolerance_pence }}">
+            </div>
+            <div class="field">
+              <label for="win">Date window (days)</label>
+              <input id="win" name="date_window_days" type="number" min="0" max="31"
+                     value="{{ cfg.date_window_days }}">
+            </div>
+            <div class="field">
+              <label for="defper">Default period</label>
+              <select id="defper" name="period">
+                {% for p in periods %}<option value="{{ p }}" {% if p == cfg.period %}selected{% endif %}>{{ p }}</option>{% endfor %}
+              </select>
+            </div>
+          </div>
+          <label class="check">
+            <input type="checkbox" name="announce" {% if cfg.announce %}checked{% endif %}>
+            Post the summary when a close finishes
+          </label>
+          <div class="btns">
+            <button class="btn btn-primary" type="submit" {% if not who.may_edit %}disabled{% endif %}>Save</button>
+            <span class="muted small">Saved with <code>If-Match: "{{ cfg_version }}"</code></span>
+          </div>
+        </form>
+      </div>
+      <div class="card-ft">
+        A second person with this page open gets a <strong>409</strong> naming the version
+        that is stored, not a silent overwrite. Recovery is one round trip.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd"><h2>Saying something</h2></div>
+      <div class="card-bd">
+        <dl class="kv">
+          <dt>Slack</dt>
+          <dd>{% if 'slack.post' in (app_info.capabilities or []) %}
+              <span class="badge tone-ok"><i class="dot"></i>attached</span>
+              {% else %}<span class="badge">not attached</span>{% endif %}</dd>
+          <dt>Email</dt>
+          <dd>{% if 'email.send' in (app_info.capabilities or []) %}
+              <span class="badge tone-ok"><i class="dot"></i>attached</span>
+              {% else %}<span class="badge">not attached</span>{% endif %}</dd>
+          <dt>Recipients</dt>
+          <dd class="mono small">{{ 'CLOSE_REPORT_TO' if not who.may_edit else ('CLOSE_REPORT_TO — ' ~ (app_info.slug or 'this app') ~ '’s environment') }}</dd>
+        </dl>
+        <div class="note">
+          This app supplies the <em>message</em>. It never holds the Slack bot token, never
+          names the channel, and cannot set the address mail comes from — asking for any of
+          those is a <code>400</code> from the platform that names the rule. Attaching
+          either is an administrator's decision on this app's Integrations tab.
+        </div>
+        <div class="btns">
+          <button class="btn" type="button" data-announce="{{ period }}">Send the summary now</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ── Platform ────────────────────────────────────────────────────────── #}
+<section data-panel="platform" hidden>
+  <div class="section-hd">
+    <div>
+      <h2>Platform</h2>
+      <p>What Toft told this app about itself, and what the app did with it. Every
+         example in the gallery has this tab.</p>
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-hd"><h2>This app</h2></div>
+      <div class="card-bd">
+        {% if app_info.available %}
+          <dl class="kv">
+            <dt>Name</dt><dd>{{ app_info.name }}</dd>
+            <dt>Slug</dt><dd class="mono">{{ app_info.slug }}</dd>
+            <dt>Id</dt><dd class="mono small">{{ app_info.id }}</dd>
+            <dt>Mode</dt><dd><span class="badge tone-brand">{{ app_info.mode }}</span></dd>
+            <dt>Base path</dt><dd class="mono">{{ app_info.base_path or '/' }}</dd>
+            <dt>Capabilities</dt>
+            <dd>{% for c in app_info.capabilities %}<span class="badge" style="margin:0 .25rem .25rem 0">{{ c }}</span>{% else %}<span class="muted">none</span>{% endfor %}</dd>
+          </dl>
+        {% else %}
+          <div class="note tone-att"><strong>Not running as a Toft workload.</strong>
+            {{ app_info.reason }}</div>
+        {% endif %}
+      </div>
+      <div class="card-ft"><code>GET /api/v1/app/self</code>, cached for thirty seconds.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd"><h2>Who is looking</h2></div>
+      <div class="card-bd">
+        <dl class="kv">
+          <dt>Role</dt>
+          <dd><span class="badge tone-brand">{{ who.role }}</span>
+              <span class="tiny muted">signed, 120-second life, verified in this process</span></dd>
+          <dt>May decide</dt>
+          <dd>{% if who.may_edit %}<span class="badge tone-ok">yes</span>{% else %}<span class="badge tone-att">no</span>{% endif %}</dd>
+          <dt>Identity</dt>
+          <dd>
+            {% if who.identity_state == 'known' %}
+              <strong>{{ who.name }}</strong>{% if who.email %} · <span class="mono small">{{ who.email }}</span>{% endif %}
+              {% if who.is_admin %}<span class="badge tone-info">administrator</span>{% endif %}
+            {% else %}
+              <span class="badge">{{ who.identity_state }}</span>
+              <div class="tiny muted">{{ who.identity_note }}</div>
+            {% endif %}
+          </dd>
+          {% if who.groups %}
+          <dt>Groups</dt>
+          <dd>{% for g in who.groups %}<span class="badge" style="margin:0 .25rem .25rem 0">{{ g }}</span>{% endfor %}</dd>
+          {% endif %}
+        </dl>
+        <div class="note">
+          <strong>Two questions, two calls.</strong> The role says <em>what this caller may
+          do</em> — no round trip, no switch, and it is what gates the buttons. Identity says
+          <em>who they are</em> — one round trip, and an administrator has to have turned it
+          on. A role names nobody, which is why they are not one call.
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd"><h2>Where the register lives</h2></div>
+      <div class="card-bd">
+        <dl class="kv">
+          <dt>Path</dt><dd class="mono small">{{ where.path }}</dd>
+          <dt>Chosen</dt><dd>{{ where.source }}</dd>
+          <dt>Durable</dt>
+          <dd>{% if where.durable %}<span class="badge tone-ok">survives a redeploy</span>
+              {% else %}<span class="badge tone-att">wiped on every deploy</span>{% endif %}</dd>
+        </dl>
+        <p class="small muted">{{ where.detail }}</p>
+        {% if mounts %}
+          <h4>Mounts</h4>
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead><tr><th>Name</th><th>Path</th><th>Access</th></tr></thead>
+              <tbody>
+              {% for m in mounts %}
+                <tr><td class="lead">{{ m.name }}</td><td class="mono small">{{ m.path }}</td>
+                    <td>{% if m.read_only %}<span class="badge">read-only</span>
+                        {% else %}<span class="badge tone-ok">writable</span>{% endif %}</td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="small muted">No storage is attached. An administrator attaches one on
+             this app's Storage tab; a grant is a person's and a mapping is an app's, and
+             neither implies the other.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd"><h2>The base path</h2></div>
+      <div class="card-bd">
+        <dl class="kv">
+          <dt>Mounted at</dt><dd class="mono">{{ base or '/' }}</dd>
+          <dt>Told by</dt><dd class="mono small">uvicorn --root-path</dd>
+        </dl>
+        <div class="note">
+          The proxy <strong>strips</strong> the prefix before forwarding, so this process is
+          mounted at <code>/</code>. Links and asset URLs it emits have to carry the prefix
+          back; a <code>Location:</code> header must <em>not</em>, because the proxy re-adds
+          it. Get that backwards and every redirect lands on
+          <code>/apps/slug/apps/slug</code>.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ── API ─────────────────────────────────────────────────────────────── #}
+<section data-panel="api" hidden>
+  <div class="section-hd">
+    <div>
+      <h2>API</h2>
+      <p>Read from this app's own OpenAPI document at page load — no CDN, no bundled
+         viewer, and it works on an install with no route to the internet. FastAPI's own
+         Swagger page is at <code>{{ base }}/openapi-docs</code> and needs one.</p>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-hd"><h2>Routes</h2><span class="muted small" id="api-count"></span></div>
+    <div class="card-bd" id="api-list">
+      <p class="muted">Loading <code>{{ base }}/openapi.json</code>…</p>
+    </div>
+    <div class="card-ft">
+      An <code>toft_</code> app key reaches these routes the same way a browser does — and a
+      key minted carrying <code>viewer</code> can read the exception list and cannot decide
+      one, because the gate is the role and not the credential.
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="foot-in">
+    <span>An example app from the <strong>Toft</strong> gallery.</span>
+    <span>Python · FastAPI · uvicorn · SQLite · no chart library</span>
+  </div>
+</footer>
+
+<script src="{{ base }}/static/toft-kit.js"></script>
+<script src="{{ base }}/static/app.js"></script>
+</body>
+</html>
