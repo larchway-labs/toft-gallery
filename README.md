@@ -10,9 +10,9 @@ repository.
 - **The example kit:** [`kit/`](kit), the shared look every example carries a
   copy of. `kit/vend.sh` copies it into each example that uses it.
 
-The three documentation guides are not here: they live in their own
-repositories (`toft-ext-user-guide`, `toft-ext-admin-guide`,
-`toft-ext-cli-guide`), because Toft recognizes them by repository.
+Toft's documentation is not a gallery item: it is a public site,
+[larchway-labs/toft-docs](https://github.com/larchway-labs/toft-docs), that
+every install links to.
 
 ## One repository, one folder per app
 
