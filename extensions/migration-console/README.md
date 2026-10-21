@@ -45,8 +45,12 @@ Gallery on the **source** install, then completes a short setup.
   administrators' group when something fails. Both need an email connection
   attached to this app; without one, nothing about email appears at all.
 - **Security scan results have a place.** SAST and DAST columns exist and
-  nothing fills them yet. Toft's own dependency verdict for the exact
-  release being promoted is shown, because the platform already produces it.
+  nothing fills them yet. Toft's own dependency verdict is shown and recorded,
+  because the platform already produces it — but Toft keeps one only for the
+  release serving on the source, so a request for any other release says
+  nothing was recorded rather than borrowing that one. The release picker also
+  says when the source's dependency policy has locked the app, and when it
+  refused a newer build, which is why that build is not on the list.
 
 ## Installing it
 
@@ -93,6 +97,11 @@ outstanding.
   the target builds what it receives.
 - It does not copy environment variable **values**, ever. It seeds the names
   once, when it creates the app, and never touches them again.
+- It does not carry storage, connections or scheduled tasks. The app arrives on
+  the target with no storage mapped, no connection attached and no task, and
+  the key it pushes with cannot add any of them — the target's administrator
+  does, once, as with the environment variable values. Jobs declared in the
+  app's `toft.toml` do arrive, because they are part of the code.
 - It does not run a security scanner. It has a place to record one.
 - It does not have a multi-step approval chain. One approval, by one reviewer
   who did not raise the request.

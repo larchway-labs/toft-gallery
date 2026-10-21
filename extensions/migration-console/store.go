@@ -481,7 +481,7 @@ func (s *Store) AppsSomeoneWasAddedTo(ctx context.Context, userID string) (map[s
 // KnownPeople is everybody this console has a name for, and it is **derived
 // from the ledger rather than kept as a directory**.
 //
-// The console holds a read-scoped `lpd_` key, and a deploy key of either scope
+// The console holds a read-scoped `toftd_` key, and a deploy key of either scope
 // may read the *group* directory and never the user one — names, counts and
 // addresses, never a roster. So there is no list of people to offer, and every
 // form that wanted one asked for a raw UUID typed by hand: adding a reviewer,

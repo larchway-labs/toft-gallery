@@ -7,15 +7,15 @@ func TestTargetKeysRoundTripAndFailByName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	record, err := s.seal("lpd_secretsecretsecret")
+	record, err := s.seal("toftd_secretsecretsecret")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if record == "lpd_secretsecretsecret" {
+	if record == "toftd_secretsecretsecret" {
 		t.Fatal("the key was stored in the clear")
 	}
 	back, err := s.open(record)
-	if err != nil || back != "lpd_secretsecretsecret" {
+	if err != nil || back != "toftd_secretsecretsecret" {
 		t.Fatalf("round trip: %q, %v", back, err)
 	}
 
@@ -44,8 +44,8 @@ func TestTargetKeysRoundTripAndFailByName(t *testing.T) {
 // dump does not reveal which targets share a key.
 func TestSealsAreNotDeterministic(t *testing.T) {
 	s, _ := newSealer("secret")
-	a, _ := s.seal("lpd_same")
-	b, _ := s.seal("lpd_same")
+	a, _ := s.seal("toftd_same")
+	b, _ := s.seal("toftd_same")
 	if a == b {
 		t.Fatal("two seals of the same key are identical")
 	}

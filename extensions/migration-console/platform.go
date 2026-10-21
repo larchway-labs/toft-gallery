@@ -15,7 +15,7 @@ import (
 
 // The Toft platform API, as this console uses it.
 //
-// Two callers, one client. The **source** side holds a read-scoped `lpd_` key
+// Two callers, one client. The **source** side holds a read-scoped `toftd_` key
 // and pulls: apps, deployments, a dependency verdict, a release archive, the
 // group directory. The **target** side holds a deploy-scoped key and pushes.
 // Nothing here knows which it is; the key decides, and a read-scoped key
@@ -204,6 +204,35 @@ type DependencyReport struct {
 		} `json:"counts"`
 		Direct int `json:"direct"`
 	} `json:"serving"`
+	// Refused is the newest deploy the policy turned away, when it is newer
+	// than what is serving. It never served, so it is never in the release
+	// picker — and this is how the picker can say why the build somebody just
+	// pushed is not on the list.
+	Refused *struct {
+		DeploymentID string `json:"deployment_id"`
+		CommitSHA    string `json:"commit_sha"`
+		Reason       string `json:"reason"`
+	} `json:"refused"`
+	// LockedByPolicy is the source app held down by the policy itself rather
+	// than by an administrator: what it serves crossed the install's lock
+	// threshold, and the way out is a waiver there, not a promotion here.
+	LockedByPolicy bool `json:"locked_by_policy"`
+}
+
+// Describes reports whether the verdict is about this exact release.
+func (r *DependencyReport) Describes(deployID string) bool {
+	return r != nil && r.Serving != nil && r.Serving.DeploymentID == deployID
+}
+
+// VerdictFor is Verdict for one release, and the only one a request should
+// record. The platform scans per app and reports the release that is serving;
+// a request may pin any successful release, and borrowing the serving one's
+// scan for it would put another release's verdict on the record as this one's.
+func (r *DependencyReport) VerdictFor(deployID string) (word, summary string) {
+	if r != nil && r.Serving != nil && r.Serving.DeploymentID != deployID {
+		return "", "Toft records a verdict only for the release serving on the source, and this is a different one"
+	}
+	return r.Verdict()
 }
 
 // Verdict collapses the report to one word for a chip, and it distinguishes

@@ -14,8 +14,8 @@
 // An ordinary workload with no platform authority of its own. It never acts as
 // the person in front of it: it holds no credential of theirs and is offered
 // none. Its power is two keys an administrator pasted into it — a read-scoped
-// `lpd_` on this install, which can pull a release and cannot deploy anything,
-// and a deploy-scoped `lpd_` on each target.
+// `toftd_` on this install, which can pull a release and cannot deploy anything,
+// and a deploy-scoped `toftd_` on each target.
 //
 // # The Toft contract it honors
 //

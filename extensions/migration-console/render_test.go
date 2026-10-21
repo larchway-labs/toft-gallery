@@ -76,6 +76,7 @@ func TestPagesAndFragmentsRenderWithData(t *testing.T) {
 	// in becomes a truncated table with no control in it. A test that only
 	// asked whether the block existed passed all the way through that.
 	newData := map[string]any{"AppID": "a1", "WantedAny": true, "Gone": false,
+		"Locked": true, "Refused": map[string]string{"SHA": "def56789", "Reason": "1 package flagged as malware."},
 		"Rows": []ReleaseRow{{
 			Deployment: Deployment{ID: "d1", Status: "success", Branch: "main",
 				CommitSHA: "abc1234", StartedAt: now, Current: true},
@@ -330,5 +331,34 @@ func TestTheIdentityFieldsSuggestWithoutConstraining(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), `list="knownpeople"`) || !strings.Contains(buf.String(), "Grace Hopper") {
 		t.Error("adding a reviewer still offers nothing but a blank box for a UUID")
+	}
+}
+
+// The two things the source's policy can say about an app reach the picker
+// before a request is raised, and a picker with neither says nothing about them.
+func TestThePickerSaysWhatTheSourcePolicyDid(t *testing.T) {
+	r := newRenderer(newURLs("/apps/mc"))
+	rows := []ReleaseRow{{Deployment: Deployment{ID: "d1", Status: "success", Current: true}}}
+	render := func(data map[string]any) string {
+		var buf bytes.Buffer
+		if err := r.pages["new"].ExecuteTemplate(&buf, "releases", data); err != nil {
+			t.Fatalf("the releases fragment does not render: %v", err)
+		}
+		return buf.String()
+	}
+	got := render(map[string]any{"AppID": "a1", "Rows": rows, "Locked": true,
+		"Refused": refusedRelease(&DependencyReport{Refused: &struct {
+			DeploymentID string `json:"deployment_id"`
+			CommitSHA    string `json:"commit_sha"`
+			Reason       string `json:"reason"`
+		}{DeploymentID: "d2", CommitSHA: "def5678901234", Reason: "1 package flagged as malware."}})})
+	for _, want := range []string{"Locked by dependency policy", "def56789", "was refused", "flagged as malware"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the picker does not say %q", want)
+		}
+	}
+	quiet := render(map[string]any{"AppID": "a1", "Rows": rows, "Locked": false, "Refused": refusedRelease(nil)})
+	if strings.Contains(quiet, "dependency policy on the source") || strings.Contains(quiet, "was refused") {
+		t.Error("a picker for an app the policy left alone still talks about the policy")
 	}
 }

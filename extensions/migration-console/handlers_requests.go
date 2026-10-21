@@ -311,13 +311,11 @@ func (c *Console) handleReleasePicker(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The platform's own verdict is per app rather than per deployment, so it
-	// is read once and shown against the release that is serving — which is
-	// exactly the release it describes. Attaching it to every row would claim a
-	// scan of releases nobody scanned.
-	verdict, verdictWhy := (&DependencyReport{}).Verdict()
-	if rep, err := p.Dependencies(r.Context(), appID); err == nil {
-		verdict, verdictWhy = rep.Verdict()
-	}
+	// is read once and shown against the release it names — the one that was
+	// serving when it was scanned, which is not always the row marked current.
+	// Attaching it to every row would claim a scan of releases nobody scanned.
+	// A read that fails is nil, which every use below reads as not recorded.
+	rep, _ := p.Dependencies(r.Context(), appID)
 
 	var rows []ReleaseRow
 	found := false
@@ -326,8 +324,10 @@ func (c *Console) handleReleasePicker(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		item := ReleaseRow{Deployment: d, Label: d.Label()}
-		if d.Current {
-			item.Verdict, item.Why = verdict, verdictWhy
+		// With no release named, the reason there is none (off, never
+		// scanned, no advisory data) belongs on the serving row, as before.
+		if rep.Describes(d.ID) || (d.Current && (rep == nil || rep.Serving == nil)) {
+			item.Verdict, item.Why = rep.VerdictFor(d.ID)
 		}
 		if want != "" && d.ID == want {
 			item.Wanted, found = true, true
@@ -346,7 +346,25 @@ func (c *Console) handleReleasePicker(w http.ResponseWriter, r *http.Request) {
 		"WantedAny": found,
 		// Said out loud rather than passed over: somebody followed a link
 		// offering to send the same release again and it is not on the list.
-		"Gone": want != "" && !found})
+		"Gone": want != "" && !found,
+		// Both said before the request is raised rather than discovered after:
+		// a source app the policy has locked, and a newer build the policy
+		// turned away, which is why it is not a row here.
+		"Locked":  rep != nil && rep.LockedByPolicy,
+		"Refused": refusedRelease(rep)})
+}
+
+// refusedRelease is the picker's sentence about a deploy the source's policy
+// turned away, or nil when there is none.
+func refusedRelease(rep *DependencyReport) map[string]string {
+	if rep == nil || rep.Refused == nil {
+		return nil
+	}
+	sha := rep.Refused.CommitSHA
+	if len(sha) > 8 {
+		sha = sha[:8]
+	}
+	return map[string]string{"SHA": sha, "Reason": rep.Refused.Reason}
 }
 
 func (c *Console) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
@@ -482,7 +500,10 @@ func (c *Console) recordDependencyCheck(ctx context.Context, sp *Platform, req *
 		// not *clean*.
 		return
 	}
-	verdict, summary := rep.Verdict()
+	verdict, summary := rep.VerdictFor(req.SourceDeploymentID)
+	if rep.LockedByPolicy {
+		summary += "; Toft's dependency policy has locked this app on the source"
+	}
 	now := time.Now().UTC()
 	_ = c.store.SaveCheck(ctx, Check{
 		ID: newID(), RequestID: req.ID, Kind: "dependencies", Tool: "Toft",

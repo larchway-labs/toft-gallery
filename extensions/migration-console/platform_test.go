@@ -165,3 +165,33 @@ func TestATargetThatFailedItsTestDoesNotReadAsReached(t *testing.T) {
 		t.Error("a target whose last test passed does not read as reached")
 	}
 }
+
+// A request may pin any successful release, and the platform scans only the one
+// serving. Recording the serving release's verdict on a request for a different
+// one would put another release's scan on the record as this one's.
+func TestAVerdictIsOnlyEverAboutTheReleaseItNames(t *testing.T) {
+	body := `{"mode":"warn","available":true,"has_data":true,"scanned":true,
+	  "locked_by_policy":true,
+	  "serving":{"deployment_id":"d46","counts":{"total":3,"malware":1},"direct":3},
+	  "refused":{"deployment_id":"d47","commit_sha":"abc","reason":"malware"}}`
+	var r DependencyReport
+	if err := json.Unmarshal([]byte(body), &r); err != nil {
+		t.Fatal(err)
+	}
+	if !r.LockedByPolicy || r.Refused == nil || r.Refused.DeploymentID != "d47" {
+		t.Fatalf("the policy's lock and refusal did not decode: %+v", r)
+	}
+	if !r.Describes("d46") || r.Describes("d45") {
+		t.Error("Describes does not name exactly the serving release")
+	}
+	if w, _ := r.VerdictFor("d46"); w != "vulnerable" {
+		t.Errorf("the serving release's own verdict is %q", w)
+	}
+	if w, why := r.VerdictFor("d45"); w != "" || !contains(why, "different one") {
+		t.Errorf("an older release borrowed the serving one's verdict: %q / %q", w, why)
+	}
+	var nilRep *DependencyReport
+	if w, _ := nilRep.VerdictFor("d1"); w != "" || nilRep.Describes("d1") {
+		t.Error("an absent report described a release")
+	}
+}

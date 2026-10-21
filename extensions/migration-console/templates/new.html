@@ -128,6 +128,14 @@
 {{else if not .Rows}}
   <p class="hint">This app has no successful release to promote.</p>
 {{else}}
+{{if .Locked}}
+  {{template "_notice" dict "Tone" "danger" "Title" "Locked by dependency policy on the source"
+      "Body" "Toft’s dependency policy has taken this app off the air on this install, because what it serves crossed the install’s lock threshold. A reviewer will see that on the request; the way out is a fix or a waiver here, not a promotion."}}
+{{end}}
+{{with .Refused}}
+  {{template "_notice" dict "Tone" "attention" "Title" (printf "The newest build, %s, was refused" .SHA)
+      "Body" (printf "The source’s dependency policy turned it away, so it never served and is not on this list. %s" .Reason)}}
+{{end}}
 {{if .Gone}}
   {{template "_notice" dict "Tone" "attention" "Title" "That release is no longer here"
       "Body" "The request you copied pinned a release this install no longer holds — it has been pruned from disk and from the artifact store. Nothing has been substituted for it: pick the release you want from the list below, because a promotion is of particular bytes and no other release stands in for them."}}
@@ -153,7 +161,7 @@
   {{end}}
   </tbody>
 </table></div></div>
-<p class="hint">The verdict is Toft’s own, for that exact release.
+<p class="hint">The verdict is Toft’s own, for that exact release, and Toft keeps one only for the release serving on the source.
    <em>Not recorded</em> is not <em>clean</em>.</p>
 {{end}}
 {{end}}
