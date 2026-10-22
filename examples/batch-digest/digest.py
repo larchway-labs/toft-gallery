@@ -112,7 +112,6 @@ def main() -> int:
     if run is None:
         # Run by hand, off the platform: the report above is the whole output.
         return 0
-    run.set_result(summary)
     if run.output_uri:
         run.write_output_json(summary)
 

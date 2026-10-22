@@ -64,11 +64,11 @@ def main(argv: list[str]) -> int:
     line = engine.summary_text(result)
     print(line, flush=True)
 
-    # The structured result is the smallest of the three channels and the right
-    # one for what this produces: six numbers. The page reads it back off the
-    # run without going near this container.
+    # The one-line summary rides on the run's progress message, which is what
+    # the page lists; the six numbers are the run's output.
     if run:
-        run.set_result(result)
+        run.progress(100, message=line)
+        run.write_output_json(result)
 
     if cfg.get("announce"):
         print(seam.announce(line, f"Reconciliation — {period}"), flush=True)

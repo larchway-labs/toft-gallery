@@ -293,7 +293,7 @@
     <div class="card-bd" style="padding:0">
       <div class="tbl-wrap">
         <table class="tbl">
-          <thead><tr><th>Run</th><th>Status</th><th>Attempt</th><th>Started by</th><th>Result</th></tr></thead>
+          <thead><tr><th>Run</th><th>Status</th><th>Started by</th><th>Result</th></tr></thead>
           <tbody id="runs-body">
           {% for r in runs %}
             <tr>
@@ -304,12 +304,10 @@
                 {% elif r.status == 'running' %}<span class="badge tone-info">running {{ r.progress }}%</span>
                 {% else %}<span class="badge">{{ r.status }}</span>{% endif %}
               </td>
-              <td class="num">{{ r.attempt }}</td>
               <td>{% if r.started_by_viewer %}<span class="badge tone-brand">a person</span>
                   {% else %}<span class="badge">the app</span>{% endif %}</td>
               <td class="small muted">
-                {% if r.result %}{{ '{:,}'.format(r.result.get('matched', 0)) }} matched ·
-                  {{ '{:,}'.format(r.result.get('exceptions', 0)) }} exceptions
+                {% if r.status == 'succeeded' and r.progress_message %}{{ r.progress_message }}
                 {% elif r.failure_reason %}{{ r.failure_reason }}
                 {% else %}—{% endif %}</td>
             </tr>

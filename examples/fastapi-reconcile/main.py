@@ -287,8 +287,8 @@ def runs(request: Request):
     """
     rs, note = seam.runs(request.headers)
     return {"note": note, "runs": [
-        {"id": r.id, "status": r.status, "progress": r.progress, "attempt": r.attempt,
-         "started_by_viewer": r.started_by_viewer, "result": r.result,
+        {"id": r.id, "status": r.status, "progress": r.progress,
+         "started_by_viewer": r.started_by_viewer, "summary": r.progress_message,
          "failure_reason": r.failure_reason}
         for r in rs
     ]}

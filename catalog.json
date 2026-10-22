@@ -310,9 +310,9 @@
         "integrations",
         "example"
       ],
-      "version": "1.1.0",
+      "version": "1.2.0",
       "min_platform_version": "0.7.0",
-      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/fastapi-reconcile/v1.1.0.zip",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/fastapi-reconcile/v1.2.0.zip",
       "path": "examples/fastapi-reconcile",
       "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/fastapi-reconcile",
       "suggested_slug": "reconcile",
@@ -876,9 +876,9 @@
         "reporting",
         "example"
       ],
-      "version": "1.1.0",
+      "version": "1.2.0",
       "min_platform_version": "0.7.0",
-      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/batch-digest/v1.1.0.zip",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/batch-digest/v1.2.0.zip",
       "path": "examples/batch-digest",
       "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/batch-digest",
       "suggested_slug": "nightly-digest",

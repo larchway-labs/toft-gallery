@@ -135,11 +135,10 @@
           : r.status === "running"
             ? '<span class="badge tone-info">running ' + r.progress + "%</span>"
             : '<span class="badge">' + LP.esc(r.status) + "</span>";
-      var result = r.result
-        ? LP.num(r.result.matched) + " matched · " + LP.num(r.result.exceptions) + " exceptions"
+      var result = (r.status === "succeeded" && r.summary) ? r.summary
         : (r.failure_reason || "—");
       return "<tr><td class='mono small'>" + LP.esc(r.id.slice(0, 12)) + "</td><td>" + badge +
-        "</td><td class='num'>" + r.attempt + "</td><td>" +
+        "</td><td>" +
         (r.started_by_viewer ? '<span class="badge tone-brand">a person</span>'
                              : '<span class="badge">the app</span>') +
         "</td><td class='small muted'>" + LP.esc(result) + "</td></tr>";

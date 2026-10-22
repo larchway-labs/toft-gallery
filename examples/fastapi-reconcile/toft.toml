@@ -1,6 +1,6 @@
-# The manifest is optional and still the better door: a job declared here is
-# part of the application rather than part of its deployment, so it versions
-# with the code it runs and a rollback takes the command back with it.
+# Jobs are declared here and nowhere else: a job is part of the application
+# rather than part of its deployment, so it versions with the code it runs and a
+# rollback takes the command back with it.
 
 [app]
 name = "Reconcile"
@@ -10,10 +10,9 @@ python = ">=3.11"
 
 [jobs.close]
 command = "python worker.py"
-timeout = 900          # seconds. A real close is minutes; the ceiling is 24 hours.
+timeout = 900          # seconds; a real close is minutes
 memory  = 512          # MiB, its own — not the web process's
-retries = 1            # off by default everywhere; one extra attempt is enough here
-viewer_runnable = true # a person may start it from the app's Automation tab
+notify  = "failures"   # one message per failed close; run it again with toft job rerun
 
   [jobs.close.params.period]
   type     = "string"
