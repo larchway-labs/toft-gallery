@@ -100,8 +100,8 @@ func (c *Console) tickMain(ctx context.Context) int {
 	defer release()
 
 	report, failed := c.runTick(ctx, actor)
-	for _, k := range []string{"watched", "started", "skipped", "targets_tested"} {
-		if v, ok := report[k]; ok {
+	for _, k := range []string{"watched", "started", "targets_tested", "skipped"} {
+		if v, ok := report[k]; ok && v != "" {
 			log.Printf("%-15s %v", k, v)
 		}
 	}
@@ -121,6 +121,14 @@ func (c *Console) tickMain(ctx context.Context) int {
 	}
 	return 0
 }
+
+// recordedFailure is an error push has already written onto its request.
+type recordedFailure struct{ err error }
+
+func (r *recordedFailure) Error() string { return r.err.Error() }
+func (r *recordedFailure) Unwrap() error { return r.err }
+
+func recorded(err error) error { return &recordedFailure{err: err} }
 
 // runTick is one pass: builds watched, one due migration started, stale targets
 // re-tested. `failed` is whether a due migration could not be started.
@@ -335,6 +343,14 @@ func (c *Console) startOneDue(ctx context.Context, actor string) (started int, s
 	// off. The next is five minutes away.
 	req := due[0]
 	pushed, err := c.push(ctx, &req, actor)
+	// A migration that failed and says so on its request is the request's
+	// failure, reported there and to the people it concerns. It is not the
+	// tick's: exiting non-zero for it sent the console's owner a second,
+	// vaguer "the job failed" mail about something already handled.
+	var rf *recordedFailure
+	if errors.As(err, &rf) {
+		return 0, fmt.Sprintf("request %s failed, and its page says why: %v", req.ID, rf.err), false
+	}
 	if err != nil {
 		return 0, fmt.Sprintf("request %s: %v", req.ID, err), true
 	}
@@ -392,7 +408,7 @@ func (c *Console) push(ctx context.Context, req *Request, actor string) (bool, e
 		if moved {
 			c.notifyRequester(ctx, req, "Your migration couldn’t start", why)
 		}
-		return true, errors.New(why)
+		return true, recorded(errors.New(why))
 	}
 
 	// **The pin is re-checked at execution, and drift is told rather than
@@ -427,7 +443,7 @@ func (c *Console) push(ctx context.Context, req *Request, actor string) (bool, e
 		if moved {
 			c.notifyFailure(ctx, req, "Couldn’t download a release", err.Error())
 		}
-		return false, err
+		return false, recorded(err)
 	}
 	sum := sha256.Sum256(zip)
 	digest := hex.EncodeToString(sum[:])
@@ -493,7 +509,7 @@ func (c *Console) push(ctx context.Context, req *Request, actor string) (bool, e
 			Detail: err.Error()}, map[string]any{"failure": err.Error()})
 		c.notifyFailure(wctx, req, "The target refused a migration", err.Error())
 		c.notifyRequester(wctx, req, "Your migration failed", err.Error())
-		return true, err
+		return true, recorded(err)
 	}
 
 	_ = c.store.UpdateRequestFields(wctx, req.ID, Event{
