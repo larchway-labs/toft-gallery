@@ -229,17 +229,26 @@ JOB_NAME = "close"
 
 
 def jobs_available() -> tuple[bool, str]:
+    """Whether a close can run as a job, as far as this app can know in advance.
+
+    Nothing the app can read says jobs are switched off: the platform answers
+    that at the start, with ``422 jobs_unavailable`` and a sentence. So this
+    says only whether there is a platform at all, and :data:`JOBS_OFF` is the
+    code :func:`start_close` hands back when the start is refused.
+    """
     if not on_platform():
         return False, "Not running on Toft."
-    policy = app_info().get("policy") or {}
-    jobs = policy.get("jobs") if isinstance(policy, dict) else None
-    if isinstance(jobs, dict) and jobs.get("available") is False:
-        return False, str(jobs.get("reason") or "Jobs are not available on this install.")
     return True, ""
+
+
+JOBS_OFF = "jobs_unavailable"
 
 
 def start_close(headers: Any, period: str | None, as_viewer: bool = True):
     """Start the close, attributed to whoever is looking at the page.
+
+    Returns ``(run, error, code)``; ``code`` is the platform's refusal code, so
+    a caller can tell :data:`JOBS_OFF` from every other failure.
 
     ``toft.viewer(headers).jobs`` rather than ``toft.jobs`` is the whole decision:
     the first attributes the run to the person, the second to the app. It is two
@@ -248,18 +257,18 @@ def start_close(headers: Any, period: str | None, as_viewer: bool = True):
     params = {"period": period} if period else {}
     if as_viewer and SDK:
         try:
-            return toft.viewer(headers).jobs.start(JOB_NAME, params=params), ""
+            return toft.viewer(headers).jobs.start(JOB_NAME, params=params), "", ""
         except ToftError as exc:
             # No viewer to act for — a machine client, or a stranger. Fall back
             # to the app's own authority and say which happened.
             if getattr(exc, "code", "") in ("viewer_anonymous", "act_for_missing"):
                 pass
             else:
-                return None, str(exc)
+                return None, str(exc), getattr(exc, "code", "")
     try:
-        return toft.jobs.start(JOB_NAME, params=params), ""
+        return toft.jobs.start(JOB_NAME, params=params), "", ""
     except ToftError as exc:
-        return None, str(exc)
+        return None, str(exc), getattr(exc, "code", "")
 
 
 def runs(headers: Any, everyone: bool = False, limit: int = 20) -> tuple[list, str]:
@@ -419,7 +428,9 @@ def rail(seen_: Seen | None = None) -> list[Cap]:
 
     ok, why = jobs_available()
     caps.append(Cap("Background jobs", "on" if ok else "off",
-                    "A close runs in its own container." if ok else why))
+                    ("A close runs as a job. If an administrator switched jobs off, "
+                     "the start says so and the page offers the web process instead.")
+                    if ok else why))
 
     if seen_ is not None:
         state = {"known": "on", "anonymous": "warn", "refused": "off", "off": "off"}[seen_.identity_state]

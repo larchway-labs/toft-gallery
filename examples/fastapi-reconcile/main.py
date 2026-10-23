@@ -258,14 +258,19 @@ def close(req: CloseRequest, request: Request):
 
     if req.background:
         ok, why = seam.jobs_available()
+        if ok:
+            run, err, code = seam.start_close(request.headers, req.period)
+            if code == seam.JOBS_OFF:
+                # Switched off install-wide. Nothing the app can read says so in
+                # advance; the start is where the platform answers, by name.
+                ok, why = False, err
+            elif run is None:
+                return JSONResponse(status_code=502, content={"started": False, "reason": err})
         if not ok:
             return JSONResponse(status_code=409, content={
                 "started": False, "reason": why,
                 "hint": "Send background=false to run it in this process instead.",
             })
-        run, err = seam.start_close(request.headers, req.period)
-        if run is None:
-            return JSONResponse(status_code=502, content={"started": False, "reason": err})
         return {"started": True, "run_id": run.id, "status": run.status,
                 "deduplicated": run.deduplicated,
                 "attributed": run.started_by_viewer,
@@ -384,7 +389,7 @@ def run_again(run_id: str, request: Request, scope: Scope = "mine"):
     """
     require_editor(request)
     old = run_or_404(request, run_id, scope)
-    run, err = seam.start_close(request.headers, (old.params or {}).get("period"))
+    run, err, _code = seam.start_close(request.headers, (old.params or {}).get("period"))
     if run is None:
         return JSONResponse(status_code=502, content={"started": False, "reason": err})
     return {"started": True, "run_id": run.id, "deduplicated": run.deduplicated,
