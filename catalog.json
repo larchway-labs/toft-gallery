@@ -235,10 +235,10 @@
         "approvals",
         "go"
       ],
-      "version": "1.2.2",
+      "version": "1.3.0",
       "min_platform_version": "0.7.0",
       "repo_url": "https://github.com/larchway-labs/toft-gallery",
-      "ref": "migration-console/v1.2.2",
+      "ref": "migration-console/v1.3.0",
       "path": "extensions/migration-console",
       "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/extensions/migration-console",
       "suggested_slug": "migration-console",
@@ -258,7 +258,7 @@
           "description": "Any long passphrase. Each target install's deploy key is encrypted with it before it is written to the database, so a database backup is not a copy of your estate's push credentials."
         }
       ],
-      "notes": "Needs a Toft that can mint a read-scoped deploy key — 0.2.0 or later. The console holds a deploy key for each install it can push to, and each of those can deploy to any app on that install. Install it on the install your developers use, give it a read-scoped deploy key here and a deploy-scoped key on each target, and add a scheduled task pointing at /tasks/tick. The Install page inside the app lists every step and shows what is still outstanding.",
+      "notes": "Needs a Toft that can mint a read-scoped deploy key — 0.2.0 or later. The console holds a deploy key for each install it can push to, and each of those can deploy to any app on that install. Install it on the install your developers use, give it a read-scoped deploy key here and a deploy-scoped key on each target, and that is all: the tick that carries out approved migrations is a job declared in the app's toft.toml, so it arrives with the deploy and runs every five minutes. Where an administrator has switched jobs off, approvals wait and the Install page says why. The Install page inside the app lists every step and shows what is still outstanding.",
       "visibility": "viewable"
     },
     {
@@ -277,9 +277,9 @@
         "roles",
         "example"
       ],
-      "version": "1.2.0",
+      "version": "1.2.1",
       "min_platform_version": "0.7.0",
-      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/flask-hello/v1.2.0.zip",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/flask-hello/v1.2.1.zip",
       "path": "examples/flask-hello",
       "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/flask-hello",
       "suggested_slug": "flask-hello",
@@ -298,7 +298,7 @@
       "kind": "example",
       "name": "Reconcile",
       "summary": "A month-end desk on FastAPI, and the six things an app can ask Toft for.",
-      "description": "Two sides of a month, matched three ways, and the leftovers put in front of somebody who can decide about them. FastAPI and uvicorn, embedded SQLite, no npm build and no chart library; the page is a client of the same JSON API your tooling would call, and the API tab is generated from the app's own OpenAPI document at page load, so it works with no route to the internet. It is the example to read for an app **using** the platform rather than merely hosted by it: the tolerances live in the app's one JSON document and save with `If-Match`, so a second person with the page open gets a 409 naming the stored version instead of silently losing their edit; a close runs as a **background job** in a container of its own, attributed to whoever pressed the button; the caller's signed **role** gates the two buttons that change something; **viewer identity** answers the different question of who they are; the summary goes to Slack or email without this app holding a token or naming a channel; and a scheduled task fires a path it published. Every one of those degrades — run it on an install with none of them attached and the page still works, and the rail says what is missing and what the app did instead.",
+      "description": "Two sides of a month, matched three ways, and the leftovers put in front of somebody who can decide about them. FastAPI and uvicorn, embedded SQLite, no npm build and no chart library; the page is a client of the same JSON API your tooling would call, and the API tab is generated from the app's own OpenAPI document at page load, so it works with no route to the internet. It is the example to read for an app **using** the platform rather than merely hosted by it: the tolerances live in the app's one JSON document and save with `If-Match`, so a second person with the page open gets a 409 naming the stored version instead of silently losing their edit; a close runs as a **background job** in a container of its own, attributed to whoever pressed the button; the caller's signed **role** gates the two buttons that change something; **viewer identity** answers the different question of who they are; the summary goes to Slack or email without this app holding a token or naming a channel; and the same job fires by itself at month-end, for the month that just ended. Every one of those degrades — run it on an install with none of them attached and the page still works, and the rail says what is missing and what the app did instead.",
       "author": "Toft",
       "language": "Python",
       "tags": [
@@ -310,9 +310,9 @@
         "integrations",
         "example"
       ],
-      "version": "1.3.1",
+      "version": "1.3.2",
       "min_platform_version": "0.7.0",
-      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/fastapi-reconcile/v1.3.1.zip",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/fastapi-reconcile/v1.3.2.zip",
       "path": "examples/fastapi-reconcile",
       "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/fastapi-reconcile",
       "suggested_slug": "reconcile",
@@ -612,7 +612,7 @@
       "kind": "example",
       "name": "Stockroom",
       "summary": "An inventory register that gets its own report out: PDF, Slack, email, on demand or on a schedule.",
-      "description": "Five aisles, forty lines, and every receipt and issue on a ledger written in the same transaction as the count it changes. Go with the standard library and `html/template`; SQLite embedded through `modernc.org/sqlite`, because Toft builds Go apps with CGO off. One report is built once and rendered three ways, so the PDF, the Slack comment and the email body cannot quote different numbers. This is the example to read for an app talking back to Toft **without an SDK**: `/api/v1/app/self`, the two notify routes, the run list and a scheduled task's own log, spoken directly in about two hundred lines. Its capability rail is read from the platform on every render rather than written down, so an administrator attaching Slack shows up on the next page load.",
+      "description": "Five aisles, forty lines, and every receipt and issue on a ledger written in the same transaction as the count it changes. Go with the standard library and `html/template`; SQLite embedded through `modernc.org/sqlite`, because Toft builds Go apps with CGO off. One report is built once and rendered three ways, so the PDF, the Slack comment and the email body cannot quote different numbers. This is the example to read for an app talking back to Toft **without an SDK**: `/api/v1/app/self`, the two notify routes, the job-runs list and a run's own credential, spoken directly in about two hundred lines — and one Go binary that is both the web app and its weekly report job. Its capability rail is read from the platform on every render rather than written down, so an administrator attaching Slack shows up on the next page load.",
       "author": "Toft",
       "language": "Go",
       "tags": [
@@ -624,9 +624,9 @@
         "scheduled-tasks",
         "example"
       ],
-      "version": "1.2.0",
+      "version": "1.3.0",
       "min_platform_version": "0.7.0",
-      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/stockroom/v1.2.0.zip",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/stockroom/v1.3.0.zip",
       "path": "examples/stockroom",
       "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/stockroom",
       "suggested_slug": "stockroom",
@@ -644,7 +644,7 @@
           "description": "Where the SQLite file goes. Leave it unset: the app prefers a writable storage mount, then the scratch directory, and says on its Platform tab which one it picked."
         }
       ],
-      "notes": "Slack and email are absent until an administrator attaches them on the app's Integrations tab, and the app says so rather than offering a button that cannot work. On a shared-mode install the register lives on scratch, so a redeploy re-seeds it — which is the point of the example, not a limitation of it."
+      "notes": "Slack and email are absent until an administrator attaches them on the app's Integrations tab, and the app says so rather than offering a button that cannot work. On a shared-mode install the register lives on scratch, so a redeploy re-seeds it — which is the point of the example, not a limitation of it. The weekly report is a job declared in toft.toml; a job does not share the web process's scratch space, so without a writable storage mount it reports on a freshly seeded register."
     },
     {
       "id": "a413936d-2f23-47a4-b658-896d194216f9",
