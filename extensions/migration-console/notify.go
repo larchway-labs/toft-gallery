@@ -136,6 +136,13 @@ func newID() string {
 
 var slugUnsafe = regexp.MustCompile(`[^a-z0-9-]+`)
 
+// maxSlugLen is the platform's own ceiling: a release is a Kubernetes object
+// named slug, a dash and eight characters of the deployment, inside a 63
+// character DNS label. The console states its slug exactly (slug_exact), so a
+// longer one is refused at the push rather than cut — cutting it here keeps the
+// name the approver reads the name the app will answer on.
+const maxSlugLen = 63 - len("-") - 8
+
 // sanitizeSlug mirrors the platform's own rule closely enough that what this
 // app shows and what the platform stores agree. The platform sanitizes again on
 // the way in, which is the authority; this is so the approver reads the name
@@ -148,8 +155,8 @@ func sanitizeSlug(s string) string {
 	for strings.Contains(s, "--") {
 		s = strings.ReplaceAll(s, "--", "-")
 	}
-	if len(s) > 63 {
-		s = strings.Trim(s[:63], "-")
+	if len(s) > maxSlugLen {
+		s = strings.Trim(s[:maxSlugLen], "-")
 	}
 	return s
 }

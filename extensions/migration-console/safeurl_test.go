@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // An address somebody typed is server-side input.
 //
@@ -50,9 +53,32 @@ func TestASlugIsWhatTheAppWillAnswerOn(t *testing.T) {
 		"a--b":           "a-b",
 		"-lead-trail-":   "lead-trail",
 		"weird!!chars??": "weird-chars",
+		// The platform's ceiling is 54, and a stated slug past it is refused
+		// at the push rather than cut there — so it is cut here, where the
+		// approver can read it.
+		strings.Repeat("a", 60): strings.Repeat("a", 54),
 	} {
 		if got := sanitizeSlug(in); got != want {
 			t.Errorf("sanitizeSlug(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// The source row may be the address Toft gave this app for itself, which is
+// nearly always loopback; a target may not, and neither may anything else
+// private without the allow-list.
+func TestTheSourceMayBeTheAddressToftGaveThisApp(t *testing.T) {
+	own := "http://127.0.0.1:8080"
+	if got, err := sourceAddress("http://127.0.0.1:8080/", own, nil); err != nil || got != own {
+		t.Errorf("the platform's own address was refused as the source: %q, %v", got, err)
+	}
+	if _, err := sourceAddress("http://127.0.0.1:9999", own, nil); err == nil {
+		t.Error("a different loopback port rode the exception")
+	}
+	if _, err := sourceAddress("http://127.0.0.1:8080/api", own, nil); err == nil {
+		t.Error("an address with a path rode the exception")
+	}
+	if _, err := sourceAddress("http://127.0.0.1:8080", "", nil); err == nil {
+		t.Error("with no TOFT_API_URL a loopback source was accepted")
 	}
 }

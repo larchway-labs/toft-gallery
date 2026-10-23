@@ -63,7 +63,6 @@ func TestEveryStateHasAWord(t *testing.T) {
 	}
 }
 
-
 // Cancelled, withdrawn and rejected are three different endings and the words
 // have to stay three different words.
 //

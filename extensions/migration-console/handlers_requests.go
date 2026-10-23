@@ -443,7 +443,7 @@ func (c *Console) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 	// exists — so a rename carries to the next request — and from the source
 	// app's own slug if none does.
 	link, _ := c.store.FindLink(ctx, targetID, appID)
-	destSlug := trimForm(r, "destination_slug")
+	destSlug := sanitizeSlug(trimForm(r, "destination_slug"))
 	if destSlug == "" {
 		if link != nil && link.TargetAppSlug != "" {
 			destSlug = link.TargetAppSlug

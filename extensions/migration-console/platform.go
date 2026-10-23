@@ -491,10 +491,17 @@ func bundleForm(fields map[string]string, filename string, zipBytes []byte) (*by
 // the target's administrator to fill in; a deploy key may not PATCH the app, so
 // no later request can touch them, and configuration drift on the target is the
 // target's business.
+//
+// The slug is sent **exact**. Without `slug_exact` the platform treats a slug
+// as a proposal and lands a taken one on `<slug>-2` — on a busy target that is
+// the approver's chosen name quietly becoming somebody else's, while the ledger
+// records the one they chose. Exact, a taken slug is refused with `name_taken`
+// and the request fails saying so.
 func (p *Platform) CreateFromArchive(ctx context.Context, zipBytes []byte, name, slug, ownerGroupID, visibility, envVarsJSON string) (*UploadResult, error) {
 	body, ct, err := bundleForm(map[string]string{
 		"name":           name,
 		"slug":           slug,
+		"slug_exact":     "true",
 		"owner_group_id": ownerGroupID,
 		"visibility":     visibility,
 		"env_vars":       envVarsJSON,

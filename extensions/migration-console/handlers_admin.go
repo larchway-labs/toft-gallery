@@ -54,6 +54,10 @@ type TargetsData struct {
 	// ever supplied the id it needed, so changing a label meant a second row
 	// with the credential pasted again and the old row left behind.
 	Editing *Target
+	// OwnAddress is this install's address as the platform gave it to the app
+	// (TOFT_API_URL) — what the source row should say, offered so nobody has to
+	// work out how an app reaches the install it runs on.
+	OwnAddress string
 }
 
 func (c *Console) handleTargets(w http.ResponseWriter, r *http.Request) {
@@ -62,7 +66,7 @@ func (c *Console) handleTargets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	data := TargetsData{}
+	data := TargetsData{OwnAddress: ownOrigin(c.cfg.APIURL)}
 	all, _ := c.store.ListTargets(ctx)
 	for _, t := range all {
 		if t.Kind == TargetKindSource {
@@ -112,7 +116,14 @@ func (c *Console) handleSaveTarget(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	settings, _ := c.store.Settings(ctx)
-	base, err := validateTargetURL(trimForm(r, "base_url"), strings.Split(settings[SettingPrivateRangesOK], ","))
+	ranges := strings.Split(settings[SettingPrivateRangesOK], ",")
+	var base string
+	var err error
+	if kind == TargetKindSource {
+		base, err = sourceAddress(trimForm(r, "base_url"), c.cfg.APIURL, ranges)
+	} else {
+		base, err = validateTargetURL(trimForm(r, "base_url"), ranges)
+	}
 	if err != nil {
 		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That address cannot be used", err.Error())
 		return

@@ -1,7 +1,11 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"testing"
 )
 
@@ -193,5 +197,50 @@ func TestAVerdictIsOnlyEverAboutTheReleaseItNames(t *testing.T) {
 	var nilRep *DependencyReport
 	if w, _ := nilRep.VerdictFor("d1"); w != "" || nilRep.Describes("d1") {
 		t.Error("an absent report described a release")
+	}
+}
+
+// The first push names its slug exactly. Without slug_exact the platform lands
+// a taken slug on `<slug>-2`, and the approver's chosen name would quietly
+// become a different app's while the ledger kept the one they chose.
+func TestTheFirstPushStatesItsSlugExactly(t *testing.T) {
+	var got url.Values
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Fatal(err)
+		}
+		got = r.MultipartForm.Value
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"app":{"id":"a1","slug":"orders"},"deployment":{"id":"d1"}}`))
+	}))
+	defer srv.Close()
+
+	res, err := newPlatform(srv.URL, "toftd_x").CreateFromArchive(context.Background(),
+		[]byte("PK"), "Orders", "orders", "g1", "authenticated", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := got["slug_exact"]; len(v) != 1 || v[0] != "true" {
+		t.Errorf("slug_exact = %v, want true", v)
+	}
+	if res.AppSlug != "orders" || res.AppID != "a1" || res.DeploymentID != "d1" {
+		t.Errorf("result = %+v", res)
+	}
+}
+
+// What a push records is the app the target reports, so the link the next
+// request follows names the app that exists.
+func TestAnAcceptedPushRecordsTheSlugTheTargetReports(t *testing.T) {
+	req := &Request{DestinationSlug: "orders"}
+	same := acceptedFields(req, &UploadResult{AppID: "a1", AppSlug: "orders", DeploymentID: "d1"})
+	if _, ok := same["destination_slug"]; ok {
+		t.Error("an unchanged slug was rewritten")
+	}
+	moved := acceptedFields(req, &UploadResult{AppID: "a1", AppSlug: "orders-2", DeploymentID: "d1"})
+	if moved["destination_slug"] != "orders-2" || req.DestinationSlug != "orders-2" {
+		t.Errorf("the slug the target reported was not recorded: %v", moved)
+	}
+	if _, ok := acceptedFields(&Request{DestinationSlug: "x"}, &UploadResult{AppID: "a1"})["destination_slug"]; ok {
+		t.Error("a version push, which reports no slug, cleared the destination")
 	}
 }

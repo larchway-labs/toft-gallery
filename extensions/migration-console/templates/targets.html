@@ -20,6 +20,9 @@
         <p>Mint a deploy key on this install with the <strong>read</strong> scope and add it below.
            Read-scoped on purpose: the credential this console holds on the install it runs on can
            pull a release and cannot deploy anything, including to itself.</p>
+        {{if $d.OwnAddress}}<p>Toft gives this app its own address as <code>{{$d.OwnAddress}}</code>.
+           Use that as the source’s address: it is accepted as it is, private or not, because it is
+           where Toft says this install is rather than an address somebody typed.</p>{{end}}
       </div>
     {{end}}
   </div>

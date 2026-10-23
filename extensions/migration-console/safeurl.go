@@ -19,6 +19,32 @@ import (
 //
 // This is the console's own decision and is stated as such. It is **not** the
 // platform's `safefetch` and must not be described as it.
+// ownOrigin is the origin of the address the platform gave this app for itself
+// (TOFT_API_URL), or "" when it gave none.
+func ownOrigin(apiURL string) string {
+	u, err := url.Parse(strings.TrimSpace(apiURL))
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+		return ""
+	}
+	return u.Scheme + "://" + u.Host
+}
+
+// sourceAddress is validateTargetURL for the **source** row, with one more
+// exception: the address the platform itself gave this app. That address is
+// nearly always loopback or a cluster-internal name — exactly what the rule
+// refuses — and it is not something a person typed but what Toft says it is,
+// so making an administrator allow-list 127.0.0.0/8 to add the install the
+// console is running on would be a step that protects nothing. Only the source
+// gets it: a target is always somewhere else.
+func sourceAddress(raw, apiURL string, allowedRanges []string) (string, error) {
+	if own := ownOrigin(apiURL); own != "" && ownOrigin(raw) == own {
+		if u, _ := url.Parse(strings.TrimSpace(raw)); u != nil && (u.Path == "" || u.Path == "/") && u.User == nil {
+			return own, nil
+		}
+	}
+	return validateTargetURL(raw, allowedRanges)
+}
+
 func validateTargetURL(raw string, allowedRanges []string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {

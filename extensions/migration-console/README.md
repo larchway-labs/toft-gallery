@@ -73,7 +73,10 @@ Then four steps, each an ordinary administrator action:
 3. **Add this install as the source.** Mint a deploy key here with the
    **read** scope and paste it in on the Targets page. Read-scoped on purpose:
    the credential the console holds on the install it runs on can pull a release
-   and cannot deploy anything.
+   and cannot deploy anything. For the address, use the one the Targets page
+   shows — the address Toft gives this app for itself. It is usually loopback or
+   a cluster-internal name, and it is accepted as it is, without allowing a
+   private range, because Toft named it rather than somebody typing it.
 4. **Add a target.** An administrator on the other install mints a
    **deploy**-scoped key there and gives it to you. No credential moves between
    installs on its own.
@@ -141,6 +144,13 @@ lives on the Links page, which is why the page admits a reviewer as well as an
 editor: the roster is deliberately not the administrators, so a page only
 editors could open would hide the control from everyone entitled to press it.
 Deleting a link is still an editor's.
+
+**The name the approver chose is the name the app gets, or the push fails.**
+A first migration creates the app with its slug stated exactly, so a slug
+already taken on the target fails the push with the target's own words
+(`name_taken`) rather than landing the app on `<slug>-2`. Pick another on the
+request and raise it again. Slugs are cut to 54 characters, the platform's
+ceiling.
 
 **A first migration to a target needs a group on that target.** A deploy key
 belongs to nobody, so an app the console creates has to be owned by a group over

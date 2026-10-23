@@ -414,11 +414,24 @@ func (c *Console) push(ctx context.Context, req *Request, actor string) (bool, e
 		Action: "push.accepted", ActorName: actor,
 		RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID,
 		Detail: "the target accepted the bundle and is building"},
-		map[string]any{
-			"target_app_id":        result.AppID,
-			"target_deployment_id": result.DeploymentID,
-		})
+		acceptedFields(req, result))
 	return true, nil
+}
+
+// acceptedFields is what a push the target accepted writes onto the request.
+// The slug is the one the target reports, not the one asked for: the create is
+// sent exact, so the two agree, and if a target ever answered otherwise the
+// ledger and the link would follow the app that exists rather than a name.
+func acceptedFields(req *Request, result *UploadResult) map[string]any {
+	fields := map[string]any{
+		"target_app_id":        result.AppID,
+		"target_deployment_id": result.DeploymentID,
+	}
+	if result.AppSlug != "" && result.AppSlug != req.DestinationSlug {
+		fields["destination_slug"] = result.AppSlug
+		req.DestinationSlug = result.AppSlug
+	}
+	return fields
 }
 
 // retestTargetsDaily re-tests every target once a day, and a target that goes
