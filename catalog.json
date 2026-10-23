@@ -186,10 +186,10 @@
         "approvals",
         "go"
       ],
-      "version": "1.4.1",
+      "version": "1.4.2",
       "min_platform_version": "0.7.0",
       "repo_url": "https://github.com/larchway-labs/toft-gallery",
-      "ref": "migration-console/v1.4.1",
+      "ref": "migration-console/v1.4.2",
       "path": "extensions/migration-console",
       "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/extensions/migration-console",
       "suggested_slug": "migration-console",
