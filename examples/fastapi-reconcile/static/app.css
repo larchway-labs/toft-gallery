@@ -1,10 +1,10 @@
 /* Reconcile — the one thing this app adds to the house style.
  *
  * The rule is that an app-specific stylesheet may *add* classes and may never
- * redefine the kit's tokens. This one adds two things: a wider first column on
- * the "what did not match" bars, and a monospaced money column that lines up
- * decimal points down the table, which is the only thing an accountant will
- * actually ask for.
+ * redefine the kit's tokens. This one adds three things: a wider first column
+ * on the "what did not match" bars, a monospaced money column that lines up
+ * decimal points down the table — the only thing an accountant will actually
+ * ask for — and the run cards on the Runs tab.
  */
 
 .tbl td.mono { font-variant-numeric: tabular-nums; }
@@ -22,7 +22,97 @@
    able to see what they just did to it. */
 #exceptions tr[style*="opacity"] .badge { filter: none; }
 
+/* ── the runs ──────────────────────────────────────────────────────────────
+   A run is a card that opens in place. Its tone is a stripe on the leading
+   edge, the same device a tile uses, so a column of them reads as a history at
+   a glance. Every colour is a kit tone token; nothing new is introduced. */
+
+.runs { display: flex; flex-direction: column; }
+.run { border-top: 1px solid var(--lp-rule-2); position: relative; }
+.run:first-child { border-top: 0; }
+.run::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--lp-neu-brd);
+}
+.run.tone-ok::before   { background: var(--lp-ok-solid); }
+.run.tone-att::before  { background: var(--lp-att-solid); }
+.run.tone-dan::before  { background: var(--lp-dan-solid); }
+.run.tone-info::before { background: var(--lp-info-solid); }
+.run.is-open { background: var(--lp-paper); }
+
+.run-hd {
+  appearance: none; border: 0; background: none; cursor: pointer; width: 100%;
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: .875rem;
+  align-items: center; text-align: left; padding: .8rem 1rem .8rem 1.15rem;
+  font: inherit; color: inherit;
+}
+.run-hd:hover { background: var(--lp-sunk); }
+.run-hd:focus-visible { outline: 2px solid var(--lp-primary); outline-offset: -2px; }
+
+.run-dot { width: .6rem; height: .6rem; border-radius: 999px; background: var(--lp-neu-solid); }
+.run-dot.tone-ok   { background: var(--lp-ok-solid); }
+.run-dot.tone-att  { background: var(--lp-att-solid); }
+.run-dot.tone-dan  { background: var(--lp-dan-solid); }
+.run-dot.tone-info { background: var(--lp-info-solid); animation: run-pulse 1.4s ease-in-out infinite; }
+@keyframes run-pulse { 50% { box-shadow: 0 0 0 5px var(--lp-info-sur); } }
+@media (prefers-reduced-motion: reduce) { .run-dot.tone-info { animation: none; } }
+
+.run-main { display: flex; flex-direction: column; gap: .2rem; min-width: 0; }
+.run-title { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
+.run-title b { font-size: .9375rem; }
+.run-sub {
+  font-size: .8125rem; color: var(--lp-ink-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.run-bar { display: block; height: 4px; margin-top: .3rem; max-width: 28rem; }
+.run-bar .bar-fill { transition: width .6s ease; }
+
+.run-when {
+  display: flex; flex-direction: column; align-items: flex-end; gap: .1rem;
+  font-size: .75rem; color: var(--lp-ink-3); white-space: nowrap;
+}
+.run-when .mono { color: var(--lp-ink-2); }
+.run-chev {
+  width: .5rem; height: .5rem; border-right: 1.5px solid var(--lp-ink-3);
+  border-bottom: 1.5px solid var(--lp-ink-3); transform: rotate(45deg); margin: 0 .25rem .2rem;
+  transition: transform .15s ease;
+}
+.run.is-open .run-chev { transform: rotate(-135deg); margin-bottom: -.2rem; }
+
+.run-bd { padding: .25rem 1rem 1.1rem 1.15rem; }
+.run-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 1.25rem; }
+.run-kv { align-content: start; }
+.run-mem { display: flex; gap: .5rem; align-items: center; max-width: 18rem; }
+.run-mem .bar-v { white-space: nowrap; font-size: .75rem; }
+.run-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0 0 .4rem; }
+.run-tiles .tile-v { font-size: 1.25rem; }
+.run-log-hd { display: flex; align-items: baseline; gap: .6rem; margin: 1rem 0 .4rem; }
+.run-log-hd h4 { margin: 0; }
+.run-log { max-height: 16rem; overflow-y: auto; margin: 0; }
+.run-actions { margin-top: .875rem; align-items: center; }
+
+/* A run started in somebody's name. The kit has the brand tone on a note and
+   not on a badge; this is the same three tokens. */
+.badge.tone-brand { border-color: var(--lp-primary-brd); background: var(--lp-primary-sur); color: var(--lp-primary); }
+
+/* the strip: one square per run, oldest first, a click opens its card */
+.run-strip { display: inline-flex; gap: 3px; align-items: center; }
+.run-pip {
+  appearance: none; border: 0; padding: 0; cursor: pointer;
+  width: 8px; height: 18px; border-radius: 2px; background: var(--lp-neu-brd);
+}
+.run-pip.tone-ok   { background: var(--lp-ok-solid); }
+.run-pip.tone-att  { background: var(--lp-att-solid); }
+.run-pip.tone-dan  { background: var(--lp-dan-solid); }
+.run-pip.tone-info { background: var(--lp-info-solid); }
+.run-pip:hover, .run-pip:focus-visible { outline: 2px solid var(--lp-primary-brd); outline-offset: 1px; }
+
 @media (max-width: 760px) {
+  .run-hd { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .run-when { display: none; }
+  .run-grid { grid-template-columns: 1fr; }
+  .run-tiles { grid-template-columns: 1fr 1fr; }
+  .run-strip { display: none; }
   .masthead-in { grid-template-columns: 1fr; }
   .masthead-aside { align-items: flex-start; }
 }

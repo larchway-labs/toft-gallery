@@ -265,66 +265,66 @@
   </div>
 </section>
 
-{# ── Runs ────────────────────────────────────────────────────────────── #}
+{# ── Runs ──────────────────────────────────────────────────────────────
+   Painted by app.js from the JSON at the bottom, and repainted from
+   /api/runs while a close is open. Nothing about a run is rendered here,
+   so there is one renderer and it cannot drift from a second one. #}
 <section data-panel="runs" hidden>
   <div class="section-hd">
     <div>
       <h2>Runs</h2>
       <p>A close is a <strong>job</strong>: a different entrypoint of this same repository,
          run by Toft in a container of its own with a memory limit, a deadline and a
-         durable record. The page does not wait for it.</p>
+         durable record. It fires by itself at month-end, and anyone who can edit this
+         app can start one now. The page does not wait for it.</p>
     </div>
-    <button class="btn btn-primary" type="button" data-close="{{ period }}">Run the close</button>
+    <div class="btns">
+      <label class="sr" for="close-period">Month to close</label>
+      <select id="close-period" style="width:auto">
+        {% for p in runs_doc.declaration.choices or periods %}
+          <option value="{{ p }}" {% if p == period %}selected{% endif %}>{{ p }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn btn-primary" type="button" data-close="">Run the close</button>
+    </div>
   </div>
 
   {% if not jobs_ok %}
-    <div class="note tone-att">
+    <div class="note tone-att" style="margin-bottom:1rem">
       <strong>Jobs are not available here.</strong> {{ jobs_why }}
       The close still runs — in this web process, which is what the job system exists to
       avoid: a report that exhausts memory takes the pages down with it.
     </div>
   {% endif %}
 
-  <div class="card" style="margin-top:1rem">
+  <div class="note tone-ok" id="runs-fresh" hidden style="margin-bottom:1rem">
+    <strong>A close finished.</strong> Overview and Exceptions still show the one before
+    it. <button class="btn btn-sm" type="button" data-reload>Reload</button>
+  </div>
+
+  <div class="tiles" id="runs-tiles" aria-live="polite"></div>
+
+  <div class="card section">
     <div class="card-hd">
-      <h2>Your closes</h2>
-      <span class="muted small">Resolved by the platform from the token this app relayed</span>
-    </div>
-    <div class="card-bd" style="padding:0">
-      <div class="tbl-wrap">
-        <table class="tbl">
-          <thead><tr><th>Run</th><th>Status</th><th>Started by</th><th>Result</th></tr></thead>
-          <tbody id="runs-body">
-          {% for r in runs %}
-            <tr>
-              <td class="mono small">{{ r.id[:12] }}</td>
-              <td>
-                {% if r.status == 'succeeded' %}<span class="badge tone-ok">succeeded</span>
-                {% elif r.status in ('failed','timed_out','out_of_memory','cancelled','skipped') %}<span class="badge tone-dan">{{ r.status }}</span>
-                {% elif r.status == 'running' %}<span class="badge tone-info">running {{ r.progress }}%</span>
-                {% else %}<span class="badge">{{ r.status }}</span>{% endif %}
-              </td>
-              <td><span class="badge{% if r.started_by == 'viewer' %} tone-brand{% endif %}">{{
-                  {'viewer': 'a person', 'app': 'the app', 'schedule': 'the schedule',
-                   'cli': 'the CLI', 'ui': "Toft's UI"}.get(r.started_by, r.started_by or '—') }}</span></td>
-              <td class="small muted">
-                {% if r.status == 'succeeded' and r.progress_message %}{{ r.progress_message }}
-                {% elif r.failure_reason %}{{ r.failure_reason }}
-                {% else %}—{% endif %}</td>
-            </tr>
-          {% else %}
-            <tr><td colspan="5" class="muted">
-              {{ runs_note or 'No runs yet. Press “Run the close”.' }}</td></tr>
-          {% endfor %}
-          </tbody>
-        </table>
+      <h2 id="runs-title">Your closes</h2>
+      <div class="row" style="gap:.75rem;flex-wrap:wrap">
+        <span class="run-strip" id="run-strip"></span>
+        {% if who.may_edit %}
+          <div class="seg" id="runs-scope" role="group" aria-label="Whose closes">
+            <button type="button" data-scope="mine" class="is-on">Yours</button>
+            <button type="button" data-scope="everyone">Everyone's</button>
+          </div>
+        {% endif %}
       </div>
     </div>
-    <div class="card-ft">
+    <div class="runs" id="runs-list"></div>
+    <div class="card-ft" id="runs-foot">
       The app never learns <em>which</em> person started a run — only that one did. It
       hands back the opaque token it was given and Toft filters on whoever is behind it.
     </div>
   </div>
+
+  <script type="application/json" id="runs-doc">{{ runs_doc|tojson }}</script>
 </section>
 
 {# ── Settings ────────────────────────────────────────────────────────── #}

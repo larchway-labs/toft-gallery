@@ -36,6 +36,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
+import declaration
 import engine
 import ledger
 import platform_seam as seam
@@ -105,7 +106,6 @@ def page(request: Request, period: str = Query("")):
     values, labels = ledger.daily_series(period)
     excs = ledger.exceptions(period)
     jobs_ok, jobs_why = seam.jobs_available()
-    runs, runs_note = seam.runs(request.headers)
 
     # Only every third day gets a label, or the axis is a smear.
     axis = [l if i % 3 == 0 else "" for i, l in enumerate(labels)]
@@ -131,8 +131,10 @@ def page(request: Request, period: str = Query("")):
         "where": ledger.where(),
         "jobs_ok": jobs_ok,
         "jobs_why": jobs_why,
-        "runs": runs,
-        "runs_note": runs_note,
+        # The Runs tab is painted by app.js from this, and repainted from
+        # /api/runs while anything is open — one renderer, so the first paint
+        # and the hundredth cannot disagree about what a status looks like.
+        "runs_doc": runs_doc(request, "mine"),
         "money": ledger.money,
         "closes": ledger.closes(12),
     })
@@ -278,20 +280,116 @@ def close(req: CloseRequest, request: Request):
             "summary": engine.summary_text(result)}
 
 
-@app.get("/api/runs", tags=["Reading"])
-def runs(request: Request):
-    """This viewer's closes, resolved by the platform from the relayed token.
+def run_json(r) -> dict:
+    """A run as the page draws it: the platform's fields, nothing invented."""
+    return {
+        "id": r.id, "status": r.status, "started_by": r.started_by,
+        "rerun_of": r.rerun_of, "params": r.params, "scheduled_for": r.scheduled_for,
+        "queued_at": r.queued_at, "started_at": r.started_at, "finished_at": r.finished_at,
+        "deadline": r.deadline, "progress": r.progress, "summary": r.progress_message,
+        "queue_position": r.queue_position, "has_output": r.has_output,
+        "exit_code": r.exit_code, "failure_reason": r.failure_reason,
+        "peak_memory_mb": r.peak_memory_mb, "status_url": r.status_url,
+    }
 
-    The app never learns who they are. It hands back the blob it was given and
-    Toft filters on the person behind it.
+
+Scope = Literal["mine", "everyone"]
+
+
+def scope_or_403(request: Request, scope: str) -> bool:
+    """Whether to read as the app. **Everyone's closes need editor or owner.**
+
+    The platform's rule for a run started in a person's name is that it is
+    theirs and its app's editors' — its status page answers 404 to anybody
+    else. Reading as the app would let this page widen that, so the page
+    applies the same rule before it reads.
     """
-    rs, note = seam.runs(request.headers)
-    return {"note": note, "runs": [
-        {"id": r.id, "status": r.status, "progress": r.progress,
-         "started_by": r.started_by, "started_by_viewer": r.started_by_viewer, "summary": r.progress_message,
-         "failure_reason": r.failure_reason}
-        for r in rs
-    ]}
+    if scope != "everyone":
+        return False
+    who = seam.seen(request.headers)
+    if not who.may_edit:
+        raise HTTPException(403, (f"This caller is '{who.role}'. Everyone's closes need editor "
+                                  f"or owner; your own are under scope=mine."))
+    return True
+
+
+def runs_doc(request: Request, scope: str) -> dict:
+    everyone = scope_or_403(request, scope)
+    rs, note = seam.runs(request.headers, everyone=everyone)
+    decl = declaration.read()
+    return {
+        "scope": scope, "note": note, "runs": [run_json(r) for r in rs],
+        "may_edit": seam.seen(request.headers).may_edit,
+        "last_success": seam.last_success(),
+        "declaration": {
+            "schedule": decl.schedule, "timezone": decl.timezone, "overlap": decl.overlap,
+            "timeout": decl.timeout, "memory_mb": decl.memory_mb, "notify": decl.notify,
+            "choices": decl.choices,
+            "next_at": decl.next_at.isoformat() if decl.next_at else None,
+        },
+    }
+
+
+@app.get("/api/runs", tags=["Reading"])
+def runs(request: Request, scope: Scope = "mine"):
+    """Closes, newest first: yours, or everyone's for an editor.
+
+    Yours are resolved by the platform from the token this app relays — the
+    app never learns who you are, it hands the blob back and Toft filters on
+    the person behind it. With them, the job's declaration and its next firing.
+    """
+    return runs_doc(request, scope)
+
+
+def run_or_404(request: Request, run_id: str, scope: str):
+    run, err = seam.run_of(request.headers, run_id, everyone=scope_or_403(request, scope))
+    if run is None:
+        raise HTTPException(404, err or "No such run.")
+    return run
+
+
+@app.get("/api/runs/{run_id}", tags=["Reading"])
+def run_detail(run_id: str, request: Request, scope: Scope = "mine"):
+    """One close, with the six numbers it wrote as its output."""
+    run = run_or_404(request, run_id, scope)
+    output, why = seam.output_of(run) if run.status == "succeeded" else (None, "")
+    return {**run_json(run), "output": output, "output_note": why}
+
+
+@app.get("/api/runs/{run_id}/logs", tags=["Reading"])
+def run_logs(run_id: str, request: Request, scope: Scope = "mine", after: int = 0):
+    """The close's log after line `after` — the worker's stdout, as Toft kept it."""
+    run = run_or_404(request, run_id, scope)
+    return {"status": run.status, "lines": run.logs(after_seq=after)}
+
+
+@app.post("/api/runs/{run_id}/cancel", tags=["Deciding"])
+def run_cancel(run_id: str, request: Request):
+    """Stop a close that is queued or running. **Editor or owner.**"""
+    require_editor(request)
+    err = seam.cancel(request.headers, run_id)
+    if err:
+        return JSONResponse(status_code=409, content={"cancelled": False, "reason": err})
+    return {"cancelled": True}
+
+
+@app.post("/api/runs/{run_id}/again", tags=["Deciding"])
+def run_again(run_id: str, request: Request, scope: Scope = "mine"):
+    """Close the same month again, in your name. **Editor or owner.**
+
+    A new run with the original's params rather than a re-run: the app's
+    surface starts runs and does not re-run them, because `rerun_of` and the
+    original's `scheduled_for` are a person's deliberate act in Toft's own UI
+    or `toft job rerun`. The answer carries that command for whoever wants it.
+    """
+    require_editor(request)
+    old = run_or_404(request, run_id, scope)
+    run, err = seam.start_close(request.headers, (old.params or {}).get("period"))
+    if run is None:
+        return JSONResponse(status_code=502, content={"started": False, "reason": err})
+    return {"started": True, "run_id": run.id, "deduplicated": run.deduplicated,
+            "attributed": run.started_by_viewer, "queue_position": run.queue_position,
+            "rerun_hint": f"toft job rerun {old.id[:8]}"}
 
 
 @app.get("/api/settings", response_model=Settings, tags=["Reading"])

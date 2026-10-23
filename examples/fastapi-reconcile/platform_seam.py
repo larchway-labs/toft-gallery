@@ -238,14 +238,14 @@ def jobs_available() -> tuple[bool, str]:
     return True, ""
 
 
-def start_close(headers: Any, period: str, as_viewer: bool = True):
+def start_close(headers: Any, period: str | None, as_viewer: bool = True):
     """Start the close, attributed to whoever is looking at the page.
 
     ``toft.viewer(headers).jobs`` rather than ``toft.jobs`` is the whole decision:
     the first attributes the run to the person, the second to the app. It is two
     objects rather than a flag so that attribution cannot be lost by omission.
     """
-    params = {"period": period}
+    params = {"period": period} if period else {}
     if as_viewer and SDK:
         try:
             return toft.viewer(headers).jobs.start(JOB_NAME, params=params), ""
@@ -262,18 +262,93 @@ def start_close(headers: Any, period: str, as_viewer: bool = True):
         return None, str(exc)
 
 
-def runs(headers: Any, limit: int = 20) -> tuple[list, str]:
-    """This viewer's runs where there is a viewer, the app's otherwise."""
+def runs(headers: Any, everyone: bool = False, limit: int = 20) -> tuple[list, str]:
+    """The closes this page may show, newest first.
+
+    ``everyone`` is every run of the job, read as the app — the caller decides
+    who may ask for it, because the platform's own rule is that a run started
+    in a person's name is theirs and its app's editors'. Otherwise this viewer's
+    runs where there is a viewer, the app's where there is not.
+    """
     if not on_platform():
         return [], "Not running on Toft."
-    try:
-        return toft.viewer(headers).jobs.mine(JOB_NAME, limit=limit), ""
-    except ToftError:
-        pass
+    if not everyone:
+        try:
+            return toft.viewer(headers).jobs.mine(JOB_NAME, limit=limit), ""
+        except ToftError:
+            pass
     try:
         return toft.jobs.list(JOB_NAME, limit=limit), ""
     except ToftError as exc:
         return [], str(exc)
+
+
+def run_of(headers: Any, run_id: str, everyone: bool = False):
+    """One run, through the same door :func:`runs` used to list it.
+
+    Read through the viewer, the platform answers 404 for somebody else's run;
+    read as the app it answers for any. Which door is the caller's decision,
+    made on the role — the same one that decides who sees everyone's closes.
+    """
+    if not on_platform():
+        return None, "Not running on Toft."
+    jobs = toft.jobs if everyone else toft.viewer(headers).jobs
+    try:
+        return jobs.get(run_id), ""
+    except ToftError as exc:
+        if not everyone and getattr(exc, "code", "") in ("viewer_anonymous", "act_for_missing"):
+            return run_of(headers, run_id, everyone=True)
+        return None, str(exc)
+
+
+def cancel(headers: Any, run_id: str) -> str:
+    """Stop a run, as whoever may.
+
+    A viewer may cancel the runs they started; the app acting as itself, the
+    runs with no person behind them. Try the person first — it is the narrower
+    authority — and the app second, and report the platform's own refusal when
+    neither may.
+    """
+    if not on_platform():
+        return "Not running on Toft."
+    last = ""
+    for jobs in (toft.viewer(headers).jobs, toft.jobs):
+        try:
+            jobs.get(run_id).cancel()
+            return ""
+        except ToftError as exc:
+            last = str(exc)
+    return last
+
+
+def last_success() -> str | None:
+    """When the close last succeeded, by anybody — a time and nothing else.
+
+    Read as the app, because "is month-end being closed" is the app's state
+    rather than any one person's, and a timestamp names nobody. Off-platform,
+    the register's own record of its last job close.
+    """
+    if on_platform():
+        try:
+            done = toft.jobs.list(JOB_NAME, status="succeeded", limit=1)
+            return done[0].finished_at if done else None
+        except ToftError:
+            return None
+    import ledger                 # here, not at the top: ledger imports this module
+    for row in ledger.closes(25):
+        if row["trigger"] in ("job", "schedule") and row["finished_at"]:
+            return row["finished_at"]
+    return None
+
+
+def output_of(run) -> tuple[Any, str]:
+    """The six numbers the worker wrote, or why there are none."""
+    if not run.has_output:
+        return None, ""
+    try:
+        return run.output_json(), ""
+    except ToftError as exc:
+        return None, str(exc)
 
 
 # ── saying something ────────────────────────────────────────────────────────

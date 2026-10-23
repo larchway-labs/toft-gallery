@@ -19,10 +19,10 @@ run this on an install with none of it attached and the page still works.
 |---|---|
 | **Overview** | The close in four numbers, statement value by day, and what did not match. |
 | **Exceptions** | The work: sortable, filterable, and two buttons that need a role to press. |
-| **Runs** | Closes that ran as background jobs, and who they were attributed to. |
+| **Runs** | Every close as a card — its log, its output, cancel and run again — and when the next one fires. |
 | **Settings** | The tolerances, stored in this app's one JSON document, saved with a version. |
 | **Platform** | What Toft told this app about itself, and what the app did with it. |
-| **API** | Nine routes, read from `/openapi.json`. |
+| **API** | Twelve routes, read from `/openapi.json`. |
 
 ## What it demonstrates
 
@@ -35,16 +35,34 @@ silently losing their edit.
 
 **Background jobs.** A close is a *different entrypoint of this same
 repository*: `worker.py`, declared as `[jobs.close]` in `toft.toml`, run by
-Toft in a container of its own with a memory limit, a deadline and a
-durable record. The page returns as soon as it is queued. On an install with no
-isolated backend the platform says so by name and the app offers to run it in
-the web process instead — which is exactly the thing the job system exists to
-avoid, and the page says that too.
+Toft with a memory limit, a deadline and a durable record. The page returns as
+soon as it is queued. Where an administrator has switched jobs off, the platform
+says so by name and the app offers to run the close in the web process instead —
+which is exactly the thing the job system exists to avoid, and the page says
+that too.
 
 Started with `toft.viewer(headers).jobs` rather than `toft.jobs`, which is the whole
 decision: the first attributes the run to the person looking at the page, the
 second to the app. Two objects rather than a flag, so attribution cannot be lost
 by forgetting.
+
+**A schedule, and the instant a run is for.** The same job fires by itself at
+02:00 London on the 1st, through the clock changes, with `overlap = "skip"` so
+a close still going when the next one fires is recorded as *skipped* rather than
+queued behind itself. The worker reads `toft.run.scheduled_for` — the tick, never
+"now" — and closes the month before it, so a close that starts late still closes
+the month that just ended. There is no `expect_within`, and `toft.toml` says
+why: its 31-day ceiling is shorter than a long month plus the close.
+
+**Following a run.** The Runs tab is everything the platform records about a
+run, read back through the SDK: the six ways one can end, who started it in
+five words (a person, the app, the schedule, the CLI, Toft's UI), its queue
+position, its log as it is written, its peak memory against the limit, and its
+output — the six numbers the worker stored with `write_output_json`. An editor
+can cancel an open close or run a finished one again; a viewer sees only their
+own closes, because the platform's rule is that a run started in a person's
+name is theirs and its editors', and reading as the app would widen that. The
+month and the limits on the page come from this release's own `toft.toml`.
 
 **The caller's role.** `toft.caller(headers)` reads a header Toft signs per
 app and per workload start with a 120-second life, and verifies it *in this
