@@ -66,7 +66,7 @@ Every example renders this skeleton, in this order.
     <span class="rail-label">Toft</span>
     <span class="cap on"><b>Slack</b> attached</span>
     <span class="cap off"><b>Email</b> not attached</span>
-    <span class="cap on"><b>Scheduled tasks</b></span>
+    <span class="cap on"><b>Jobs</b></span>
   </div>
 </div>
 

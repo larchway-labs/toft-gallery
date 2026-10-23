@@ -64,7 +64,8 @@ PLATFORM_HEADERS = [
                             "act on their behalf. Never an identity by itself."),
     ("X-Toft-Session", "One browser login, so an app can keep a scratch directory "
                             "per session without inventing a cookie of its own."),
-    ("X-Toft-Cron", "Present when a scheduled task fired this request."),
+    ("X-Toft-Request-Deadline", "When the gateway will cut this request off, RFC 3339. "
+                                "Work that might outlast it belongs in a job."),
     ("X-Toft-Scan", "Present when a security scanner is asking. It grants nothing, "
                          "and means only: do not count this as usage."),
 ]
