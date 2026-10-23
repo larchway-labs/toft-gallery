@@ -10,6 +10,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Title}} · Migration console</title>
+<link rel="icon" type="image/svg+xml" href="{{url "/static/favicon.svg"}}">
 <link rel="stylesheet" href="{{url "/static/app.css"}}">
 {{/* Vendored, not fetched. An on-premises install may have no egress at all,
      and an extension that needs a CDN to render its own buttons breaks the rule
@@ -21,7 +22,7 @@
 <a class="skiplink" href="#main">Skip to content</a>
 <header class="topbar">
   <div class="wrap">
-    <a class="brand" href="{{url "/"}}"><span class="mark" aria-hidden="true">MC</span>Migration console
+    <a class="brand" href="{{url "/"}}"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg></span>Migration console
       <span>· change requests</span></a>
     <nav class="topnav" aria-label="Sections">
       <a href="{{url "/"}}" {{if eq .Nav "queue"}}aria-current="page"{{end}}>Requests</a>

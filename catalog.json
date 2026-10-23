@@ -210,7 +210,8 @@
         }
       ],
       "notes": "Needs a Toft that can mint a read-scoped deploy key — 0.2.0 or later. The console holds a deploy key for each install it can push to, and each of those can deploy to any app on that install. Install it on the install your developers use, give it a read-scoped deploy key here and a deploy-scoped key on each target, and that is all: the tick that carries out approved migrations is a job declared in the app's toft.toml, so it arrives with the deploy and runs every five minutes. Where an administrator has switched jobs off, approvals wait and the Install page says why. The Install page inside the app lists every step and shows what is still outstanding.",
-      "visibility": "viewable"
+      "visibility": "viewable",
+      "icon": "arrow-right-left"
     },
     {
       "id": "f1fef3f5-b626-4bfb-9acd-d7d3d4de4342",
