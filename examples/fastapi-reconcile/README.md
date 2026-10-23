@@ -68,9 +68,9 @@ month and the limits on the page come from this release's own `toft.toml`.
 app and per workload start with a 120-second life, and verifies it *in this
 process* against a key the platform put in the environment. No round trip, no
 administrator switch, and nothing on the same loopback interface can forge it.
-It is what gates the two buttons that change something — and it is why an `lp_`
-app key minted carrying `viewer` can read the exception list and cannot decide
-one.
+It is what gates the two buttons that change something — and it is why an
+account granted `viewer` on this app can read the exception list and cannot
+decide one.
 
 **Viewer identity.** A different question, and a different call: `toft.who()`
 gives a name, an email and groups, needs a round trip, and needs an

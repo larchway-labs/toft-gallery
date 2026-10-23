@@ -8,8 +8,8 @@ here — it is an ordinary app, and this file is the whole of it.
 Three things are worth reading the code for.
 
 **It contains no authentication, deliberately.** The gateway in front of it
-already refuses anything without a credential: an `lp_` app key admits the
-request and is stripped before it arrives, so this process never sees a secret
+already refuses anything without a credential: a personal key (`toftu_`) of an
+account granted on this app admits the request and is stripped before it arrives, so this process never sees a secret
 and never decides who may call it. An MCP server that reimplemented that would
 be a second answer to a question the platform has already answered, and the
 second answer is the one that goes stale.
@@ -273,9 +273,10 @@ async def index(request: Request) -> HTMLResponse:
             "Every request stands alone. A session-bound server would pin a client to a "
             "process that a deploy, a crash restart or an idle sleep is allowed to "
             "replace underneath it \u2014 and here all three are ordinary."),
-        cap("App keys", True,
-            "The platform authenticates the connection. The client sends an lp_ key as a "
-            "bearer token and this process never sees a credential of its own."),
+        cap("Personal keys", True,
+            "The platform authenticates the connection. The client sends the toftu_ key of "
+            "an account granted on this app, and this process never sees a credential of "
+            "its own."),
         cap("Base path", bool(prefix),
             prefix or "Not mounted under a prefix here."),
         cap("Toft workload", bool(os.getenv("TOFT_APP_SLUG")),
@@ -350,13 +351,13 @@ so the endpoint can be found, because an MCP endpoint answers POST and 404s a br
   <div class="card">
     <div class="card-hd"><h2>Connecting a client</h2></div>
     <div class="card-bd">
-      <p class="small">The platform authenticates the connection. Create an API key for
-         this app on its <em>Settings &rarr; API keys</em> tab and give it to the client
-         as a bearer token:</p>
+      <p class="small">The platform authenticates the connection. Give the client the
+         personal key of an account granted on this app &mdash; for a shared assistant,
+         an account of its own &mdash; as a bearer token:</p>
       <pre class="term">claude mcp add --transport http {html.escape(handle)} {html.escape(url)} \\
-  --header "Authorization: Bearer lp_your_key_here"</pre>
+  --header "Authorization: Bearer toftu_your_key_here"</pre>
       <div class="note">
-        This process never sees a credential of its own. The <code>toft_</code> key is
+        This process never sees a credential of its own. The <code>toftu_</code> key is
         checked at the gateway before the request reaches here, which is the whole reason
         an MCP server is worth hosting rather than running on somebody's laptop: the
         authorization, the audit trail and the ability to revoke are the platform's.

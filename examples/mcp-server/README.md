@@ -26,29 +26,27 @@ locked out.
 
 ## Connecting a client
 
-Deploy the app, then create a key on its **Settings → API keys** tab. The
-endpoint is the app's URL with `/mcp` on the end — open the app in a browser and
-the page tells you the exact URL, worked out from the request rather than from
-anything you have to keep in step with the slug.
+Deploy the app. The client authenticates as an **account** — for a shared
+assistant, an account of its own from your identity provider, granted **viewer**
+on this app and nothing else. Create a personal key
+for that account under **Credentials**. The endpoint is the app's URL with `/mcp`
+on the end — open the app in a browser and the page tells you the exact URL,
+worked out from the request rather than from anything you have to keep in step
+with the slug.
 
 ```bash
 claude mcp add --transport http runbooks \
   https://toft.example.com/apps/<slug>/mcp \
-  --header "Authorization: Bearer lp_your_key_here"
+  --header "Authorization: Bearer toftu_your_key_here"
 ```
 
 Any client that can send a static header works the same way. A client that
 insists on **OAuth** does not: Toft authenticates with keys, and MCP's
 OAuth flow wants an authorization server this platform does not run.
 
-Two kinds of key behave differently, and the difference is worth knowing before
-you hand one out:
-
-- **App key** (`toft_…`) — possession *is* the authorization. It reaches this app
-  and nothing else, and it outlives whoever created it. This is the one for a
-  shared assistant.
-- **Personal key** (`toftu_…`) — *is* a person. It authenticates its owner, who is
-  then authorized normally, and it dies with their account.
+A personal key **is** its account: it reaches every app that account is granted,
+and it stops working when the account is locked or removed — so give each
+assistant its own account, granted on this one app.
 
 ## Configuration
 

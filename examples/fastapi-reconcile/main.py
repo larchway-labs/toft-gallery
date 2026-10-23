@@ -48,7 +48,7 @@ app = FastAPI(
     description=(
         "Every screen in this app is a client of these routes. The two that "
         "change something are gated on the caller's role, which Toft signs "
-        "into every forwarded request — so an `lp_` app key minted with `viewer` "
+        "into every forwarded request — so an account granted `viewer` "
         "can read the exception list and cannot decide one."
     ),
     docs_url="/openapi-docs",     # FastAPI's own, which needs a CDN; the API tab does not
