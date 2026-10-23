@@ -1,0 +1,39 @@
+# The report job is declared here and nowhere else: it versions with the code
+# it runs, and a rollback takes the schedule back with it.
+
+[app]
+name = "Stockroom"
+
+[jobs.report]
+# This binary, started as `toft-app report`. `args` rather than `command`,
+# because a Go app is one built binary and there is no shell line to write.
+args = ["report"]
+
+# Monday, 07:00 on the London wall clock, through the clock changes.
+schedule = "0 7 * * 1"
+timezone = "Europe/London"
+
+# A report still sending when the next one fires is skipped and recorded as
+# skipped, rather than queued to post the same numbers twice.
+overlap = "skip"
+
+timeout = "5m"
+memory  = 256         # MiB — a PDF of a few thousand lines
+notify  = "failures"  # one message per run that did not deliver
+
+  [jobs.report.params.report]
+  type    = "string"
+  default = "low_stock"
+  choices = ["inventory", "low_stock", "movements"]
+  help    = "Which report to build."
+
+  [jobs.report.params.channel]
+  type    = "string"
+  default = "slack"
+  choices = ["slack", "email", "both"]
+  help    = "Where to send it. `both` fails the run if either channel does."
+
+  [jobs.report.params.to]
+  type     = "string"
+  required = false
+  help     = "Comma-separated addresses, for email. Every one is written to the install's send log."

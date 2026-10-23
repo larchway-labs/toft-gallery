@@ -32,6 +32,15 @@ type Server struct {
 
 func main() {
 	cfg := loadConfig()
+
+	// The same binary is two entrypoints. `toft.toml` declares the report job
+	// as `args = ["report"]`, so Toft starts this file with that argument in a
+	// process of its own and its exit code is the run's outcome. No argument is
+	// the web app.
+	if len(os.Args) > 1 && os.Args[1] == "report" {
+		os.Exit(runReportJob(cfg))
+	}
+
 	log.SetFlags(log.LstdFlags | log.Lmsgprefix)
 	log.SetPrefix("stockroom: ")
 
@@ -58,9 +67,8 @@ func main() {
 		Addr:              addr,
 		Handler:           srv.routes(),
 		ReadHeaderTimeout: 10 * time.Second,
-		// Generous: a report over a few thousand movements is built inside the
-		// request, and a scheduled task that is cut off here records a failure
-		// for work that finished.
+		// Generous: a report sent from the Reports tab is built and handed over
+		// inside the request. The scheduled one is a job and has its own deadline.
 		WriteTimeout: 120 * time.Second,
 		IdleTimeout:  90 * time.Second,
 	}
@@ -105,16 +113,10 @@ func (s *Server) routes() http.Handler {
 
 	mux.HandleFunc("GET /reports", s.handleReports)
 	mux.HandleFunc("POST /reports/deliver", s.handleReportDeliver)
+	mux.HandleFunc("POST /reports/run", s.handleReportRun)
 
 	mux.HandleFunc("GET /activity", s.handleActivity)
 	mux.HandleFunc("GET /platform", s.handlePlatform)
-
-	// The scheduled task's endpoint. Both verbs, because a task configured as
-	// GET and one configured as POST should both reach it — the platform sends
-	// whichever the task says, and an app that only answered one would fail with
-	// a 405 nobody would think to look for.
-	mux.HandleFunc("GET /tasks/report", s.handleScheduledReport)
-	mux.HandleFunc("POST /tasks/report", s.handleScheduledReport)
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -142,15 +144,8 @@ func logRequests(next http.Handler) http.Handler {
 		start := time.Now()
 		rec := &statusRecorder{ResponseWriter: w, status: 200}
 		next.ServeHTTP(rec, r)
-		// The cron header is worth a line of its own: a scheduled firing and a
-		// person clicking the same button are indistinguishable in a log that
-		// prints only the path.
-		tag := ""
-		if r.Header.Get("X-Toft-Cron") != "" {
-			tag = " [scheduled " + r.Header.Get("X-Toft-Schedule") + "]"
-		}
-		log.Printf("%s %s %d %s%s", r.Method, r.URL.Path, rec.status,
-			time.Since(start).Round(time.Millisecond), tag)
+		log.Printf("%s %s %d %s", r.Method, r.URL.Path, rec.status,
+			time.Since(start).Round(time.Millisecond))
 	})
 }
 
@@ -247,8 +242,8 @@ func (s *Server) rail(r *http.Request) []RailCap {
 		cap(mode+" mode", on(self != nil), "GET /api/v1/app/self, cached for a minute."),
 		cap("Slack", on(self.Can("slack.post")), capNote(self.Can("slack.post"))),
 		cap("Email", on(self.Can("email.send")), capNote(self.Can("email.send"))),
-		cap("Scheduled tasks", "on",
-			"An HTTP request to a path this app published. It needs nothing switched on."),
+		cap("Jobs", "on",
+			"The report job, declared in toft.toml: this binary run as `toft-app report`, on its schedule or on demand."),
 		cap("Storage", on(durable), s.cfg.DataNote),
 	}
 }

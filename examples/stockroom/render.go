@@ -61,9 +61,6 @@ func actorFrom(r *http.Request) string {
 		}
 		return "session " + id
 	}
-	if r.Header.Get("X-Toft-Cron") != "" {
-		return "the schedule"
-	}
 	return "signed in locally"
 }
 

@@ -11,7 +11,7 @@ import (
 // Getting a report out of the app.
 //
 // Three channels — download, Slack, email — over one built report, and one
-// function that does the sending. The tab and the scheduled task both call
+// function that does the sending. The tab and the report job both call
 // `deliver`, so a report posted at 07:00 by the schedule and one posted by hand
 // at 07:01 are the same bytes produced by the same code.
 
@@ -96,6 +96,45 @@ func (s *Server) handleReportDeliver(w http.ResponseWriter, r *http.Request) {
 	s.redirect(w, r, back)
 }
 
+// handleReportRun starts the report job now, with the form's params.
+//
+// Not the same as Send: this queues the job Toft runs on its schedule, so the
+// run lands in the job's history beside the scheduled ones, with its own log,
+// deadline and memory limit, and the page returns before any of it happens.
+func (s *Server) handleReportRun(w http.ResponseWriter, r *http.Request) {
+	kind := reportKind(r.FormValue("report"))
+	back := s.cfg.url("/activity")
+	if !s.plat.Available() {
+		setFlash(w, "warn", "This app is not running on Toft, so there is no job to start. "+
+			"Run `go run . report` to do the same thing here.")
+		s.redirect(w, r, s.cfg.url("/reports?report="+kind.Key))
+		return
+	}
+	params := map[string]string{"report": kind.Key}
+	if c := r.FormValue("channel"); c != "" && c != "download" {
+		params["channel"] = c
+	}
+	if to := strings.TrimSpace(r.FormValue("to")); to != "" {
+		params["to"] = to
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	run, err := s.plat.StartJob(ctx, "report", params, r.Header.Get("X-Toft-Act-For"))
+	if err != nil {
+		// The platform's sentence, whole: "jobs are switched off on this
+		// install" and "channel must be one of …" are both things to show.
+		setFlash(w, "bad", err.Error())
+		s.redirect(w, r, s.cfg.url("/reports?report="+kind.Key))
+		return
+	}
+	msg := "Queued the report job — run " + shortID(run.ID) + ". It appears below as it runs."
+	if run.Deduplicated {
+		msg = "That run is already going — run " + shortID(run.ID) + ", started a moment ago."
+	}
+	setFlash(w, "ok", msg)
+	s.redirect(w, r, back)
+}
+
 // "accepted", never "sent". The platform answers a send with 202 and a send id:
 // the message is queued, gated again immediately before the transport, and
 // delivered afterwards by a worker. An app that renders that as "posted" is
@@ -105,7 +144,7 @@ func (s *Server) handleReportDeliver(w http.ResponseWriter, r *http.Request) {
 // later. The record is what a workflow may rely on; this is only the receipt.
 
 // deliverResult is what both callers need: a tone and a sentence for a person,
-// and the log lines the scheduled task pushes into its run.
+// and the log lines the report job writes to its run's log.
 type deliverResult struct {
 	tone    string // ok | warn | bad
 	message string

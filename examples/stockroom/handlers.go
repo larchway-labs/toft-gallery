@@ -333,7 +333,7 @@ func (s *Server) handleMovementCreate(w http.ResponseWriter, r *http.Request) {
 
 type activityData struct {
 	Activity []Activity
-	Runs     []CronRun
+	Runs     []JobRun
 	RunsErr  string
 	OnPlat   bool
 }
@@ -348,7 +348,7 @@ func (s *Server) handleActivity(w http.ResponseWriter, r *http.Request) {
 	if s.plat.Available() {
 		ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 		defer cancel()
-		runs, err := s.plat.Runs(ctx, 25)
+		runs, err := s.plat.JobRuns(ctx, "report", 25)
 		if err != nil {
 			data.RunsErr = err.Error()
 		}
@@ -364,11 +364,10 @@ type platformData struct {
 	SelfErr string
 	OnPlat  bool
 	Mounts  []Mount
-	TaskURL string
 }
 
 func (s *Server) handlePlatform(w http.ResponseWriter, r *http.Request) {
-	data := platformData{OnPlat: s.plat.Available(), Mounts: s.cfg.Mounts, TaskURL: "/tasks/report"}
+	data := platformData{OnPlat: s.plat.Available(), Mounts: s.cfg.Mounts}
 	if s.plat.Available() {
 		self, err := s.self(r.Context())
 		if err != nil {

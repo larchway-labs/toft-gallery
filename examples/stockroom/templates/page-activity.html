@@ -33,12 +33,13 @@
   </section>
 
   <section class="card">
-    <header class="card-head"><h2>Scheduled runs</h2>
+    <header class="card-head"><h2>Report job runs</h2>
       <span class="card-note">from Toft</span>
     </header>
 
     {{ if not $d.OnPlat }}
-      <p class="card-empty">This app is not running on Toft, so there are no scheduled runs to read.</p>
+      <p class="card-empty">This app is not running on Toft, so there are no job runs to read.
+         <span class="mono">go run . report</span> runs the same job here, once.</p>
     {{ else if $d.RunsErr }}
       <p class="card-empty">Toft did not answer: {{ $d.RunsErr }}</p>
     {{ else if $d.Runs }}
@@ -46,23 +47,25 @@
         {{ range $d.Runs }}
         <li class="run run-{{ .Status }}">
           <div class="run-top">
-            <span class="mono run-name">{{ .Schedule }}</span>
-            <span class="chip chip-{{ if eq .Status "succeeded" }}ok{{ else if eq .Status "running" }}info{{ else }}bad{{ end }}">{{ .Status }}</span>
+            <span class="mono run-name">{{ if .StatusURL }}<a href="{{ .StatusURL }}">{{ printf "%.8s" .ID }}</a>{{ else }}{{ printf "%.8s" .ID }}{{ end }}</span>
+            <span class="chip chip-{{ .Tone }}">{{ .Status }}{{ if eq .Status "running" }} {{ .Progress }}%{{ end }}</span>
           </div>
           <p class="run-meta">
-            started by {{ .Provenance }} · {{ .DurationMS }} ms
-            {{ if .HTTPStatus }} · HTTP {{ .HTTPStatus }}{{ end }}
+            started by {{ .Provenance }} · {{ fmtTime .QueuedAt "02 Jan 15:04" }}
+            {{ if .Took }} · took {{ .Took }}{{ end }}
+            {{ if .QueuePosition }} · {{ .QueuePosition }} in line{{ end }}
           </p>
-          {{ if .Result }}<pre class="run-result">{{ .Result }}</pre>{{ end }}
-          {{ if .Error }}<p class="run-error">{{ .Error }}</p>{{ end }}
+          {{ with .ParamsText }}<p class="run-meta mono">{{ . }}</p>{{ end }}
+          {{ if .ProgressMessage }}<pre class="run-result">{{ .ProgressMessage }}</pre>{{ end }}
+          {{ if .FailureReason }}<p class="run-error">{{ .FailureReason }}</p>{{ end }}
         </li>
         {{ end }}
       </ul>
       <p class="card-foot">A run never names the person who started it — Toft tells an app that a
-         viewer acted, and never which one.</p>
+         viewer acted, and never which one. Its log is on the app's Automation tab, and behind the id.</p>
     {{ else }}
-      <p class="card-empty">No scheduled task has run yet. Create one on the app's Automation tab, pointed at
-         <span class="mono">/tasks/report</span>; the Reports tab has the parameters.</p>
+      <p class="card-empty">The report job has not run yet. It runs on its schedule in
+         <span class="mono">toft.toml</span>, or now from the Reports tab.</p>
     {{ end }}
   </section>
 

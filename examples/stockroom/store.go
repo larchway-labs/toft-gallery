@@ -90,7 +90,7 @@ type Delivery struct {
 	At      time.Time
 	Report  string
 	Channel string // download | slack | email
-	Trigger string // manual | scheduled
+	Trigger string // manual | job | scheduled
 	Target  string
 	Status  string // accepted | ok | failed — see the note in reports.go
 	Detail  string
@@ -154,7 +154,7 @@ func openStore(dir string) (*Store, error) {
 		return nil, fmt.Errorf("creating the data directory: %w", err)
 	}
 	path := filepath.Join(dir, "stockroom.db")
-	// WAL and a busy timeout, because the scheduled task can be building a
+	// WAL and a busy timeout, because the report job can be building a
 	// report while somebody is editing an item on the same file.
 	dsn := path + "?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)"
 	db, err := sql.Open("sqlite", dsn)

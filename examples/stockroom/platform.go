@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/textproto"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -18,10 +19,11 @@ import (
 
 // The Toft app API, spoken directly.
 //
-// There is a Node SDK and a Python SDK; there is no Go one, so this file is it
-// — about two hundred lines, no dependencies. Everything it needs arrives in
-// the process environment: TOFT_API_URL and TOFT_APP_TOKEN, injected
-// at deploy and rotated by the next one.
+// There is a Go SDK; this example does not use it, so that what an SDK does is
+// on the page — about two hundred lines, no dependencies. Everything it needs
+// arrives in the process environment: TOFT_API_URL and TOFT_APP_TOKEN in the
+// web process, injected at deploy and rotated by the next one, and
+// TOFT_JOB_TOKEN in place of the second inside the report job.
 //
 // Two rules run through the whole surface and are worth stating once:
 //
@@ -35,6 +37,9 @@ type Platform struct {
 	baseURL string
 	token   string
 	http    *http.Client
+	// job is set inside the report job, where the credential is the run's
+	// rather than the app's: good for the send routes and nothing else.
+	job bool
 }
 
 // contractHeader pins the app-API version this code was written against. If the
@@ -55,6 +60,18 @@ func newPlatform(c Config) *Platform {
 		token:   c.AppToken,
 		http:    &http.Client{Timeout: 30 * time.Second},
 	}
+}
+
+// newJobPlatform is the same client inside the report job, carrying the run's
+// token. There is no app token in a job's environment, by design: a run that
+// held one could start more runs, and one job could fan out into many.
+func newJobPlatform(c Config) *Platform {
+	token := os.Getenv("TOFT_JOB_TOKEN")
+	if c.APIURL == "" || token == "" {
+		return nil
+	}
+	return &Platform{baseURL: c.APIURL, token: token, job: true,
+		http: &http.Client{Timeout: 60 * time.Second}}
 }
 
 // Available reports whether this process is running inside Toft at all.
@@ -140,6 +157,12 @@ func (p *Platform) do(ctx context.Context, method, path string, body io.Reader,
 }
 
 func (p *Platform) Self(ctx context.Context) (*Self, error) {
+	if p != nil && p.job {
+		// Refused for a run token, so not asked. `deliver` reads a Self error
+		// as "unknown" and tries the richer send first, letting the send
+		// route's own refusal decide — which is the answer that counts anyway.
+		return nil, errors.New("a job reads nothing about its app; it may only send")
+	}
 	var s Self
 	if err := p.do(ctx, http.MethodGet, "/api/v1/app/self", nil, "", nil, &s); err != nil {
 		return nil, err
@@ -242,84 +265,106 @@ func (p *Platform) SendEmail(ctx context.Context, req EmailRequest, filename str
 	return &out, err
 }
 
-// CronRun is one of this app's scheduled runs, as the app is allowed to see it.
-// There is no actor here by design: an app learns *that* a viewer started a run,
-// never which one.
-type CronRun struct {
-	ID              string  `json:"id"`
-	Schedule        string  `json:"schedule"`
-	Status          string  `json:"status"`
-	HTTPStatus      *int    `json:"http_status"`
-	Error           string  `json:"error"`
-	Result          string  `json:"result"`
-	DurationMS      int64   `json:"duration_ms"`
-	StartedByViewer bool    `json:"started_by_viewer"`
-	Scheduled       bool    `json:"scheduled"`
-	StartedAt       string  `json:"started_at"`
-	FinishedAt      *string `json:"finished_at"`
+// JobRun is one run of this app's report job, as the app is allowed to see it.
+// There is no actor here by design: `started_by` says *how* a run started, and
+// `viewer` names nobody.
+type JobRun struct {
+	ID              string          `json:"id"`
+	Job             string          `json:"job"`
+	Status          string          `json:"status"`
+	StartedBy       string          `json:"started_by"`
+	Params          json.RawMessage `json:"params"`
+	ScheduledFor    *time.Time      `json:"scheduled_for"`
+	QueuedAt        time.Time       `json:"queued_at"`
+	StartedAt       *time.Time      `json:"started_at"`
+	FinishedAt      *time.Time      `json:"finished_at"`
+	Progress        int             `json:"progress"`
+	ProgressMessage string          `json:"progress_message"`
+	QueuePosition   int             `json:"queue_position"`
+	FailureReason   string          `json:"failure_reason"`
+	StatusURL       string          `json:"status_url"`
+	Deduplicated    bool            `json:"deduplicated"`
 }
 
 // Provenance is the one thing the run list has to get right: a run with no
-// resolved actor must never render as a person.
-func (r CronRun) Provenance() string {
-	switch {
-	case r.StartedByViewer:
+// person behind it must never render as one.
+func (r JobRun) Provenance() string {
+	switch r.StartedBy {
+	case "viewer":
 		return "someone on this app"
-	case r.Scheduled:
+	case "schedule":
 		return "the schedule"
+	case "cli":
+		return "the CLI"
+	case "ui":
+		return "Toft's Automation tab"
 	}
 	return "the app itself"
 }
 
-func (p *Platform) Runs(ctx context.Context, limit int) ([]CronRun, error) {
-	var out struct {
-		Runs []CronRun `json:"runs"`
+// Tone is the chip a status wears: six ways to end, two to be open.
+func (r JobRun) Tone() string {
+	switch r.Status {
+	case "succeeded":
+		return "ok"
+	case "running", "queued", "claimed":
+		return "info"
+	case "skipped", "cancelled":
+		return "warn"
 	}
-	err := p.do(ctx, http.MethodGet, "/api/v1/app/runs?limit="+strconv.Itoa(limit), nil, "", nil, &out)
+	return "bad"
+}
+
+// Took is how long the run ran, or "" while it has not finished.
+func (r JobRun) Took() string {
+	if r.StartedAt == nil || r.FinishedAt == nil {
+		return ""
+	}
+	return r.FinishedAt.Sub(*r.StartedAt).Round(time.Second).String()
+}
+
+// ParamsText is the params as the run recorded them, for one line of a list.
+func (r JobRun) ParamsText() string {
+	var m map[string]any
+	if json.Unmarshal(r.Params, &m) != nil || len(m) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(m))
+	for _, k := range []string{"report", "channel", "to"} {
+		if v, ok := m[k]; ok && fmt.Sprint(v) != "" {
+			parts = append(parts, fmt.Sprintf("%s=%v", k, v))
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+// JobRuns lists the report job's runs, newest first — every one, as the app.
+func (p *Platform) JobRuns(ctx context.Context, job string, limit int) ([]JobRun, error) {
+	var out struct {
+		Runs []JobRun `json:"runs"`
+	}
+	err := p.do(ctx, http.MethodGet, "/api/v1/app/job-runs?scope=app&job="+url.QueryEscape(job)+
+		"&limit="+strconv.Itoa(limit), nil, "", nil, &out)
 	return out.Runs, err
 }
 
-// TriggerSchedule fires one of this app's scheduled tasks by name, now.
+// StartJob queues a run of one of this app's jobs and returns at once.
 //
-// The app supplies parameters and nothing else — no path, no verb, no schedule.
-// That is what keeps a shell out of this subsystem entirely.
-func (p *Platform) TriggerSchedule(ctx context.Context, name string, params map[string]string) error {
+// actFor is the X-Toft-Act-For header the request arrived with, relayed
+// untouched: with it the run is attributed to the person who pressed the
+// button, without it to the app. The app cannot mint, read or alter it — it
+// only hands it back. Params are checked against `toft.toml` at the door, so a
+// value outside a declared choice is a 400 naming it, not a failed run.
+func (p *Platform) StartJob(ctx context.Context, job string, params map[string]string, actFor string) (*JobRun, error) {
 	body, _ := json.Marshal(map[string]any{"params": params})
-	return p.do(ctx, http.MethodPost,
-		"/api/v1/app/schedules/"+url.PathEscape(name)+"/run",
-		bytes.NewReader(body), "application/json", nil, nil)
-}
-
-// TaskLog pushes lines into a scheduled run's own log.
-//
-// The platform captures nothing here and cannot: it made an HTTP request, and
-// this task's prints land in the app's process log interleaved with every other
-// request being served. Pushed lines are what remains readable if the run is
-// killed at the timeout — which is the run somebody actually needs a log for.
-//
-// Every failure is swallowed. Logging that could take down the thing it observes
-// is worse than no logging.
-func (p *Platform) TaskLog(ctx context.Context, runID string, lines ...string) {
-	if p == nil || runID == "" || len(lines) == 0 {
-		return
+	var headers map[string]string
+	if actFor != "" {
+		headers = map[string]string{"X-Toft-Act-For": actFor}
 	}
-	type line struct {
-		Line   string `json:"line"`
-		Stream string `json:"stream"`
-	}
-	payload := struct {
-		Lines []line `json:"lines"`
-	}{}
-	for _, l := range lines {
-		stream := "stdout"
-		if strings.HasPrefix(l, "!") {
-			stream, l = "stderr", strings.TrimSpace(strings.TrimPrefix(l, "!"))
-		}
-		payload.Lines = append(payload.Lines, line{Line: l, Stream: stream})
-	}
-	body, _ := json.Marshal(payload)
-	_ = p.do(ctx, http.MethodPost, "/api/v1/app/runs/"+url.PathEscape(runID)+"/logs",
-		bytes.NewReader(body), "application/json", nil, nil)
+	var run JobRun
+	err := p.do(ctx, http.MethodPost, "/api/v1/app/jobs/"+url.PathEscape(job)+"/runs",
+		bytes.NewReader(body), "application/json", headers, &run)
+	return &run, err
 }
 
 func idempotency(key string) map[string]string {

@@ -125,24 +125,40 @@
   <section class="card">
     <header class="card-head"><h2>Send it on a schedule</h2></header>
     <div class="prose">
-      <p>Toft calls a path this app publishes, on whatever schedule an administrator sets. Create the
-         task on the app's <b>Automation</b> tab with:</p>
+      <p>The schedule is a <b>job</b>, declared in this app's <span class="mono">toft.toml</span> and nowhere
+         else: this same binary, run as <span class="mono">toft-app report</span> in a process of its own,
+         every Monday at 07:00 London time.</p>
       <dl class="spec">
-        <dt>Path</dt><dd class="mono">/tasks/report</dd>
-        <dt>Method</dt><dd class="mono">POST</dd>
+        <dt>Job</dt><dd class="mono">report</dd>
+        <dt>Schedule</dt><dd class="mono">0 7 * * 1 · Europe/London</dd>
         <dt>Parameters</dt>
-        <dd class="mono block">{"report": "low_stock",
- "channel": "slack",
- "to": "ops@example.com"}</dd>
+        <dd class="mono block">report  = inventory | low_stock | movements
+channel = slack | email | both
+to      = ops@example.com</dd>
       </dl>
-      <p><code>report</code> is one of <span class="mono">inventory</span>,
-         <span class="mono">low_stock</span> or <span class="mono">movements</span>;
-         <code>channel</code> is <span class="mono">slack</span>, <span class="mono">email</span>
-         or <span class="mono">both</span>. Two schedules on the same path with different parameters is
-         the point — one report, weekly and monthly, without a second endpoint.</p>
-      <p class="prose-note">The run's log and its result appear on the Automation tab, and the delivery
-         appears in the table beside this. The work happens inside the request: if the task times out, the
-         run is a failure, so keep the window wide enough for the register you have.</p>
+      <p>Change the schedule or its defaults by editing <span class="mono">toft.toml</span> and deploying.
+         Run it now from the app's <b>Automation</b> tab, with
+         <span class="mono">toft job run report --param channel=both</span>, or here:</p>
+      <form method="post" action="{{ url "/reports/run" }}" class="send">
+        <input type="hidden" name="report" value="{{ $d.Selected }}">
+        <label class="field">
+          <span class="field-label">Channel</span>
+          <select name="channel">
+            <option value="slack">slack</option>
+            <option value="email">email</option>
+            <option value="both">both</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="field-label">To</span>
+          <input name="to" type="text" placeholder="for email — ops@example.com">
+        </label>
+        <button class="btn" type="submit"{{ if not $d.OnPlat }} disabled{{ end }}>Run the report job now</button>
+      </form>
+      <p class="prose-note">A run's log, its deadline and whether it failed are on the Automation tab, and the
+         Activity tab lists every run. <b>The job does not share this process's scratch space.</b> Without a
+         writable storage mount it reads a freshly seeded register — the right numbers for a demo, and not
+         the edits made here — and what it sends is listed in its run rather than in the table beside this.</p>
     </div>
   </section>
 

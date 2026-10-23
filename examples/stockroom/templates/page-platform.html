@@ -89,15 +89,22 @@
         <dt class="mono">GET /app/self</dt><dd>who this app is and what it may do</dd>
         <dt class="mono">POST /app/notify/slack/file</dt><dd>the report PDF, into the channel its owners chose</dd>
         <dt class="mono">POST /app/notify/email</dt><dd>the report, to addresses somebody typed here</dd>
-        <dt class="mono">GET /app/runs</dt><dd>this app's scheduled runs, for the Activity tab</dd>
-        <dt class="mono">POST /app/runs/{id}/logs</dt><dd>lines into a running task's own log</dd>
+        <dt class="mono">POST /app/jobs/report/runs</dt><dd>start the report job now, in the clicker's name</dd>
+        <dt class="mono">GET /app/job-runs</dt><dd>the report job's runs, for the Activity tab</dd>
       </dl>
       <h3 class="sub">What Toft sends it</h3>
       <dl class="spec">
         <dt class="mono">X-Toft-Session</dt><dd>an opaque per-session id — enough to tell two people's
           edits apart, never enough to name either</dd>
-        <dt class="mono">X-Toft-Cron</dt><dd>set when the request is a scheduled firing</dd>
-        <dt class="mono">X-Toft-Run</dt><dd>the run id to push log lines against</dd>
+        <dt class="mono">X-Toft-Act-For</dt><dd>an opaque blob, relayed untouched when starting a job, so
+          the run is attributed to the person and not the app</dd>
+      </dl>
+      <h3 class="sub">What the report job is given instead</h3>
+      <dl class="spec">
+        <dt class="mono">TOFT_JOB_TOKEN</dt><dd>a run's credential, accepted on the send routes while the run
+          is in flight and nowhere else</dd>
+        <dt class="mono">TOFT_PARAMS</dt><dd>the run's params, typed and already checked against toft.toml</dd>
+        <dt class="mono">TOFT_SCHEDULED_FOR</dt><dd>the tick a scheduled run is for, never "now"</dd>
       </dl>
     </div>
   </div>
