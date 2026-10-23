@@ -65,38 +65,32 @@ func TestOnlyTheSixWordsAreAccepted(t *testing.T) {
 	}
 }
 
-// The tick refuses anything that is not the platform. `system` is the only word
-// that opens it, and an absent header is not a system firing.
-func TestOnlyTheSystemRoleIsTheScheduler(t *testing.T) {
-	for _, word := range []string{RoleOwner, RoleEditor, RoleViewer, RoleAnonymous, RoleApp, RoleUnknown, ""} {
-		if word == RoleSystem {
-			t.Fatal("the loop is testing the wrong thing")
-		}
-	}
-	if RoleSystem != "system" {
-		t.Fatalf("the scheduler's word is %q; the platform sends `system`", RoleSystem)
-	}
-}
-
-// The tick's door, as behaviour.
+// The ledger's "fired by" for a tick, from the two words every run carries.
 //
-// `system` is a schedule firing on its schedule. `owner`/`editor` is somebody
-// pressing Run now on the platform's own schedule surface — which is the first
-// thing anybody does with a new schedule, and refusing it would mean an
-// administrator can configure the tick and never test it. Everything else,
-// including an absent or expired header, refuses.
-func TestTheTickAcceptsThePlatformAndAConsoleEditorAndNobodyElse(t *testing.T) {
-	accepted := map[string]bool{RoleSystem: true, RoleOwner: true, RoleEditor: true}
-	for _, word := range append(append([]string{}, mintedRoles...), RoleUnknown, "") {
-		got := tickActor(word)
-		if accepted[word] && got == "" {
-			t.Errorf("%q was refused; the platform and a console editor both fire this", word)
+// The tick is a job now, so nothing verifies a header to let it in — the
+// platform decided who may start it before it ran. What is left is the record:
+// "who put release M on production" has to separate the schedule from a
+// person, and a person on Toft's Automation tab from one in this console.
+func TestTheTickNamesWhoFiredIt(t *testing.T) {
+	triggers := []string{"schedule", "ui", "cli", "viewer", "app", ""}
+	seen := map[string]string{}
+	for _, tr := range triggers {
+		got := tickActor(tr, RoleEditor)
+		if got == "" {
+			t.Errorf("trigger %q names nobody", tr)
 		}
-		if !accepted[word] && got != "" {
-			t.Errorf("%q was accepted as %q; a visitor must never start a production deploy", word, got)
+		if prev, dup := seen[got]; dup {
+			t.Errorf("triggers %q and %q both read %q", prev, tr, got)
 		}
+		seen[got] = tr
 	}
-	if tickActor(RoleSystem) == tickActor(RoleOwner) {
-		t.Error("the ledger cannot tell a schedule from a person pressing Run now")
+	if tickActor("schedule", RoleSystem) != "the platform's scheduler" {
+		t.Errorf("a schedule firing reads %q", tickActor("schedule", RoleSystem))
+	}
+	if got := tickActor("ui", RoleOwner); !strings.Contains(got, "owner") {
+		t.Errorf("a person's run drops their role: %q", got)
+	}
+	if got := tickActor("ui", RoleSystem); strings.Contains(got, "system") {
+		t.Errorf("only a person's role is named, not the platform's word: %q", got)
 	}
 }

@@ -62,8 +62,9 @@ func (c *Console) routes() http.Handler {
 	mux.HandleFunc("GET /settings", c.handleSettings)
 	mux.HandleFunc("POST /settings", c.handleSaveSettings)
 
-	// The platform's scheduler calls this; nothing else may.
-	mux.HandleFunc("POST /tasks/tick", c.handleTick)
+	// Run the tick now — a console editor's button on /health. The tick itself
+	// is a job, not a path: there is no route here the platform calls.
+	mux.HandleFunc("POST /health/tick", c.handleRunTick)
 
 	return c.securityHeaders(mux)
 }

@@ -27,7 +27,13 @@ import (
 // returns nothing.
 
 func (c *Console) sendMail(ctx context.Context, to []string, subject, text string) error {
-	if len(to) == 0 || c.cfg.AppToken == "" || c.cfg.APIURL == "" {
+	// The web app sends as itself. The tick job has no app token and sends
+	// with its run's, which the platform takes on this route and no other.
+	token := c.cfg.AppToken
+	if token == "" {
+		token = c.cfg.JobToken
+	}
+	if len(to) == 0 || token == "" || c.cfg.APIURL == "" {
 		return nil
 	}
 	body, _ := json.Marshal(map[string]any{
@@ -38,7 +44,7 @@ func (c *Console) sendMail(ctx context.Context, to []string, subject, text strin
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+c.cfg.AppToken)
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -90,7 +96,9 @@ func (c *Console) notifyGroupAbout(ctx context.Context, req *Request, subject, t
 func (c *Console) deliver(ctx context.Context, req *Request, to []string, subject, text, audience string) {
 	// Detached from the request that triggered it, and bounded: a send must
 	// never block or fail the thing it is about.
+	c.sends.Add(1)
 	go func() {
+		defer c.sends.Done()
 		sendCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 

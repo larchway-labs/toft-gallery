@@ -38,8 +38,8 @@ type Config struct {
 	// be told where the install it runs on is.
 	APIURL string
 	// AppToken is this app's outbound credential — used for /api/v1/app/self,
-	// /api/v1/app/viewer and /api/v1/app/notify/email. It is not a deploy key
-	// and reaches nothing an ordinary app cannot reach.
+	// /api/v1/app/viewer, /api/v1/app/notify/email and starting the tick job.
+	// It is not a deploy key and reaches nothing an ordinary app cannot reach.
 	AppToken string
 	AppID    string
 	AppSlug  string
@@ -47,6 +47,14 @@ type Config struct {
 	// stored. Absent means every request reads as `unknown`, which refuses —
 	// the right direction to fail in.
 	RoleKey string
+	// The job's half of the contract, set only when this binary is running as
+	// the `tick` job. A job holds no app token — a run that could start runs
+	// could fan out — so JobToken is what it sends mail with: the platform
+	// accepts it on the notify routes while the run is in flight, and nowhere
+	// else. Trigger says *how* the run started and TriggerRole *who*.
+	JobToken    string
+	Trigger     string
+	TriggerRole string
 }
 
 func loadConfig() (Config, error) {
@@ -61,6 +69,9 @@ func loadConfig() (Config, error) {
 		AppID:           os.Getenv("TOFT_APP_ID"),
 		AppSlug:         os.Getenv("TOFT_APP_SLUG"),
 		RoleKey:         os.Getenv("TOFT_ROLE_KEY"),
+		JobToken:        os.Getenv("TOFT_JOB_TOKEN"),
+		Trigger:         os.Getenv("TOFT_TRIGGER"),
+		TriggerRole:     os.Getenv("TOFT_TRIGGER_ROLE"),
 	}
 	// The two the app cannot run without, refused at boot rather than at the
 	// first request. An app that starts and then 500s on every page is harder

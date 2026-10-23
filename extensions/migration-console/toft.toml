@@ -1,0 +1,29 @@
+# Jobs are declared here and nowhere else: the tick is part of this app, so it
+# versions with the code it runs and arrives with every deploy. There is nothing
+# for an administrator to add.
+
+[jobs.tick]
+# This same binary, as `migration-console tick`: one pass over the ledger, then
+# exit. Its stdout is the run's log and its exit code the run's outcome.
+args = ["tick"]
+
+# Every five minutes. A migration scheduled for 14:00 starts by 14:05, and one
+# approved to go now does not wait for this at all — the approval starts a tick.
+schedule = "*/5 * * * *"
+
+# A tick still going when the next fires — a slow archive download, a target
+# that answers slowly — is recorded as skipped rather than queued behind it.
+# The tick also takes a database lock, because a tick started by an approval
+# is not a schedule firing and this rule does not reach it.
+overlap = "skip"
+
+# A release archive is held in memory between the two installs, and a push
+# hands it over before the far side builds. Ten minutes is the download and the
+# hand-off, not the build: later ticks watch that.
+timeout = "10m"
+memory  = 512
+
+# Tell this app's owners when a tick could not start a migration. A failed
+# build on the target is mailed to the administrators' group by the console
+# itself, with the build log's tail.
+notify = "failures"

@@ -23,6 +23,29 @@ type Store struct {
 	pool *pgxpool.Pool
 }
 
+// TryTickLock takes the tick's advisory lock on a connection of its own, or
+// reports that another tick holds it. The lock is session-scoped, so it lives
+// exactly as long as that connection, and a tick killed at its deadline drops
+// it with the connection rather than leaving it held.
+func (s *Store) TryTickLock(ctx context.Context) (release func(), ok bool, err error) {
+	conn, err := s.pool.Acquire(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	if err := conn.QueryRow(ctx, `SELECT pg_try_advisory_lock($1)`, tickLockKey).Scan(&ok); err != nil {
+		conn.Release()
+		return nil, false, err
+	}
+	if !ok {
+		conn.Release()
+		return nil, false, nil
+	}
+	return func() {
+		_, _ = conn.Exec(context.Background(), `SELECT pg_advisory_unlock($1)`, tickLockKey)
+		conn.Release()
+	}, true, nil
+}
+
 func openStore(ctx context.Context, dsn string) (*Store, error) {
 	cfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
@@ -63,12 +86,13 @@ const (
 	SettingAttachmentMaxMB  = "attachment_max_mb"
 	SettingPrivateRangesOK  = "private_ranges_allowed"
 	SettingRequireNoteOnNew = "require_note_on_new_request"
-	// SettingLastTickAt is written by the tick itself. It is not configuration
-	// and nothing sets it by hand: it is the one piece of evidence this app has
-	// that the scheduled task an administrator was asked to add actually
-	// exists, and without it the install page could only ever say "not
-	// recorded" about the step whose absence stops every migration.
-	SettingLastTickAt = "last_tick_at"
+	// SettingTickRefused is written when the platform refused to start the
+	// tick with jobs_unavailable, as "<RFC 3339 time> <the platform's words>",
+	// and cleared by the next start it accepts. It is not configuration: it is
+	// the one sighting this app gets of jobs being switched off install-wide,
+	// which is the state that stops every migration and that no other call
+	// reports.
+	SettingTickRefused = "tick_refused"
 )
 
 func (s *Store) Settings(ctx context.Context) (map[string]string, error) {

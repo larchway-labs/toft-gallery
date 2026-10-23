@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -36,12 +38,100 @@ type SetupStep struct {
 	Done  bool
 	// Optional means the install works without it. Exactly one step is.
 	Optional bool
-	// Unknown means this app cannot see whether it was done. Exactly one step
-	// is: the scheduled task lives in the platform's own table and nothing an
-	// app may call reports it. It renders as *not recorded* rather than as
-	// outstanding, because claiming a step is missing when you cannot see it is
-	// the same error as claiming it is done.
+	// Unknown means this app cannot see whether it was done. It renders as
+	// *not recorded* rather than as outstanding, because claiming a step is
+	// missing when you cannot see it is the same error as claiming it is done.
 	Unknown bool
+}
+
+// tickRun is the part of a job run the install page reads.
+type tickRun struct {
+	Status        string     `json:"status"`
+	StartedBy     string     `json:"started_by"`
+	QueuedAt      *time.Time `json:"queued_at"`
+	FinishedAt    *time.Time `json:"finished_at"`
+	FailureReason string     `json:"failure_reason"`
+}
+
+// lastTickRun is the newest run of the tick job, read as the app — the
+// platform's record, not this app's, so a tick that never reached the ledger
+// is still seen.
+func (c *Console) lastTickRun(ctx context.Context) (*tickRun, error) {
+	if c.cfg.AppToken == "" || c.cfg.APIURL == "" {
+		return nil, fmt.Errorf("no platform token")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		c.cfg.APIURL+"/api/v1/app/job-runs?scope=app&job=tick&limit=1", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.cfg.AppToken)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return nil, readAPIError(resp)
+	}
+	var body struct {
+		Runs []tickRun `json:"runs"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, err
+	}
+	if len(body.Runs) == 0 {
+		return nil, nil
+	}
+	return &body.Runs[0], nil
+}
+
+// tickStep is the install page's line about the tick.
+func (c *Console) tickStep(ctx context.Context, refused string) SetupStep {
+	step := SetupStep{
+		Title: "The tick runs every five minutes",
+		Body: "It is a job declared in this app's toft.toml, so it arrived with the deploy and there " +
+			"is nothing to add. It starts approved migrations, watches their builds on the far side " +
+			"and re-tests every target once a day.",
+	}
+	if at, why, ok := strings.Cut(refused, " "); ok && at != "" {
+		if t, err := time.Parse(time.RFC3339, at); err == nil {
+			step.Body += " Toft refused to start it " + ago(t) + ": " + why +
+				" Until an administrator switches jobs back on, no approved migration will go."
+			return step
+		}
+	}
+	run, err := c.lastTickRun(ctx)
+	switch {
+	case err != nil:
+		step.Unknown = true
+		step.Body += " Its runs could not be read (" + err.Error() + ")."
+	case run == nil:
+		step.Unknown = true
+		step.Body += " It has not run yet — the first fires within five minutes of the deploy. If it " +
+			"never does, Run the tick says why."
+	default:
+		last := run.QueuedAt
+		if run.FinishedAt != nil {
+			last = run.FinishedAt
+		}
+		when := "recently"
+		if last != nil {
+			when = ago(*last)
+		}
+		switch {
+		case run.Status == "failed" || run.Status == "timed_out" || run.Status == "out_of_memory":
+			step.Body += " The last run, " + when + ", ended " + strings.ReplaceAll(run.Status, "_", " ") +
+				": " + run.FailureReason + ". Its log is on the Automation tab."
+		case last != nil && time.Since(*last) > time.Hour:
+			step.Body += " The last run was " + when + ", which is longer than the schedule allows — " +
+				"it may be paused on the Automation tab, until the next deploy."
+		default:
+			step.Done = true
+			step.Body += " Last ran " + when + ", " + strings.ReplaceAll(run.Status, "_", " ") + "."
+		}
+	}
+	return step
 }
 
 func (c *Console) view(r *http.Request, title, nav string, caller Caller, data any) View {
@@ -86,33 +176,14 @@ func (c *Console) setupSteps(ctx context.Context, caller Caller, caps map[string
 		}
 	}
 
-	// The scheduled task lives in the platform's own table and nothing an app
-	// may call reports it, so this step used to be permanently *not recorded*.
-	// It still is not read from the platform — but a tick that arrives is
-	// evidence of one, and evidence is worth more here than a shrug: an install
-	// whose administrator forgot this step has a console where every approval
-	// sits at "it will start on the next tick" forever, and nothing anywhere
-	// says why.
+	// The tick is a job declared in toft.toml, so there is nothing to add — it
+	// arrived with the deploy. What can still be wrong is that it is not
+	// running: jobs switched off on this install, the schedule paused on the
+	// Automation tab, or every run failing. The platform's own record of the
+	// tick's runs answers the last two; the first is only ever seen as a refused
+	// start, which startTick records.
 	settings, _ := c.store.Settings(ctx)
-	schedule := SetupStep{
-		Title: "Add a scheduled task pointing at /tasks/tick",
-		Body: "It runs due migrations, watches builds on the far side and re-tests every target " +
-			"once a day. It is also what keeps this app awake, because the idle reaper skips an " +
-			"app with an enabled schedule.",
-		Unknown: true,
-	}
-	if last, err := time.Parse(time.RFC3339, settings[SettingLastTickAt]); err == nil {
-		if since := time.Since(last); since < time.Hour {
-			schedule.Unknown, schedule.Done = false, true
-			schedule.Body += " Last called " + ago(last) + "."
-		} else {
-			schedule.Body += " Last called " + ago(last) +
-				", which is longer ago than any sensible schedule — check that it is still enabled."
-		}
-	} else {
-		schedule.Body += " Nothing has called it yet, so either it has not been added or it has " +
-			"never run."
-	}
+	schedule := c.tickStep(ctx, settings[SettingTickRefused])
 
 	pushTargets := 0
 	for _, t := range targets {

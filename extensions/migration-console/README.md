@@ -61,7 +61,7 @@ Install from the Gallery. The deploy dialog asks for two values:
 | `DATABASE_URL` | A Postgres database for the console's own records. Use one you already back up — this is an audit record of production deploys, not a cache. |
 | `TARGET_KEY_SECRET` | Any long passphrase. Each target's deploy key is encrypted with it before it is written to the database. |
 
-Then five steps, each an ordinary administrator action:
+Then four steps, each an ordinary administrator action:
 
 1. **Turn on viewer identity** for this app, on the app's settings in Toft.
    Without it the console cannot tell who raised or approved anything.
@@ -77,11 +77,17 @@ Then five steps, each an ordinary administrator action:
 4. **Add a target.** An administrator on the other install mints a
    **deploy**-scoped key there and gives it to you. No credential moves between
    installs on its own.
-5. **Add a scheduled task** pointing at `/tasks/tick`. It runs due migrations,
-   watches builds on the far side, and re-tests every target once a day. It is
-   also what keeps this app awake. Run now works too — a schedule fired by hand
-   carries your role rather than the platform's, and the console accepts an
-   owner or editor of this app so you can test it.
+
+There is no schedule to add. The **tick** — which starts due migrations,
+watches builds on the far side and re-tests every target once a day — is a job
+declared in this app's `toft.toml`, so it arrives with the deploy and runs every
+five minutes in a process of its own. Approving a migration to go now starts a
+tick straight away. Its runs, a pause until the next deploy and Run now are on
+the app's **Automation** tab, and the Install page has a *Run the tick now*
+button for the console's owners and editors. Because the tick is a job, this
+app may sleep between visits like any other. The one thing that stops it is an
+administrator switching jobs off on the install, and the Install page says so
+when Toft refuses to start one.
 
 Optionally, **attach an email connection** to this app if you want
 notifications.
@@ -97,8 +103,8 @@ outstanding.
   the target builds what it receives.
 - It does not copy environment variable **values**, ever. It seeds the names
   once, when it creates the app, and never touches them again.
-- It does not carry storage, connections or scheduled tasks. The app arrives on
-  the target with no storage mapped, no connection attached and no task, and
+- It does not carry storage or connections. The app arrives on
+  the target with no storage mapped and no connection attached, and
   the key it pushes with cannot add any of them — the target's administrator
   does, once, as with the environment variable values. Jobs declared in the
   app's `toft.toml` do arrive, because they are part of the code.

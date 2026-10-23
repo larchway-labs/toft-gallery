@@ -146,7 +146,7 @@
           <div class="field">
             <label for="sched">Run it at</label>
             <input id="sched" name="scheduled_for" type="datetime-local">
-            <p class="hint">Leave blank to run on the next tick. Read on <strong>the install’s
+            <p class="hint">Leave blank to send it now — approving starts the tick. Read on <strong>the install’s
                clock</strong>, which is now {{installclock}} — the field beside this shows your
                browser’s, and they are only the same where you and the install are.</p>
           </div>
@@ -244,12 +244,12 @@
       {{end}}
       {{if and $d.ScheduledFor (eq $d.Status "approved")}}
       {{/* Named for what it does. Dropping the schedule does not cancel an
-           approved migration — it makes it due, on the next tick — and a button
+           approved migration — it makes it due, and starts the tick — and a button
            called "Unschedule" is one somebody presses to stop a production push
            and thereby starts it. */}}
       <form method="post" action="{{url (printf "/requests/%s/unschedule" $d.ID)}}"
-            onsubmit="return confirm('Drop the schedule? This does not cancel the migration — it goes on the next tick, within a couple of minutes.')">
-        <button type="submit">Send it on the next tick instead</button>
+            onsubmit="return confirm('Drop the schedule? This does not cancel the migration — it goes now: dropping the schedule starts the tick.')">
+        <button type="submit">Send it now instead</button>
         <p class="hint">This only drops the clock — it does not stop the migration. To stop it, use
            Cancel above.</p>
       </form>
@@ -323,9 +323,10 @@
     <span class="chip attention">Approved</span>
     <div class="small">
       {{if .ScheduledFor}}Scheduled for <strong>{{whenp .ScheduledFor}}</strong>, on the install’s clock.
-        A reviewer or the requester can drop the schedule until it fires — which sends it on the next
-        tick rather than cancelling it. There is no way to un-approve one.
-      {{else}}It will start on the next tick of the platform’s scheduler.{{end}}
+        It goes on the first tick after that time — within five minutes. A reviewer or the requester
+        can drop the schedule until it fires — which sends it now rather than cancelling it. There is no way to un-approve one.
+      {{else}}It starts on the next tick — straight away, unless the install refused to start one;
+        the tick also runs every five minutes on its own.{{end}}
       {{if .DecidedByName}}<div class="muted xs">Approved by {{.DecidedByName}}{{if .DecisionReason}} — {{.DecisionReason}}{{end}}</div>{{end}}
     </div>
   </div></div>

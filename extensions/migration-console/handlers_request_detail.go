@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"sort"
 	"strings"
@@ -321,7 +322,20 @@ func (c *Console) handleApprove(w http.ResponseWriter, r *http.Request) {
 		c.refuse(w, r, caller, http.StatusInternalServerError, "The approval could not be saved", err.Error())
 		return
 	}
+	if _, scheduled := fields["scheduled_for"]; !scheduled {
+		c.tickSoon(r)
+	}
 	c.redirect(w, r, "/requests/"+req.ID)
+}
+
+// tickSoon starts the tick now, in the name of the person who made a request
+// due, so "approve" means "go" rather than "go within five minutes". Best
+// effort: a start that is refused leaves the request approved and the schedule
+// picks it up, and a refusal for jobs being off is recorded for /health.
+func (c *Console) tickSoon(r *http.Request) {
+	if err := c.startTick(r.Context(), r); err != nil {
+		log.Printf("starting the tick now: %v — the schedule will pick the request up", err)
+	}
 }
 
 func (c *Console) handleReject(w http.ResponseWriter, r *http.Request) {
@@ -474,6 +488,7 @@ func (c *Console) handleUnschedule(w http.ResponseWriter, r *http.Request) {
 		Action: "request.unscheduled", ActorID: caller.ID(), ActorName: caller.Name(),
 		RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID},
 		map[string]any{"scheduled_for": nil})
+	c.tickSoon(r)
 	c.redirect(w, r, "/requests/"+req.ID)
 }
 

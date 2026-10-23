@@ -28,6 +28,13 @@
 //	DATABASE_URL            the operator's Postgres — the ledger, sensitive
 //	TARGET_KEY_SECRET       encrypts each target's deploy key at rest, sensitive
 //
+// and, when the same binary runs as `migration-console tick` — the `tick` job
+// in toft.toml — the job's own:
+//
+//	TOFT_JOB_TOKEN     the run's credential: mail while it is in flight, nothing else
+//	TOFT_TRIGGER       schedule, ui, cli, app or viewer — how the run started
+//	TOFT_TRIGGER_ROLE  who did: `system` for the schedule, else a role word
+//
 // # Why Go templates and htmx, and no npm anywhere
 //
 // A Toft Go deploy runs the SDK preparation and `go build` and nothing
@@ -46,6 +53,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -59,6 +67,32 @@ type Console struct {
 	urls   urls
 	http   *http.Client
 	render *renderer
+	// sends counts mail still on its way. The web app never waits on it; the
+	// tick job does, because a job that exits takes its goroutines with it.
+	sends sync.WaitGroup
+}
+
+// newConsole opens the ledger and assembles the app, for either entrypoint.
+func newConsole(ctx context.Context, cfg Config) (*Console, func()) {
+	store, err := openStore(ctx, cfg.DatabaseURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	seal, err := newSealer(cfg.TargetKeySecret)
+	if err != nil {
+		store.Close()
+		log.Fatalf("TARGET_KEY_SECRET: %v", err)
+	}
+	return &Console{
+		cfg:   cfg,
+		store: store,
+		seal:  seal,
+		urls:  newURLs(cfg.BasePath),
+		// Short, because every call this makes is to the install it is running
+		// on. Reaching a *target* goes through Platform, which has its own.
+		http:   &http.Client{Timeout: 20 * time.Second},
+		render: newRenderer(newURLs(cfg.BasePath)),
+	}, store.Close
 }
 
 func main() {
@@ -73,27 +107,17 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	store, err := openStore(ctx, cfg.DatabaseURL)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer store.Close()
+	c, closeStore := newConsole(ctx, cfg)
 
-	seal, err := newSealer(cfg.TargetKeySecret)
-	if err != nil {
-		log.Fatalf("TARGET_KEY_SECRET: %v", err)
+	// One binary, two entrypoints. `tick` is the job toft.toml declares: one
+	// pass over the ledger, then exit, with stdout as the run's log and the
+	// exit code as its outcome. Everything else is the web app.
+	if len(os.Args) > 1 && os.Args[1] == "tick" {
+		code := c.tickMain(ctx)
+		closeStore()
+		os.Exit(code)
 	}
-
-	c := &Console{
-		cfg:   cfg,
-		store: store,
-		seal:  seal,
-		urls:  newURLs(cfg.BasePath),
-		// Short, because every call this makes is to the install it is running
-		// on. Reaching a *target* goes through Platform, which has its own.
-		http:   &http.Client{Timeout: 20 * time.Second},
-		render: newRenderer(newURLs(cfg.BasePath)),
-	}
+	defer closeStore()
 
 	srv := &http.Server{
 		Addr:              cfg.Host + ":" + cfg.Port,

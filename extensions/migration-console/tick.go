@@ -1,10 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -14,75 +15,119 @@ import (
 
 // The scheduler is the platform's, not a ticker inside this process.
 //
-// Three reasons, in order of weight:
+// The tick is a **job**: `[jobs.tick]` in toft.toml runs this same binary as
+// `migration-console tick`, every five minutes, in a process of its own. Three
+// reasons, in order of weight:
 //
-//  1. **A task is an HTTP request to a path the app published.** This app
-//     publishes POST /tasks/tick; the platform calls it on the schedule an
-//     administrator configured. The app never names a path, a verb or a
-//     schedule, and the administrator can see and change the cadence on a
-//     surface that already exists.
-//  2. **The firing is signed and carries X-Toft-Role: system**, with the
-//     same key a page load is signed with, so this app verifies a tick exactly
-//     as it verifies a viewer and refuses anything that is not the platform. A
-//     ticker in the process would have no such check because it would have no
-//     request.
-//  3. **A schedule is what keeps this app awake.** The idle reaper skips any app
-//     with an enabled scheduled task, so publishing the tick buys the exemption
-//     as a side effect — which is what lets this run in shared mode. It never
-//     needs `never_sleep`, which the catalog could not grant it anyway.
+//  1. **The schedule ships with the code.** It is declared in toft.toml and
+//     arrives with every deploy, so there is no step an administrator can
+//     forget and no row on the platform this app cannot see. The Automation tab
+//     shows it, pauses it until the next deploy, and runs it now.
+//  2. **The run is its own record.** Each tick has a log, an outcome and a
+//     reason on the platform, and `notify = "failures"` tells this app's owners
+//     about one that failed. A ticker in the web process would have none of
+//     that, and nothing would notice it had stopped.
+//  3. **The web app is free to sleep.** A job runs whether or not the console is
+//     awake, so nothing here needs `never_sleep` — and nothing here pretends a
+//     schedule keeps it awake, because a schedule never does (the platform's
+//     idle reaper reads none).
 //
-// **A tick starts work and returns.** A scheduled task runs inside the app's web
-// process under the task timeout, and a push whose target has to build could
-// outlast it. So the tick claims one due request, starts the push, writes the
-// row, and returns; the target's build is watched on later ticks. A request
-// already `deploying` is skipped, because an overrunning tick must never start
-// the same push twice.
-// tickActor names who fired a tick, or "" for a caller that may not.
+// **A tick is one pass and then exit.** It watches builds already started on the
+// far side, starts at most one due migration, and re-tests stale targets. A push
+// whose target has to build would outlast any sensible deadline, so the tick
+// starts it, writes the row, and leaves the build to be watched by a later tick.
 //
-// One function so the door and the ledger cannot disagree about who is allowed
-// through it, and so a test can walk every word the platform mints.
-func tickActor(role string) string {
+// **Two ticks never overlap.** The schedule declares `overlap = "skip"`, but a
+// tick also starts when a reviewer approves something to go now, and that start
+// is not a schedule firing. So each tick takes a Postgres advisory lock for its
+// whole pass and a second one that cannot get it exits at once, saying so. A
+// push claim is conditional on the row (Store.SetStatusIf), so even without the
+// lock no request could be pushed twice — the lock is what keeps two ticks from
+// recording the same finished build twice and mailing about it twice.
+
+// tickLockKey is the advisory lock a tick holds. Any constant would do; this
+// one is "mctick" in ASCII, so it reads as what it is in pg_locks.
+const tickLockKey int64 = 0x6d637469636b
+
+// tickActor is what the ledger writes as who fired a tick, from the two words
+// the platform hands every run. `trigger` is how it started and `role` who
+// started it, and the ledger needs both: "a person, from the Automation tab" is
+// a different answer to "who put release M on production" than "the schedule".
+func tickActor(trigger, role string) string {
+	who := ""
 	switch role {
-	case RoleSystem:
-		return "the platform's scheduler"
-	case RoleOwner, RoleEditor:
-		return "a console editor, by hand"
+	case RoleOwner, RoleEditor, RoleViewer:
+		who = " (" + role + ")"
 	}
-	return ""
+	switch trigger {
+	case "schedule":
+		return "the platform's scheduler"
+	case "ui":
+		return "a person, from Toft's Automation tab" + who
+	case "cli":
+		return "a person, with toft job run" + who
+	case "viewer":
+		return "a console user, by approving or pressing Run the tick" + who
+	case "app":
+		return "the console itself"
+	case "":
+		// No TOFT_TRIGGER is a tick run by hand from a checkout, which is
+		// how the job is tested and is still a production action if the
+		// DATABASE_URL is production's.
+		return "by hand, outside Toft"
+	}
+	return "the platform (" + trigger + ")"
 }
 
-func (c *Console) handleTick(w http.ResponseWriter, r *http.Request) {
-	// **Who may fire this, and why it is not `system` alone.**
-	//
-	// A schedule firing on its schedule carries `system`. A schedule fired by
-	// hand — the Run now button on the platform's own surface — carries *the
-	// person's* role, because that is what the platform sends and it is the
-	// truthful thing to send. Refusing that would mean an administrator can
-	// configure the schedule and can never test it, and the first thing anybody
-	// does with a new schedule is press Run now.
-	//
-	// So both are accepted and neither is a visitor: `system` is the platform
-	// acting, and `owner`/`editor` is somebody who already configures this
-	// console's targets and roster. Everything else refuses, and absent,
-	// unverifiable and expired are one word — `unknown` — which refuses too.
-	// The ledger records which of the two it was, because "who put release M on
-	// production" has to have one answer.
-	actor := tickActor(verifyRole(c.cfg.RoleKey, r.Header.Get("X-Toft-Role"), c.cfg.AppID, time.Now()))
-	if actor == "" {
-		http.Error(w, "this path is the platform's scheduler, and a console editor firing it by hand — "+
-			"nothing else reaches it", http.StatusForbidden)
-		return
-	}
-	ctx := r.Context()
-	report := map[string]any{}
+// tickMain is the job's entrypoint. Its stdout is the run's log, so every line
+// is written for a person reading the run afterwards, and its exit code is the
+// run's outcome: non-zero only when a migration could not be started, which is
+// the failure `notify = "failures"` exists to tell somebody about.
+func (c *Console) tickMain(ctx context.Context) int {
+	log.SetPrefix("")
+	actor := tickActor(c.cfg.Trigger, c.cfg.TriggerRole)
+	log.Printf("tick fired by %s", actor)
 
-	report["fired_by"] = actor
-	// Recorded before the work, so a tick that fails halfway still counts as
-	// evidence that the schedule is wired up — which is the only question this
-	// row is asked.
-	_ = c.store.SetSetting(ctx, SettingLastTickAt, time.Now().UTC().Format(time.RFC3339))
+	release, ok, err := c.store.TryTickLock(ctx)
+	if err != nil {
+		log.Printf("could not reach the ledger: %v", err)
+		return 1
+	}
+	if !ok {
+		log.Printf("another tick holds the lock, so this one does nothing — that one is doing the work")
+		return 0
+	}
+	defer release()
+
+	report, failed := c.runTick(ctx, actor)
+	for _, k := range []string{"watched", "started", "skipped", "targets_tested"} {
+		if v, ok := report[k]; ok {
+			log.Printf("%-15s %v", k, v)
+		}
+	}
+
+	// Mail is sent detached so that it can never fail a migration, and a job
+	// that exits takes its goroutines with it. Wait — bounded, because a mail
+	// relay that hangs must not hold the run to its deadline.
+	done := make(chan struct{})
+	go func() { c.sends.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(30 * time.Second):
+		log.Printf("gave up waiting for notifications after 30s; the ledger records each one that did not go")
+	}
+	if failed {
+		return 1
+	}
+	return 0
+}
+
+// runTick is one pass: builds watched, one due migration started, stale targets
+// re-tested. `failed` is whether a due migration could not be started.
+func (c *Console) runTick(ctx context.Context, actor string) (map[string]any, bool) {
+	report := map[string]any{"fired_by": actor}
 	report["watched"] = c.watchInFlight(ctx, actor)
-	started, skipped := c.startOneDue(ctx, actor)
+	started, skipped, failed := c.startOneDue(ctx, actor)
 	report["started"] = started
 	// A tick that skips writes why. The platform records a skipped schedule run
 	// for exactly that reason, and this app has no more right to a silent gap
@@ -91,9 +136,55 @@ func (c *Console) handleTick(w http.ResponseWriter, r *http.Request) {
 		report["skipped"] = skipped
 	}
 	report["targets_tested"] = c.retestTargetsDaily(ctx, actor)
+	return report, failed
+}
 
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(report)
+// ErrJobsUnavailable is the platform's 422 jobs_unavailable: an administrator
+// has switched jobs off on this install, so no tick will run — scheduled or
+// otherwise — and every approval waits until they are switched back on.
+var ErrJobsUnavailable = errors.New("jobs are switched off on this install")
+
+// startTick asks the platform to run the tick now, attributed to the person on
+// the request when there is one — the act-for blob is relayed, never read.
+//
+// It is how an approval with no time on it goes straight away rather than
+// within five minutes, and what the Run the tick button on /health does. A
+// refusal is recorded so /health can say it: an install with jobs switched off
+// is a console where every approval waits forever, and that is the one state
+// this app can see only at the moment it asks.
+func (c *Console) startTick(ctx context.Context, r *http.Request) error {
+	if c.cfg.AppToken == "" || c.cfg.APIURL == "" {
+		return fmt.Errorf("this app has no platform token, so it cannot start its own tick — the schedule still runs it")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		c.cfg.APIURL+"/api/v1/app/jobs/tick/runs", bytes.NewReader([]byte(`{}`)))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.cfg.AppToken)
+	req.Header.Set("Content-Type", "application/json")
+	if r != nil {
+		if blob := r.Header.Get("X-Toft-Act-For"); blob != "" {
+			req.Header.Set("X-Toft-Act-For", blob)
+		}
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		err := readAPIError(resp)
+		var api *APIError
+		if errors.As(err, &api) && api.Code == "jobs_unavailable" {
+			_ = c.store.SetSetting(ctx, SettingTickRefused,
+				time.Now().UTC().Format(time.RFC3339)+" "+api.Msg)
+			return fmt.Errorf("%w: %s", ErrJobsUnavailable, api.Msg)
+		}
+		return err
+	}
+	_ = c.store.SetSetting(ctx, SettingTickRefused, "")
+	return nil
 }
 
 // watchInFlight re-reads the target's own deployment for every request this
@@ -171,26 +262,31 @@ func (c *Console) afterSuccess(ctx context.Context, req *Request, d *Deployment)
 }
 
 // startOneDue claims one approved request whose time has come and starts it.
-func (c *Console) startOneDue(ctx context.Context, actor string) (started int, skipped string) {
+// `failed` is a push that could not start, which fails the run; a request
+// cancelled under it is a skip, which does not.
+func (c *Console) startOneDue(ctx context.Context, actor string) (started int, skipped string, failed bool) {
 	due, err := c.store.DueRequests(ctx, time.Now().UTC())
-	if err != nil || len(due) == 0 {
-		return 0, ""
+	if err != nil {
+		return 0, "the ledger could not be read: " + err.Error(), true
 	}
-	// One per tick, deliberately: a tick is bounded by the platform's task
-	// timeout, and two pushes in one firing is how the second one is the thing
-	// that gets cut off.
+	if len(due) == 0 {
+		return 0, "", false
+	}
+	// One per tick, deliberately: a tick is bounded by the job's deadline, and
+	// two pushes in one run is how the second one is the thing that gets cut
+	// off. The next is five minutes away.
 	req := due[0]
 	pushed, err := c.push(ctx, &req, actor)
 	if err != nil {
-		return 0, fmt.Sprintf("request %s: %v", req.ID, err)
+		return 0, fmt.Sprintf("request %s: %v", req.ID, err), true
 	}
 	if !pushed {
 		// Not a failure and not a silent gap: the request was cancelled while
 		// this tick was fetching its bytes, and the tick reports the reason it
 		// did nothing exactly as it reports every other one.
-		return 0, fmt.Sprintf("request %s: cancelled while its release was being downloaded", req.ID)
+		return 0, fmt.Sprintf("request %s: cancelled while its release was being downloaded", req.ID), false
 	}
-	return 1, ""
+	return 1, "", false
 }
 
 // push is the whole migration: pull the pinned release from the source, check
@@ -352,9 +448,6 @@ func (c *Console) retestTargetsDaily(ctx context.Context, actor string) int {
 	}
 	return tested
 }
-
-var _ = context.Background
-var _ = http.StatusOK
 
 // lastLines is the tail of a build log — what a person reads first, and all a
 // notification has room for.

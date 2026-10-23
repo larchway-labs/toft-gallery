@@ -449,6 +449,28 @@ func (c *Console) handleHealth(w http.ResponseWriter, r *http.Request) {
 	c.render.page(w, http.StatusOK, "health", v)
 }
 
+// handleRunTick starts the tick now. A console editor's button: the person who
+// configures targets is the person who wants to see a new one tested or a
+// stuck approval moved, without waiting five minutes or opening the platform.
+func (c *Console) handleRunTick(w http.ResponseWriter, r *http.Request) {
+	caller := c.resolveCaller(r)
+	if !caller.Editor {
+		c.refuse(w, r, caller, http.StatusForbidden, "Only a console editor runs the tick by hand",
+			"The tick pushes approved migrations to production. It runs every five minutes on its own; "+
+				"starting it early is for this app's owners and editors.")
+		return
+	}
+	v := c.view(r, "Install", "health", caller, nil)
+	if err := c.startTick(r.Context(), r); err != nil {
+		v.Notice = &Notice{Tone: "danger", Title: "The tick did not start", Body: err.Error()}
+	} else {
+		v.Notice = &Notice{Tone: "ok", Title: "The tick is running",
+			Body: "In a process of its own, in your name. Its log and outcome are on this app's Automation tab in Toft."}
+	}
+	v.Setup = c.setupSteps(r.Context(), caller, v.Caps)
+	c.render.page(w, http.StatusOK, "health", v)
+}
+
 // --- The command palette ----------------------------------------------------
 
 func (c *Console) handlePalette(w http.ResponseWriter, r *http.Request) {

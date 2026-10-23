@@ -24,10 +24,16 @@
       </li>
       {{end}}
     </ol>
-    <p class="hint">The scheduled task is the one step this app cannot read directly: the schedule
-       lives in the platform’s own table and nothing an app may call reports it. What it can see is
-       a tick arriving, so that is what it says — when it last heard from one, or that it never
-       has. <em>Not recorded</em> is still not <em>missing</em>.</p>
+    <p class="hint">The tick is a Toft job declared in this app’s <code>toft.toml</code>, so it
+       comes with the deploy. What is said about it here is read from Toft’s own record of its
+       runs. Its logs, a pause until the next deploy and Run now are on this app’s Automation tab.
+       <em>Not recorded</em> is still not <em>missing</em>.</p>
+    {{if .Caller.Editor}}
+    <form method="post" action="{{url "/health/tick"}}" style="margin-top:12px">
+      <button type="submit">Run the tick now</button>
+      <span class="hint">Starts approved migrations that are due and re-tests stale targets, in your name.</span>
+    </form>
+    {{end}}
   </div>
 </div>
 
