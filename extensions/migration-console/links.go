@@ -62,13 +62,13 @@ func (c *Console) linkStates(ctx context.Context, caller Caller) []LinkState {
 			ls.AppURL = t.AppURL(l.TargetAppSlug)
 		}
 		if sp == nil || !ok {
-			ls.Detail = "the console could not reach one of the two installs on its last look"
+			ls.Detail = "the console couldn’t reach one of the two installs on its last check"
 			out = append(out, ls)
 			continue
 		}
 		srcDeploys, err := sp.Deployments(ctx, l.SourceAppID)
 		if err != nil {
-			ls.Detail = "the source install did not answer: " + err.Error()
+			ls.Detail = "the source install didn’t answer: " + err.Error()
 			out = append(out, ls)
 			continue
 		}
@@ -89,7 +89,7 @@ func (c *Console) linkStates(ctx context.Context, caller Caller) []LinkState {
 		}
 		tgtDeploys, err := tp.Deployments(ctx, l.TargetAppID)
 		if err != nil {
-			ls.Detail = "the target install did not answer: " + err.Error()
+			ls.Detail = "the target install didn’t answer: " + err.Error()
 			out = append(out, ls)
 			continue
 		}
@@ -108,10 +108,10 @@ func (c *Console) linkStates(ctx context.Context, caller Caller) []LinkState {
 			// put there, and pushing over it needs a person who knows what that
 			// something was.
 			ls.State = LinkDiverged
-			ls.Detail = "the release serving there is not the one this console pushed"
+			ls.Detail = "the release serving there isn’t the one this console deployed"
 		case newest.ID != l.LastDeploymentID:
 			ls.State = LinkBehind
-			ls.Detail = "the source has moved on since the last migration"
+			ls.Detail = "the source has been deployed since the last migration"
 			ls.CanSendNewest = caller.Reviewer && t.FastTrack
 		default:
 			ls.State = LinkUpToDate
@@ -149,7 +149,7 @@ func (c *Console) handleLinks(w http.ResponseWriter, r *http.Request) {
 	caller := c.resolveCaller(r)
 	if !caller.Editor && !caller.Reviewer {
 		c.refuse(w, r, caller, http.StatusForbidden, "This page is for editors and reviewers",
-			"It says which app on this install is bound to which app on a target, and whether the two have moved apart. Reading it needs owner or editor on this app in Toft, or a place on this console’s reviewer roster.")
+			"Viewing links needs the owner or editor role on this app in Toft, or a place on the Reviewers page.")
 		return
 	}
 	states := c.linkStates(r.Context(), caller)
@@ -185,8 +185,8 @@ func (c *Console) handleDeleteLink(w http.ResponseWriter, r *http.Request) {
 	// request silently becomes a first deploy with the approver's choice back
 	// in play, and that is worth a deliberate keystroke.
 	if trimForm(r, "confirm") != found.SourceAppSlug {
-		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That did not match",
-			fmt.Sprintf("Type %s to confirm. Nothing is deployed or deleted by this — the next request for that pair becomes a first deploy again, and an approver chooses the destination.", found.SourceAppSlug))
+		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That didn’t match",
+			fmt.Sprintf("Type %s to confirm.", found.SourceAppSlug))
 		return
 	}
 	_ = c.store.DeleteLink(r.Context(), id)
@@ -222,8 +222,8 @@ func (c *Console) handleSendNewest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if caller.Viewer == nil || !caller.Reviewer {
-		c.refuse(w, r, caller, http.StatusForbidden, "This needs a reviewer",
-			"Sending an established link’s current release collapses the second pair of eyes, so it is only open to somebody already on the roster.")
+		c.refuse(w, r, caller, http.StatusForbidden, "Only reviewers can fast-track",
+			"Ask someone on the Reviewers page, or raise a request instead.")
 		return
 	}
 	ctx := r.Context()
@@ -243,35 +243,35 @@ func (c *Console) handleSendNewest(w http.ResponseWriter, r *http.Request) {
 	target, _ := c.store.GetTarget(ctx, link.TargetID)
 	if target == nil || !target.FastTrack {
 		c.refuse(w, r, caller, http.StatusForbidden, "Fast-track is off for this target",
-			"An install can run UAT with one click and production with two. Raise an ordinary request instead.")
+			"Raise a request instead.")
 		return
 	}
 	reason := trimForm(r, "reason")
 	if reason == "" {
 		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "A fast-track needs a reason",
-			"It is what the second reviewer would have been.")
+			"Say why this release is going without a second review.")
 		return
 	}
 	if trimForm(r, "confirm") != target.Label {
-		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That did not match",
-			fmt.Sprintf("Type %s to confirm. This starts a production deploy on somebody else’s install with one person on it.", target.Label))
+		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That didn’t match",
+			fmt.Sprintf("Type %s to confirm.", target.Label))
 		return
 	}
 
 	source, _ := c.store.SourceTarget(ctx)
 	sp, err := c.platformFor(source)
 	if err != nil {
-		c.refuse(w, r, caller, http.StatusBadGateway, "This install could not be read", err.Error())
+		c.refuse(w, r, caller, http.StatusBadGateway, "Couldn’t read this install", err.Error())
 		return
 	}
 	deploys, err := sp.Deployments(ctx, link.SourceAppID)
 	if err != nil {
-		c.refuse(w, r, caller, http.StatusBadGateway, "The source app could not be read", err.Error())
+		c.refuse(w, r, caller, http.StatusBadGateway, "Couldn’t read the source app", err.Error())
 		return
 	}
 	newest := newestSuccess(deploys)
 	if newest == nil {
-		c.refuse(w, r, caller, http.StatusConflict, "There is nothing to send",
+		c.refuse(w, r, caller, http.StatusConflict, "There’s nothing to send",
 			"The source app has no successful release.")
 		return
 	}
@@ -289,7 +289,7 @@ func (c *Console) handleSendNewest(w http.ResponseWriter, r *http.Request) {
 		Via: "fast_track", NotifyRequester: false,
 	}
 	if err := c.store.InsertRequest(ctx, req); err != nil {
-		c.refuse(w, r, caller, http.StatusInternalServerError, "The request could not be saved", err.Error())
+		c.refuse(w, r, caller, http.StatusInternalServerError, "Couldn’t save the request", err.Error())
 		return
 	}
 	// The row was inserted approved, so the tick may already have claimed it:
@@ -297,7 +297,7 @@ func (c *Console) handleSendNewest(w http.ResponseWriter, r *http.Request) {
 	_ = c.store.UpdateRequestFields(ctx, req.ID, Event{
 		Action: "request.fast_tracked", ActorID: caller.ID(), ActorName: caller.Name(),
 		RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: target.ID,
-		Detail: fmt.Sprintf("one person, both roles — %s", reason)},
+		Detail: fmt.Sprintf("fast-tracked without a second reviewer — %s", reason)},
 		map[string]any{
 			"decided_by_id": caller.ID(), "decided_by_name": caller.Name(),
 			"decided_at": now, "decision_reason": reason})

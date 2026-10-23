@@ -76,7 +76,7 @@ func (s *sealer) open(record string) (string, error) {
 		// TARGET_KEY_SECRET was changed, and an administrator who reads "the
 		// key could not be decrypted" fixes it in a minute where "push failed"
 		// costs an afternoon.
-		return "", errors.New("this target's key could not be decrypted — TARGET_KEY_SECRET is not the one it was written with")
+		return "", errors.New("couldn’t decrypt this target’s key: TARGET_KEY_SECRET has changed since it was saved")
 	}
 	return string(plain), nil
 }

@@ -76,7 +76,7 @@ func TestADependencyVerdictNeverInventsAPass(t *testing.T) {
 	}
 
 	noData := DependencyReport{Available: true, HasData: false}
-	if w, why := noData.Verdict(); w != "" || !contains(why, "clean bill of health") {
+	if w, why := noData.Verdict(); w != "" || !contains(why, "isn’t a clean result") {
 		t.Errorf("a feed that never loaded rendered as %q / %q", w, why)
 	}
 
@@ -191,7 +191,7 @@ func TestAVerdictIsOnlyEverAboutTheReleaseItNames(t *testing.T) {
 	if w, _ := r.VerdictFor("d46"); w != "vulnerable" {
 		t.Errorf("the serving release's own verdict is %q", w)
 	}
-	if w, why := r.VerdictFor("d45"); w != "" || !contains(why, "different one") {
+	if w, why := r.VerdictFor("d45"); w != "" || !contains(why, "and this isn’t it") {
 		t.Errorf("an older release borrowed the serving one's verdict: %q / %q", w, why)
 	}
 	var nilRep *DependencyReport

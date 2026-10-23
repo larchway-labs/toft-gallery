@@ -3,8 +3,8 @@
 <div class="pagehead">
   <div>
     <h1>Requests</h1>
-    <p>What needs your decision, what you asked for, and what is moving right now.
-       Press <kbd>⌘K</kbd> to find one; <kbd>j</kbd> and <kbd>k</kbd> move through the list.</p>
+    <p>Requests waiting on you, requests you raised, and migrations in progress.
+       Press <kbd>⌘K</kbd> to search; <kbd>j</kbd> and <kbd>k</kbd> move through the list.</p>
   </div>
   <div class="actions">
     {{if $d.CanRaise}}<a class="btn primary" href="{{url "/requests/new"}}">New request</a>{{end}}
@@ -18,7 +18,7 @@
      too many. */}}
 {{if and $incomplete (not .Caller.IdentityOff)}}
   {{template "_notice" dict "Tone" "attention" "Title" "Some setup is outstanding"
-      "Body" "Parts of the console will refuse until it is done. The Install page lists what is missing and who can do it."}}
+      "Body" "Some features won’t work until it’s done. The Install page lists what’s missing."}}
 {{end}}
 
 <nav class="filterbar" aria-label="Requests">
@@ -34,11 +34,11 @@
     {{if not $d.Behind}}
       <div class="empty">
         <h3>Nothing is behind</h3>
-        <p>A link appears here when the source app has been deployed since the last migration through it. Links are made by the first successful deploy of a pair.</p>
+        <p>A link appears here when its source app has been deployed since its last migration.</p>
       </div>
     {{else}}
     <div class="tablewrap"><table>
-      <thead><tr><th>App</th><th>State</th><th class="nowrap drop-md">Target</th><th class="drop-md">Source is serving</th><th class="drop-lg nowrap">Last looked</th><th></th></tr></thead>
+      <thead><tr><th>App</th><th>State</th><th class="nowrap drop-md">Target</th><th class="drop-md">Source is serving</th><th class="drop-lg nowrap">Last checked</th><th></th></tr></thead>
       <tbody>
       {{range $d.Behind}}
         <tr data-row>
@@ -64,12 +64,12 @@
       <div class="empty">
         <h3>Nothing here</h3>
         {{if eq $d.Tab "review"}}
-          <p>No request is waiting on you. A request reaches this tab when somebody else raises one and you are on the reviewer roster.</p>
+          <p>No requests are waiting on you. Requests appear here when someone else raises one and you’re a reviewer.</p>
         {{else if eq $d.Tab "mine"}}
-          <p>You have not raised a migration request, and nobody has added you to one. A request pins a specific release of an app you own, and a reviewer approves those exact bytes.</p>
+          <p>You haven’t raised a migration request, and nobody has added you to one.</p>
           {{if $d.CanRaise}}<a class="btn primary" href="{{url "/requests/new"}}">Raise one</a>{{end}}
         {{else}}
-          <p>Nothing has been raised on this install yet.</p>
+          <p>No requests have been raised on this install yet.</p>
         {{end}}
       </div>
     {{else}}
@@ -83,7 +83,7 @@
         <tr data-row>
           <td>
             <a data-open href="{{url (printf "/requests/%s" .ID)}}">#{{.Seq}} · {{.SourceAppName}}</a>
-            <div class="mono muted xs">landing as {{.DestinationSlug}}</div>
+            <div class="mono muted xs">as {{.DestinationSlug}}</div>
           </td>
           <td>
             <div class="chipset">

@@ -84,7 +84,7 @@ func TestTheTickNamesWhoFiredIt(t *testing.T) {
 		}
 		seen[got] = tr
 	}
-	if tickActor("schedule", RoleSystem) != "the platform's scheduler" {
+	if tickActor("schedule", RoleSystem) != "the platform’s scheduler" {
 		t.Errorf("a schedule firing reads %q", tickActor("schedule", RoleSystem))
 	}
 	if got := tickActor("ui", RoleOwner); !strings.Contains(got, "owner") {

@@ -4,7 +4,7 @@
   <div>
     <h1>#{{$d.Seq}} · {{$d.SourceAppName}}</h1>
     <p>Raised by {{$d.RequesterName}} {{ago $d.CreatedAt}}
-       {{if $d.Target}}· going to <strong>{{$d.Target.Label}}</strong>{{end}}
+       {{if $d.Target}}· to <strong>{{$d.Target.Label}}</strong>{{end}}
        {{if eq $d.Via "fast_track"}}· <span class="chip info">Fast-tracked</span>{{end}}</p>
   </div>
   <div class="actions">{{template "_chip" $d.Status}}</div>
@@ -21,7 +21,7 @@
   {{if $d.DriftNote}}
     {{/* Drift is `attention` and never `danger`: it is not a failure, it is a
          fact the approver needs. */}}
-    {{template "_notice" dict "Tone" "attention" "Title" "This shipped the release it was approved for"
+    {{template "_notice" dict "Tone" "attention" "Title" "The approved release is the one that ships"
         "Body" $d.DriftNote}}
   {{end}}
   {{if $d.Failure}}
@@ -29,7 +29,7 @@
          a paragraph is the shape nobody can read at the moment they most need
          to, and the sentence may have come from either install. */}}
     <div class="notice danger" role="note">
-      <strong>The migration failed</strong>
+      <strong>Couldn’t complete the migration</strong>
       <div class="detail small" style="white-space:pre-wrap">{{$d.Failure}}</div>
     </div>
   {{end}}
@@ -49,15 +49,15 @@
   {{if $d.AppNote}}{{if $d.AppNote.Body}}
   <div class="card">
     <div class="cardhead"><h2>About this app</h2>
-      <span class="muted xs" style="margin-left:auto">last edited by {{$d.AppNote.UpdatedByName}}, {{ago $d.AppNote.UpdatedAt}}</span></div>
+      <span class="muted xs" style="margin-left:auto">Last edited by {{$d.AppNote.UpdatedByName}}, {{ago $d.AppNote.UpdatedAt}}</span></div>
     <div class="body"><div style="white-space:pre-wrap">{{$d.AppNote.Body}}</div>
-      <p class="hint"><a href="{{url (printf "/apps/%s" $d.SourceAppID)}}">Everything ever shipped from this app →</a></p>
+      <p class="hint"><a href="{{url (printf "/apps/%s" $d.SourceAppID)}}">Everything shipped from this app →</a></p>
     </div>
   </div>
   {{end}}{{end}}
 
   {{if $d.Reason}}
-  <div class="card"><div class="cardhead"><h2>Why this is going out</h2></div>
+  <div class="card"><div class="cardhead"><h2>Reason</h2></div>
     <div class="body"><div style="white-space:pre-wrap">{{$d.Reason}}</div></div></div>
   {{end}}
 
@@ -70,8 +70,8 @@
     <div class="cardhead"><h2>Checks</h2></div>
     <div class="body">
       {{if not $d.Checks}}
-        <p class="muted small">Nothing recorded. <em>Not recorded</em> is not <em>clean</em> — this
-           console runs no scanner, and the approval gate does not consult checks.</p>
+        <p class="muted small">No checks recorded. The console doesn’t run a scanner, and checks don’t
+           affect approval.</p>
       {{else}}
         <table>
           <thead><tr><th>Kind</th><th>Tool</th><th>Verdict</th><th class="drop-md">Summary</th></tr></thead>
@@ -82,8 +82,8 @@
                 <td class="drop-md small">{{.Summary}}</td></tr>
           {{end}}</tbody>
         </table>
-        <p class="hint">The dependency verdict is Toft’s own, for the exact release pinned here.
-           SAST and DAST have a place on this table and nothing produces them yet.</p>
+        <p class="hint">The dependency verdict comes from Toft, for this release. SAST and DAST results
+           aren’t recorded yet.</p>
       {{end}}
     </div>
   </div>
@@ -106,36 +106,33 @@
              the directory on save and never from a field, so the label and the
              id in the ledger cannot disagree. */}}
         <div class="field">
-          <label for="owner">Group that will own it over there</label>
+          <label for="owner">Owning group on the target</label>
           {{if $d.TargetGroups}}
           <select id="owner" name="owner_group_id" required>
             <option value="">Choose…</option>
             {{range $d.TargetGroups}}
               <option value="{{.ID}}" {{if eq .ID $d.OwnerGroupID}}selected{{end}} {{if eq .Members 0}}disabled{{end}}>
-                {{.Name}}{{if eq .Members 0}} — empty, cannot own an app{{else}} · {{.Members}} member(s){{end}}
+                {{.Name}}{{if eq .Members 0}} — no members, can’t own an app{{else}} · Members: {{.Members}}{{end}}
               </option>
             {{end}}
           </select>
-          <p class="hint">Nothing has been migrated from this app to this target before, so the app
-             is created there. A deploy key belongs to nobody, so a group has to own it — and this
-             is the only moment the destination is chosen. This list is read from
-             {{if $d.Target}}{{$d.Target.Label}}{{else}}the target{{end}} now; an empty group is
-             shown and refused, because the far side refuses it too.</p>
+          <p class="hint">This is the app’s first migration to this target, so it’s created there and
+             needs an owning group on
+             {{if $d.Target}}{{$d.Target.Label}}{{else}}the target{{end}}. Groups with no members can’t be chosen.</p>
           {{else}}
-          {{template "_notice" dict "Tone" "attention" "Title" "There is no group to give it to"
+          {{template "_notice" dict "Tone" "attention" "Title" "No group can own this app on the target"
               "Body" $d.GroupsRefusal}}
-          <p class="hint">Approving is refused until this is fixed — it would fail at the push
-             instead, several minutes from now, on the other install.</p>
+          <p class="hint">You can’t approve this request until the target has a group with members.</p>
           {{end}}
         </div>
         {{end}}
         <div class="row">
           <div class="field">
-            <label for="dslug">Name it will answer on</label>
+            <label for="dslug">Name on the target</label>
             <input id="dslug" name="destination_slug" value="{{$d.DestinationSlug}}">
           </div>
           <div class="field">
-            <label for="dvis">Visibility over there</label>
+            <label for="dvis">Visibility on the target</label>
             <select id="dvis" name="destination_visibility">
               <option value="" {{if eq $d.DestinationVisibility ""}}selected{{end}}>Leave as it is</option>
               <option value="private" {{if eq $d.DestinationVisibility "private"}}selected{{end}}>Private</option>
@@ -144,11 +141,11 @@
             </select>
           </div>
           <div class="field">
-            <label for="sched">Run it at</label>
+            <label for="sched">Schedule for</label>
             <input id="sched" name="scheduled_for" type="datetime-local">
             <input type="hidden" name="tz_offset" id="tzoff">
-            <p class="hint">Leave blank to send it now — approving starts the tick. Read in <strong>your
-               browser’s time zone</strong>; the install’s clock is now {{installclock}}.</p>
+            <p class="hint">Leave blank to migrate now. Uses <strong>your browser’s time zone</strong>;
+               the install’s clock reads {{installclock}}.</p>
             <script>
             (function () {
               var f = document.getElementById('sched'), o = document.getElementById('tzoff');
@@ -165,17 +162,17 @@
         </div>
         <div class="field">
           <label for="areason">Note on the approval</label>
-          <input id="areason" name="reason" placeholder="Optional.">
+          <input id="areason" name="reason" placeholder="Optional">
         </div>
         <button class="primary" type="submit">Approve</button>
       </form>
 
       <form method="post" action="{{url (printf "/requests/%s/reject" $d.ID)}}" class="stack"
-            onsubmit="return confirm('Reject this request? A rejected request is never reopened — a new one has to be raised.')">
+            onsubmit="return confirm('Reject this request? It can’t be reopened; a new request would have to be raised.')">
         <div class="field">
           <label for="rreason">Reason for rejecting</label>
           <input id="rreason" name="reason" required
-                 placeholder="Required — it is the only thing the requester has to work from.">
+                 placeholder="Tell the requester what to change">
         </div>
         <button class="danger" type="submit">Reject</button>
       </form>
@@ -196,8 +193,7 @@
             </div></li>
         {{end}}
       </ul>
-      <p class="hint">Append-only, and the actor’s name is copied rather than referenced: a person
-         who leaves Toft must not erase what they approved.</p>
+      <p class="hint">History can’t be edited, and names are kept even if a person leaves Toft.</p>
     </div>
   </div>
 
@@ -210,7 +206,7 @@
       <dl class="facts">
         <dt>State</dt><dd>{{template "_chip" $d.Status}}</dd>
         {{if $d.Target}}<dt>Target</dt><dd>{{$d.Target.Label}}</dd>{{end}}
-        <dt>Landing as</dt><dd class="mono">{{$d.DestinationSlug}}</dd>
+        <dt>Name on target</dt><dd class="mono">{{$d.DestinationSlug}}</dd>
         {{if $d.DestinationVisibility}}<dt>Visibility</dt><dd>{{$d.DestinationVisibility}}</dd>{{end}}
         <dt>Release</dt><dd class="mono">{{relref $d.SourceReleaseLabel}}
           <div class="xs muted sub">{{relwhen $d.SourceReleaseLabel}}</div></dd>
@@ -243,14 +239,13 @@
         <summary class="btn">Cancel this migration…</summary>
         <form method="post" action="{{url (printf "/requests/%s/cancel" $d.ID)}}" class="stack" style="margin-top:8px">
           <div class="field">
-            <label for="creason">Why it is being called off</label>
+            <label for="creason">Reason for cancelling</label>
             <input id="creason" name="reason" required
-                   placeholder="Required — somebody approved this, and the ledger is all that is left of why it did not go.">
+                   placeholder="Required">
           </div>
-          <button class="danger" type="submit">Cancel it</button>
-          <p class="hint">It stops here and nothing is sent. Cancelled is an ending like any other:
-             the approval was for these bytes and does not carry, so sending them later is a new
-             request. Once a push has started the console cannot recall it.</p>
+          <button class="danger" type="submit">Cancel migration</button>
+          <p class="hint">Nothing is sent. To migrate this release later, raise a new request. A push
+             that has already started can’t be recalled.</p>
         </form>
       </details>
       {{end}}
@@ -260,10 +255,9 @@
            called "Unschedule" is one somebody presses to stop a production push
            and thereby starts it. */}}
       <form method="post" action="{{url (printf "/requests/%s/unschedule" $d.ID)}}"
-            onsubmit="return confirm('Drop the schedule? This does not cancel the migration — it goes now: dropping the schedule starts the tick.')">
-        <button type="submit">Send it now instead</button>
-        <p class="hint">This only drops the clock — it does not stop the migration. To stop it, use
-           Cancel above.</p>
+            onsubmit="return confirm('Remove the schedule? The migration starts now; it is not cancelled.')">
+        <button type="submit">Migrate now instead</button>
+        <p class="hint">Removes the schedule and starts the migration now. To stop it, use Cancel above.</p>
       </form>
       {{end}}
     </div>
@@ -279,16 +273,16 @@
 
 {{define "destination"}}
 <div class="card" id="destination">
-  <div class="cardhead"><h2>What is being promoted</h2></div>
+  <div class="cardhead"><h2>What’s being migrated</h2></div>
   <div class="body">
     <p><strong class="mono">{{.SourceAppSlug}}</strong> · release <strong>{{.SourceReleaseLabel}}</strong></p>
-    <p class="small">Landing on {{.Destination}}{{if .DestinationVisibility}}, as
+    <p class="small">Going to {{.Destination}}{{if .DestinationVisibility}}, as
        <strong>{{.DestinationVisibility}}</strong>{{end}}.</p>
     {{if .MayEditDestination}}
     <form class="row" style="margin-top:10px" hx-post="{{url (printf "/requests/%s/destination" .ID)}}"
           hx-target="#destination" hx-swap="outerHTML">
       <div class="field">
-        <label for="ds">Name over there</label>
+        <label for="ds">Name on the target</label>
         <input id="ds" name="destination_slug" value="{{.DestinationSlug}}" required>
       </div>
       <div class="field">
@@ -302,8 +296,8 @@
       </div>
       <div class="field" style="flex:0 0 auto;align-self:end"><button type="submit">Save</button></div>
     </form>
-    <p class="hint">Requester and approver can both change these, and the change carries to the next
-       request for this pair — the name belongs to the destination, not to one push.</p>
+    <p class="hint">The requester and approver can change these. Changes carry over to the next
+       request for this app and target.</p>
     {{end}}
   </div>
 </div>
@@ -321,12 +315,11 @@
         <div>
           <div class="small">The bundle was accepted{{if .Target}} by {{.Target.Label}}{{end}} and is building there.</div>
           {{if .TargetDeploymentID}}<div class="mono xs muted">deployment {{.TargetDeploymentID}}</div>{{end}}
-          <div class="lastlooked">Last checked just now — the console learns on a tick, so this is a snapshot rather than a live view.</div>
+          <div class="lastlooked">Status updates every few minutes, not live.</div>
         </div>
       </div>
       {{if .BundleSHA256}}
-      <p class="hint">Sent {{bytes .BundleBytes}}, sha256 <span class="mono">{{short 16 .BundleSHA256}}…</span>
-         — recorded for the audit, compared to nothing, because there is nothing to compare it to.</p>
+      <p class="hint">Sent {{bytes .BundleBytes}}, sha256 <span class="mono">{{short 16 .BundleSHA256}}…</span></p>
       {{end}}
     </div>
   </div>
@@ -335,17 +328,15 @@
     <span class="chip attention">Approved</span>
     <div class="small">
       {{if .ScheduledFor}}Scheduled for <strong>{{whenp .ScheduledFor}}</strong>, on the install’s clock.
-        It goes on the first tick after that time — within five minutes. A reviewer or the requester
-        can drop the schedule until it fires — which sends it now rather than cancelling it. There is no way to un-approve one.
-      {{else}}It starts on the next tick — straight away, unless the install refused to start one;
-        the tick also runs every five minutes on its own.{{end}}
+        It starts within five minutes of that time.
+      {{else}}It starts within five minutes.{{end}}
       {{if .DecidedByName}}<div class="muted xs">Approved by {{.DecidedByName}}{{if .DecisionReason}} — {{.DecisionReason}}{{end}}</div>{{end}}
     </div>
   </div></div>
 {{else if eq .Status "submitted"}}
   <div class="card"><div class="body waiting">
     <span class="chip attention">Awaiting review</span>
-    <div class="small">A reviewer on the roster who did not raise this can decide it.</div>
+    <div class="small">Any reviewer other than the requester can approve or reject it.</div>
   </div></div>
 {{else if eq .Status "deployed"}}
   <div class="card"><div class="body waiting">
@@ -358,17 +349,16 @@
 {{else if eq .Status "failed"}}
   <div class="card"><div class="body waiting">
     <span class="chip danger">Failed</span>
-    <div class="small">The push did not finish{{if .Target}} on {{.Target.Label}}{{end}}.
+    <div class="small">The migration didn’t finish{{if .Target}} on {{.Target.Label}}{{end}}.
       {{if .Failure}}<div style="white-space:pre-wrap">{{.Failure}}</div>{{end}}
-      <div class="muted xs">Nothing is retried on its own, and nothing here re-runs: the approval
-        was for these bytes and it does not carry. When the cause is fixed, raise it again — the
-        link below opens a new request with this one filled in.</div>
+      <div class="muted xs">It isn’t retried automatically. Once the cause is fixed, use the link
+        below to raise a new request with these details filled in.</div>
       {{template "again" .}}</div>
   </div></div>
 {{else if eq .Status "withdrawn"}}
   <div class="card"><div class="body waiting">
     <span class="chip neutral">Withdrawn</span>
-    <div class="small">{{.RequesterName}} withdrew this before anybody decided it.
+    <div class="small">{{.RequesterName}} withdrew this before it was decided.
       {{template "again" .}}</div>
   </div></div>
 {{else if eq .Status "cancelled"}}
@@ -377,11 +367,10 @@
        later, which is why cancelled is a state rather than a wording. */}}
   <div class="card"><div class="body waiting">
     <span class="chip neutral">Cancelled</span>
-    <div class="small">This was approved and then called off before the push started, so nothing
+    <div class="small">This was approved and then cancelled before it started, so nothing
       reached{{if .Target}} {{.Target.Label}}{{else}} the target{{end}}.
       {{if .DecisionReason}}<div>{{.DecisionReason}}</div>{{end}}
-      <div class="muted xs">A cancelled request is not restarted — the approval was for these bytes
-        and it does not carry.</div>
+      <div class="muted xs">To migrate this release, raise a new request.</div>
       {{template "again" .}}</div>
   </div></div>
 {{else if eq .Status "rejected"}}
@@ -389,8 +378,7 @@
     <span class="chip danger">Rejected</span>
     <div class="small">{{.DecidedByName}} rejected this{{if .DecidedAt}} on {{whenp .DecidedAt}}{{end}}.
       <div>{{.DecisionReason}}</div>
-      <div class="muted xs">A rejected request is not reopened — raise a new one, once whatever the
-        reason names has been dealt with.</div>
+      <div class="muted xs">To try again, address the reason and raise a new request.</div>
       {{template "again" .}}</div>
   </div></div>
 {{end}}
@@ -418,9 +406,9 @@
     {{if .MayEdit}}
     <form hx-post="{{url (printf "/requests/%s/note" .ID)}}" hx-target="#note" hx-swap="outerHTML">
       <label class="sr" for="n" style="position:absolute;left:-9999px">Note</label>
-      <textarea id="n" name="note" placeholder="Anything the reviewer should read before deciding, or anything the requester should know afterwards.">{{.Note}}</textarea>
+      <textarea id="n" name="note" placeholder="Anything the reviewer should read before deciding, or the requester should know afterward.">{{.Note}}</textarea>
       <div class="inline" style="margin-top:8px"><button type="submit">Save note</button>
-        <span class="hint">The requester, the reviewers and anybody added to this request can all edit it until it is decided.</span></div>
+        <span class="hint">The requester, reviewers and anyone added to this request can edit it until it’s decided.</span></div>
     </form>
     {{else if .Note}}
       <div style="white-space:pre-wrap">{{.Note}}</div>
@@ -436,20 +424,19 @@
   <div class="cardhead"><h2>Documents</h2></div>
   <div class="body">
     {{if .AppAttach}}
-      <h3>Standing paperwork for this app</h3>
+      <h3>App documents</h3>
       <ul class="attachments">
         {{range .AppAttach}}
         <li><a class="name" href="{{url (printf "/attachments/%s" .ID)}}">{{.Filename}}</a>
             <span class="muted xs">{{bytes .SizeBytes}} · {{.UploadedByName}} · {{ago .UploadedAt}}</span></li>
         {{end}}
       </ul>
-      <p class="hint">Attached to the app rather than to this request, so every migration of it
-         inherits them. Manage them on the app’s page.</p>
+      <p class="hint">Shown on every request for this app. Manage them on the app’s page.</p>
     {{end}}
 
     <h3>For this request</h3>
     {{if not .Attachments}}
-      <p class="muted small">Nothing attached.</p>
+      <p class="muted small">No documents attached.</p>
     {{else}}
     <ul class="attachments">
       {{range .Attachments}}
@@ -468,7 +455,7 @@
     {{range .Attachments}}{{if eq .ContentType "application/pdf"}}
       <h3>{{.Filename}}</h3>
       <object class="pdf" data="{{url (printf "/attachments/%s" .ID)}}" type="application/pdf">
-        <p class="small">Your browser will not render this inline.
+        <p class="small">Your browser can’t display this PDF.
           <a href="{{url (printf "/attachments/%s" .ID)}}">Download it instead</a>.</p>
       </object>
     {{end}}{{end}}
@@ -480,8 +467,7 @@
       <div class="field">
         <label for="f">Attach a document</label>
         <input id="f" type="file" name="file" required>
-        <p class="hint">A PDF renders here; everything else downloads. The console decides how to
-           serve a file from its own allow-list and never from what the uploader called it.</p>
+        <p class="hint">PDFs are shown on this page; other files are downloaded.</p>
       </div>
       <button type="submit">Attach</button>
     </form>
@@ -499,7 +485,7 @@
     <ul class="attachments">
       {{range .Viewers}}
       <li><span class="name">{{.UserName}}</span>
-        <span class="muted xs">added by {{.AddedByName}}, {{ago .AddedAt}}</span>
+        <span class="muted xs">Added by {{.AddedByName}}, {{ago .AddedAt}}</span>
         {{if $.MayAddPeople}}
         <form style="margin-left:auto" hx-post="{{url (printf "/requests/%s/viewers/%s/remove" $.ID .UserID)}}"
               hx-target="#people" hx-swap="outerHTML">
@@ -529,14 +515,13 @@
           {{range $.People}}<option value="{{.ID}}">{{.Label}}</option>{{end}}
         </datalist>
       </div>
-      <div class="field"><label for="uname">Name</label><input id="uname" name="user_name" placeholder="for the record"></div>
-      <div class="field"><label for="uemail">Email</label><input id="uemail" name="user_email" placeholder="optional"></div>
+      <div class="field"><label for="uname">Name</label><input id="uname" name="user_name" placeholder="Shown in the history"></div>
+      <div class="field"><label for="uemail">Email</label><input id="uemail" name="user_email" placeholder="Optional"></div>
       <div class="field" style="flex:0 0 auto;align-self:end"><button type="submit">Add</button></div>
     </form>
-    <p class="hint">They can read this request and watch it move — and, because they were trusted
-       with this one, they can raise the next migration request for the same app.
-       {{if $.People}}The suggestions are the people this console already has a name for; anybody
-       else’s Toft user id works too.{{end}}</p>
+    <p class="hint">People you add can follow this request and raise the next migration request for
+       this app.
+       {{if $.People}}Pick a suggestion or enter any Toft user id.{{end}}</p>
     {{end}}
   </div>
 </div>

@@ -103,14 +103,13 @@ func (c *Console) fetchLastTickRun(ctx context.Context) (*tickRun, error) {
 func (c *Console) tickStep(ctx context.Context, refused string) SetupStep {
 	step := SetupStep{
 		Title: "The tick runs every five minutes",
-		Body: "It is a job declared in this app's toft.toml, so it arrived with the deploy and there " +
-			"is nothing to add. It starts approved migrations, watches their builds on the far side " +
-			"and re-tests every target once a day.",
+		Body: "It comes with this app, so there’s nothing to set up. It starts approved migrations, " +
+			"follows their builds on the target and re-tests every target once a day.",
 	}
 	if at, why, ok := strings.Cut(refused, " "); ok && at != "" {
 		if t, err := time.Parse(time.RFC3339, at); err == nil {
 			step.Body += " Toft refused to start it " + ago(t) + ": " + why +
-				" Until an administrator switches jobs back on, no approved migration will go."
+				" No approved migration will run until an administrator turns jobs back on."
 			return step
 		}
 	}
@@ -118,11 +117,11 @@ func (c *Console) tickStep(ctx context.Context, refused string) SetupStep {
 	switch {
 	case err != nil:
 		step.Unknown = true
-		step.Body += " Its runs could not be read (" + err.Error() + ")."
+		step.Body += " Couldn’t read its runs (" + err.Error() + ")."
 	case run == nil:
 		step.Unknown = true
-		step.Body += " It has not run yet — the first fires within five minutes of the deploy. If it " +
-			"never does, Run the tick says why."
+		step.Body += " It hasn’t run yet; the first run starts within five minutes of the deploy. If it " +
+			"doesn’t, Run the tick now shows why."
 	default:
 		last := run.QueuedAt
 		if run.FinishedAt != nil {
@@ -137,8 +136,8 @@ func (c *Console) tickStep(ctx context.Context, refused string) SetupStep {
 			step.Body += " The last run, " + when + ", ended " + strings.ReplaceAll(run.Status, "_", " ") +
 				": " + run.FailureReason + ". Its log is on the Automation tab."
 		case last != nil && time.Since(*last) > time.Hour:
-			step.Body += " The last run was " + when + ", which is longer than the schedule allows — " +
-				"it may be paused on the Automation tab, until the next deploy."
+			step.Body += " The last run was " + when + ", longer ago than the schedule allows. " +
+				"It may be paused on the Automation tab."
 		default:
 			step.Done = true
 			step.Body += " Last ran " + when + ", " + strings.ReplaceAll(run.Status, "_", " ") + "."
@@ -169,12 +168,10 @@ func (c *Console) setupSteps(ctx context.Context, caller Caller, caps map[string
 	// install, and it knows its own id — so it says it rather than leaving it
 	// to be discovered.
 	reach := SetupStep{
-		Title: "Let the people who raise requests reach this app",
-		Body: "A newly installed extension is private, which is its owner and this install's " +
-			"administrators and nobody else. Everyone who raises or reviews a migration needs to " +
-			"open this app, so a Toft administrator sets its visibility to signed-in " +
-			"viewers. Nothing here is public: the platform still decides who is signed in, and " +
-			"this app still refuses anybody the roster does not name.",
+		Title: "Set this app’s visibility to signed-in viewers",
+		Body: "A new extension is private to its owner and administrators. A Toft administrator " +
+			"sets this app’s visibility to signed-in viewers so everyone who raises or reviews a " +
+			"migration can open it.",
 		Unknown: true,
 	}
 	if source != nil && c.cfg.AppID != "" {
@@ -208,36 +205,33 @@ func (c *Console) setupSteps(ctx context.Context, caller Caller, caps map[string
 	return []SetupStep{
 		{
 			Title: "Turn on viewer identity for this app",
-			Body: "Without it the console cannot tell who raised or approved anything, and a ledger " +
-				"that cannot name an approver is not a record. A Toft administrator switches it " +
-				"on from this app’s settings.",
+			Body: "Without it the console can’t record who raised or approved a request. A Toft " +
+				"administrator turns it on in this app’s settings.",
 			Done: !caller.IdentityOff && caller.Viewer != nil,
 		},
 		{
 			Title: "Add this install as the source, with a read-scoped deploy key",
-			Body: "Mint a deploy key here with the read scope and paste it in on Targets. Read-scoped " +
-				"on purpose: the credential the console holds on the install it is running on can " +
-				"pull a release and cannot deploy anything — including to this app.",
+			Body: "Mint a deploy key on this install with the read scope and add it on the Targets " +
+				"page. The console uses it only to read releases.",
 			Done: source != nil,
 		},
 		{
 			Title: "Add a target, with a deploy-scoped key minted on that install",
-			Body: "No credential travels between installs on its own and no Toft can mint one " +
-				"for another, so an administrator on the target mints it and pastes it here.",
+			Body: "An administrator on the target install mints the key; then add it on the " +
+				"Targets page.",
 			Done: pushTargets > 0,
 		},
 		{
-			Title: "Name at least one reviewer",
-			Body: "The roster is this app’s own authority. A Toft administrator is not " +
-				"automatically a reviewer: an app that could not refuse an administrator in its own " +
-				"domain would have no domain.",
+			Title: "Add at least one reviewer",
+			Body: "Reviewers approve and reject requests. Toft administrators aren’t reviewers " +
+				"unless they’re added on the Reviewers page.",
 			Done: len(reviewers) > 0,
 		},
 		reach,
 		schedule,
 		{
-			Title:    "Attach an email connection (optional)",
-			Body:     "With one, the console can tell a requester when their migration finishes and mail the administrators’ group when something fails. Without one, none of that appears in the interface at all.",
+			Title:    "Attach an email connection",
+			Body:     "Lets the console email requesters when a migration finishes, and an administrators’ group when something fails.",
 			Done:     caps["email"],
 			Optional: true,
 		},
@@ -252,8 +246,8 @@ func (c *Console) refuseUnidentified(w http.ResponseWriter, r *http.Request, cal
 		return false
 	}
 	w.Header().Set("Retry-After", "5")
-	c.refuse(w, r, caller, http.StatusServiceUnavailable, "Toft did not say who you are just now",
-		"The platform did not answer this console’s question about who is signed in — usually because it is busy. Nothing was changed. Try again in a few seconds.")
+	c.refuse(w, r, caller, http.StatusServiceUnavailable, "Couldn’t confirm who you are",
+		"Toft didn’t respond in time, usually because it’s busy. Nothing was changed. Try again in a few seconds.")
 	return true
 }
 

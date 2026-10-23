@@ -3,13 +3,13 @@
 <div class="pagehead">
   <div>
     <h1>New migration request</h1>
-    <p>A request pins <strong>one release</strong>, not an app. The reviewer approves those bytes,
-       and if the app moves on before the migration runs, the console says so and ships what was approved.</p>
+    <p>A request moves <strong>one release</strong> of an app. If the app is deployed again before
+       the migration runs, the approved release is still the one that ships.</p>
   </div>
 </div>
 
 {{if $d.Refusal}}
-  {{template "_notice" dict "Tone" "danger" "Title" "The source install could not be read" "Body" $d.Refusal}}
+  {{template "_notice" dict "Tone" "danger" "Title" "Couldn’t read the source install" "Body" $d.Refusal}}
 {{end}}
 
 {{if $d.Again}}
@@ -17,21 +17,20 @@
        trusts; a form that says which request it copied, and that this is a new
        one, is the same convenience without the ambiguity. */}}
   {{template "_notice" dict "Tone" "info" "Title" "Filled in from an earlier request"
-      "Body" "Everything below was copied from the request you came from, and nothing has been raised yet — check it and submit. This is a new request with its own review: the earlier approval was for those bytes and does not carry."}}
+      "Body" "Nothing has been submitted yet. Check the details and submit; this new request gets its own review."}}
 {{end}}
 
 {{if not $d.Apps}}
   <div class="card"><div class="empty">
     <h3>No apps you can migrate</h3>
-    <p>The console offers the apps you own — personally, or through a group — and the apps somebody
-       has named you on in an earlier request. An editor on somebody else’s app cannot raise a
-       migration for it: ask the owner to raise it, or to add you to a request.</p>
+    <p>You can migrate apps you own, directly or through a group, and apps you’ve been added to on
+       a request. Ask the app’s owner to raise the request or add you to one.</p>
   </div></div>
 {{else if not $d.Targets}}
   <div class="card"><div class="empty">
-    <h3>Nowhere to send anything yet</h3>
-    <p>No target install has been added. A console editor adds one on the Targets page, with a
-       deploy-scoped key minted by an administrator on that install.</p>
+    <h3>No targets yet</h3>
+    <p>A console editor adds targets on the Targets page, using a deploy-scoped key minted by an
+       administrator on that install.</p>
   </div></div>
 {{else}}
 <form class="card measure" method="post" action="{{url "/requests/new"}}">
@@ -46,11 +45,11 @@
           <option value="{{.ID}}" {{if eq .ID $d.Selected}}selected{{end}}>{{.Name}} ({{.Slug}})</option>
         {{end}}
       </select>
-      <p class="hint">Only apps you own, and apps you have been named on.</p>
+      <p class="hint">Apps you own and apps you’ve been added to on a request.</p>
     </div>
 
     <div class="field">
-      <label>Release to promote</label>
+      <label>Release to migrate</label>
       {{/* On load the fetch carries the release a "raise it again" link named,
            so the row it preselects is the one somebody asked for. A later
            change of the app re-fetches from the select's own hx-get, without
@@ -68,49 +67,46 @@
         <option value="">Choose…</option>
         {{range $d.Targets}}<option value="{{.ID}}" {{if eq .ID $d.SelectedTarget}}selected{{end}}>{{.Label}}</option>{{end}}
       </select>
-      <p class="hint">Where it is going. The console pushes only to installs an administrator has
-         added here, each with a key that install’s own administrator created.</p>
+      <p class="hint">The install this release is deployed to.</p>
     </div>
 
     <div class="row">
       <div class="field">
-        <label for="slug">Name it will answer on</label>
-        <input id="slug" name="destination_slug" type="text" placeholder="same as here" value="{{$d.DestSlug}}">
-        <p class="hint">Leave blank to keep the app’s own slug — or, where this pair has migrated
-           before, the name it landed with last time. An approver can change it too, and the change
-           carries to the next request.</p>
+        <label for="slug">Name on the target</label>
+        <input id="slug" name="destination_slug" type="text" placeholder="Same as here" value="{{$d.DestSlug}}">
+        <p class="hint">Leave blank to keep the current slug, or the name used last time. The approver
+           can change it.</p>
       </div>
       <div class="field">
-        <label for="vis">Visibility over there</label>
+        <label for="vis">Visibility on the target</label>
         <select id="vis" name="destination_visibility">
           <option value="" {{if eq $d.DestVisibility ""}}selected{{end}}>Leave as it is</option>
           <option value="private" {{if eq $d.DestVisibility "private"}}selected{{end}}>Private</option>
           <option value="authenticated" {{if eq $d.DestVisibility "authenticated"}}selected{{end}}>Signed-in viewers</option>
           <option value="public" {{if eq $d.DestVisibility "public"}}selected{{end}}>Public</option>
         </select>
-        <p class="hint">The target install still decides whether it publishes anything at all.</p>
+        <p class="hint">The target install’s own settings can still restrict this.</p>
       </div>
     </div>
 
     <div class="field">
-      <label for="reason">Why this is going out</label>
-      <textarea id="reason" name="reason" placeholder="The change reference, what is in it, what to watch after it lands.">{{$d.Reason}}</textarea>
+      <label for="reason">Reason</label>
+      <textarea id="reason" name="reason" placeholder="The change reference, what’s in it, and what to watch after it ships.">{{$d.Reason}}</textarea>
     </div>
 
     <div class="field">
-      <label for="note">Note for the reviewer{{if $d.NoteRequired}} <span class="req">required here</span>{{end}}</label>
+      <label for="note">Note for the reviewer{{if $d.NoteRequired}} <span class="req">Required</span>{{end}}</label>
       <textarea id="note" name="note" {{if $d.NoteRequired}}required{{end}}
-        placeholder="Anything the reviewer should read before deciding. You and the reviewer can both edit this until it is decided.">{{$d.Note}}</textarea>
-      <p class="hint">There is a second, standing note on the app itself for what a reviewer needs
-         to know <em>every</em> time. This one is about this release.</p>
+        placeholder="Anything the reviewer should read before deciding. You and the reviewer can edit this until it’s decided.">{{$d.Note}}</textarea>
+      <p class="hint">For this release only. Notes for <em>every</em> request go on the app’s page.</p>
     </div>
 
     <div class="field">
       <label class="inline"><input type="checkbox" name="notify" checked style="width:auto"> Email me when it finishes</label>
-      <p class="hint">Only where an administrator has attached an email connection to this app.</p>
+      <p class="hint">Works only if an administrator has attached an email connection to this app.</p>
     </div>
 
-    <p class="hint">Attachments and the people who should watch this are added on the request once it exists.</p>
+    <p class="hint">You can add documents and people to the request after you submit it.</p>
 
     <div class="inline">
       <button class="primary" type="submit">Submit for review</button>
@@ -124,21 +120,21 @@
 {{define "releases"}}
 {{if not .}}<p class="hint">Pick an app first.</p>
 {{else if .Error}}
-  {{template "_notice" dict "Tone" "danger" "Title" "Releases could not be read" "Body" .Error}}
+  {{template "_notice" dict "Tone" "danger" "Title" "Couldn’t read releases" "Body" .Error}}
 {{else if not .Rows}}
-  <p class="hint">This app has no successful release to promote.</p>
+  <p class="hint">This app has no successful release to migrate.</p>
 {{else}}
 {{if .Locked}}
   {{template "_notice" dict "Tone" "danger" "Title" "Locked by dependency policy on the source"
-      "Body" "Toft’s dependency policy has taken this app off the air on this install, because what it serves crossed the install’s lock threshold. A reviewer will see that on the request; the way out is a fix or a waiver here, not a promotion."}}
+      "Body" "Toft’s dependency policy has locked this app on this install. Fix the dependencies or get a waiver here before migrating it."}}
 {{end}}
 {{with .Refused}}
   {{template "_notice" dict "Tone" "attention" "Title" (printf "The newest build, %s, was refused" .SHA)
-      "Body" (printf "The source’s dependency policy turned it away, so it never served and is not on this list. %s" .Reason)}}
+      "Body" (printf "The source’s dependency policy refused it, so it isn’t on this list. %s" .Reason)}}
 {{end}}
 {{if .Gone}}
-  {{template "_notice" dict "Tone" "attention" "Title" "That release is no longer here"
-      "Body" "The request you copied pinned a release this install no longer holds — it has been pruned from disk and from the artifact store. Nothing has been substituted for it: pick the release you want from the list below, because a promotion is of particular bytes and no other release stands in for them."}}
+  {{template "_notice" dict "Tone" "attention" "Title" "That release is no longer available"
+      "Body" "The release from the earlier request has been removed from this install. Choose a release from the list below."}}
 {{end}}
 <div class="card flat"><div class="tablewrap"><table>
   <thead><tr><th></th><th>Release</th><th class="drop-md">Dependencies</th></tr></thead>
@@ -150,18 +146,18 @@
       <td>
         {{$r.Label}}
         {{if $r.Current}}<span class="chip ok">Serving now</span>{{end}}
-        {{if $r.Wanted}}<span class="chip info">The one you copied</span>{{end}}
+        {{if $r.Wanted}}<span class="chip info">From earlier request</span>{{end}}
       </td>
       <td class="drop-md">
         {{if $r.Verdict}}{{template "_chip" $r.Verdict}}
-        {{else if $r.Current}}<span class="muted xs">not recorded</span>{{end}}
+        {{else if $r.Current}}<span class="muted xs">Not recorded</span>{{end}}
         {{if $r.Why}}<div class="xs muted">{{$r.Why}}</div>{{end}}
       </td>
     </tr>
   {{end}}
   </tbody>
 </table></div></div>
-<p class="hint">The verdict is Toft’s own, for that exact release, and Toft keeps one only for the release serving on the source.
-   <em>Not recorded</em> is not <em>clean</em>.</p>
+<p class="hint">Toft records a dependency verdict only for the release serving on the source.
+   <em>Not recorded</em> doesn’t mean <em>clean</em>.</p>
 {{end}}
 {{end}}

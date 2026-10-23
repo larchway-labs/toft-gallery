@@ -17,7 +17,7 @@ import (
 // the estate.
 func (c *Console) platformFor(t *Target) (*Platform, error) {
 	if t == nil {
-		return nil, fmt.Errorf("no such target")
+		return nil, fmt.Errorf("target not found")
 	}
 	key, err := c.seal.open(t.DeployKeyEnc)
 	if err != nil {
@@ -30,8 +30,8 @@ func (c *Console) requireEditor(w http.ResponseWriter, r *http.Request, caller C
 	if caller.Editor {
 		return true
 	}
-	c.refuse(w, r, caller, http.StatusForbidden, "This is the console’s configuration",
-		"Writing targets, the roster, the links and the settings needs owner or editor on this app in Toft. Raising a request does not.")
+	c.refuse(w, r, caller, http.StatusForbidden, "Only this app’s owners and editors can change this",
+		"Changing targets, reviewers, links and settings needs the owner or editor role on this app in Toft.")
 	return false
 }
 
@@ -112,7 +112,7 @@ func (c *Console) handleSaveTarget(w http.ResponseWriter, r *http.Request) {
 	label := trimForm(r, "label")
 	if label == "" {
 		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "A target needs a label",
-			"Name it after the environment, not after the machine — in six months the label is the only clue to what it is.")
+			"Name it after the environment, such as Production.")
 		return
 	}
 	settings, _ := c.store.Settings(ctx)
@@ -125,7 +125,7 @@ func (c *Console) handleSaveTarget(w http.ResponseWriter, r *http.Request) {
 		base, err = validateTargetURL(trimForm(r, "base_url"), ranges)
 	}
 	if err != nil {
-		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That address cannot be used", err.Error())
+		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That address can’t be used", err.Error())
 		return
 	}
 
@@ -141,7 +141,7 @@ func (c *Console) handleSaveTarget(w http.ResponseWriter, r *http.Request) {
 	case key != "":
 		enc, err = c.seal.seal(key)
 		if err != nil {
-			c.refuse(w, r, caller, http.StatusInternalServerError, "The key could not be encrypted", err.Error())
+			c.refuse(w, r, caller, http.StatusInternalServerError, "Couldn’t encrypt the key", err.Error())
 			return
 		}
 		if len(key) > 10 {
@@ -153,7 +153,7 @@ func (c *Console) handleSaveTarget(w http.ResponseWriter, r *http.Request) {
 		enc, prefix = existing.DeployKeyEnc, existing.KeyPrefix
 	default:
 		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "A target needs a key",
-			"An administrator on that install mints it and pastes it here. No credential travels between installs on its own, and no Toft can mint one for another.")
+			"Ask an administrator on that install to mint a deploy key, then paste it here.")
 		return
 	}
 
@@ -178,7 +178,7 @@ func (c *Console) handleSaveTarget(w http.ResponseWriter, r *http.Request) {
 	// tellable apart.
 	ok, result := c.testTarget(ctx, t)
 	if !ok {
-		c.refuse(w, r, caller, http.StatusBadGateway, "That connection did not work", result)
+		c.refuse(w, r, caller, http.StatusBadGateway, "Couldn’t connect to that install", result)
 		return
 	}
 	now := time.Now().UTC()
@@ -196,15 +196,15 @@ func (c *Console) handleSaveTarget(w http.ResponseWriter, r *http.Request) {
 			if g, err := p.Group(ctx, t.DefaultOwnerGroupID); err == nil {
 				t.DefaultOwnerGroupName = g.Name
 			} else {
-				c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That group is not on the target",
-					fmt.Sprintf("%s does not have a group with that id, so nothing was saved: %v", t.Label, err))
+				c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That group isn’t on the target",
+					fmt.Sprintf("%s has no group with that id, so nothing was saved: %v", t.Label, err))
 				return
 			}
 		}
 	}
 
 	if err := c.store.SaveTarget(ctx, t); err != nil {
-		c.refuse(w, r, caller, http.StatusInternalServerError, "The target could not be saved", err.Error())
+		c.refuse(w, r, caller, http.StatusInternalServerError, "Couldn’t save the target", err.Error())
 		return
 	}
 	action := "target.created"
@@ -233,7 +233,7 @@ func (c *Console) testTarget(ctx context.Context, t *Target) (bool, string) {
 	//    template, so it is the one endpoint guaranteed to be there.
 	appsURL, err := p.Reachable(callCtx)
 	if err != nil {
-		return false, fmt.Sprintf("The address did not answer as a Toft: %v. The key was not tried.", err)
+		return false, fmt.Sprintf("No Toft install answered at that address: %v. The key wasn’t tried.", err)
 	}
 	if appsURL != "" {
 		t.AppsURL = appsURL
@@ -242,7 +242,7 @@ func (c *Console) testTarget(ctx context.Context, t *Target) (bool, string) {
 	//    is for? A read-scoped key on a target would 403 the push later, which
 	//    is a failure nobody wants to find at 6pm on a Friday.
 	if _, err := p.Apps(callCtx); err != nil {
-		return false, fmt.Sprintf("The install answered, but the key did not work: %v", err)
+		return false, fmt.Sprintf("The install answered, but the key didn’t work: %v", err)
 	}
 	if t.Kind == TargetKindTarget {
 		return true, "Reached the install and the key listed its apps."
@@ -253,7 +253,7 @@ func (c *Console) testTarget(ctx context.Context, t *Target) (bool, string) {
 func (c *Console) handleTestTarget(w http.ResponseWriter, r *http.Request) {
 	caller := c.resolveCaller(r)
 	if !caller.Editor {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		http.Error(w, "You don’t have permission to do that.", http.StatusForbidden)
 		return
 	}
 	t, err := c.store.GetTarget(r.Context(), r.PathValue("id"))
@@ -280,8 +280,8 @@ func (c *Console) handleDeleteTarget(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := c.store.DeleteTarget(r.Context(), t.ID); err != nil {
-		c.refuse(w, r, caller, http.StatusConflict, "That target could not be removed",
-			"Requests already point at it, and the ledger keeps them. "+err.Error())
+		c.refuse(w, r, caller, http.StatusConflict, "Couldn’t remove that target",
+			"Existing requests refer to it. "+err.Error())
 		return
 	}
 	_ = c.store.WriteEvent(r.Context(), Event{Action: "target.removed",
@@ -329,7 +329,7 @@ func (c *Console) handleAddReviewer(w http.ResponseWriter, r *http.Request) {
 	name := trimForm(r, "subject_name")
 	if id == "" {
 		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "A reviewer needs an id",
-			"For a person, their Toft user id. For a team, pick the group from the list — one row, and everyone in it reviews.")
+			"Enter a person’s Toft user id, or a group id from the list to add a whole team.")
 		return
 	}
 	if name == "" {
@@ -337,7 +337,7 @@ func (c *Console) handleAddReviewer(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := c.store.AddReviewer(r.Context(), Reviewer{
 		ID: newID(), SubjectType: kind, SubjectID: id, SubjectName: name, AddedByName: caller.Name()}); err != nil {
-		c.refuse(w, r, caller, http.StatusInternalServerError, "The reviewer could not be added", err.Error())
+		c.refuse(w, r, caller, http.StatusInternalServerError, "Couldn’t add the reviewer", err.Error())
 		return
 	}
 	_ = c.store.WriteEvent(r.Context(), Event{Action: "reviewer.added",
@@ -398,12 +398,12 @@ func (c *Console) handleSaveSettings(w http.ResponseWriter, r *http.Request) {
 		source, _ := c.store.SourceTarget(ctx)
 		p, err := c.platformFor(source)
 		if err != nil {
-			c.refuse(w, r, caller, http.StatusBadGateway, "This install could not be read", err.Error())
+			c.refuse(w, r, caller, http.StatusBadGateway, "Couldn’t read this install", err.Error())
 			return
 		}
 		g, err := p.Group(ctx, groupID)
 		if err != nil {
-			c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That group could not be read", err.Error())
+			c.refuse(w, r, caller, http.StatusUnprocessableEntity, "Couldn’t read that group", err.Error())
 			return
 		}
 		// **A group with no address is refused, and the refusal names the
@@ -414,8 +414,8 @@ func (c *Console) handleSaveSettings(w http.ResponseWriter, r *http.Request) {
 		// credential cannot perform. Accepting the group anyway would mean
 		// mailing nobody, silently, on exactly the events this setting is for.
 		if g.Email == "" {
-			c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That group has no address",
-				fmt.Sprintf("%s has no email address on Toft, and this console can only mail a group's own address — it cannot read who is in a group. Set an address on the group, or pick another group.", g.Name))
+			c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That group has no email address",
+				fmt.Sprintf("The console emails a group’s own address, and %s has none in Toft. Set an address on the group, or choose another group.", g.Name))
 			return
 		}
 		_ = c.store.SetSetting(ctx, SettingAdminGroupID, g.ID)
@@ -429,8 +429,8 @@ func (c *Console) handleSaveSettings(w http.ResponseWriter, r *http.Request) {
 
 	if v := trimForm(r, "attachment_max_mb"); v != "" {
 		if n, err := strconv.Atoi(v); err != nil || n < 1 || n > 100 {
-			c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That attachment size will not work",
-				"Between 1 and 100 MB. The platform's own upload ceiling is 100MB, and a document this console cannot hold is one nobody can attach.")
+			c.refuse(w, r, caller, http.StatusUnprocessableEntity, "Choose an attachment size from 1 to 100 MB",
+				"Enter a whole number between 1 and 100.")
 			return
 		}
 		_ = c.store.SetSetting(ctx, SettingAttachmentMaxMB, v)
@@ -470,17 +470,16 @@ func (c *Console) handleHealth(w http.ResponseWriter, r *http.Request) {
 func (c *Console) handleRunTick(w http.ResponseWriter, r *http.Request) {
 	caller := c.resolveCaller(r)
 	if !caller.Editor {
-		c.refuse(w, r, caller, http.StatusForbidden, "Only a console editor runs the tick by hand",
-			"The tick pushes approved migrations to production. It runs every five minutes on its own; "+
-				"starting it early is for this app's owners and editors.")
+		c.refuse(w, r, caller, http.StatusForbidden, "Only this app’s owners and editors can run the tick",
+			"The tick runs every five minutes on its own.")
 		return
 	}
 	v := c.view(r, "Install", "health", caller, nil)
 	if err := c.startTick(r.Context(), r); err != nil {
-		v.Notice = &Notice{Tone: "danger", Title: "The tick did not start", Body: err.Error()}
+		v.Notice = &Notice{Tone: "danger", Title: "Couldn’t start the tick", Body: err.Error()}
 	} else {
 		v.Notice = &Notice{Tone: "ok", Title: "The tick is running",
-			Body: "In a process of its own, in your name. Its log and outcome are on this app's Automation tab in Toft."}
+			Body: "Its log and result are on this app’s Automation tab in Toft."}
 	}
 	v.Setup = c.setupSteps(r.Context(), caller, v.Caps)
 	c.render.page(w, http.StatusOK, "health", v)

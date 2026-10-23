@@ -82,19 +82,19 @@ func (c *Console) loadRequest(w http.ResponseWriter, r *http.Request, caller Cal
 		return nil, nil, false
 	}
 	if caller.Viewer == nil {
-		c.refuse(w, r, caller, http.StatusForbidden, "The console cannot tell who you are",
-			"Viewer identity is switched off for this app, so it cannot decide whether this request is yours to read. A Toft administrator can turn it on.")
+		c.refuse(w, r, caller, http.StatusForbidden, "The console can’t tell who you are",
+			"Viewer identity is off for this app, so requests can’t be shown. A Toft administrator can turn it on.")
 		return nil, nil, false
 	}
 	req, err := c.store.GetRequest(r.Context(), r.PathValue("id"))
 	if err != nil || req == nil {
-		c.refuse(w, r, caller, http.StatusNotFound, "No such request", "It may have been raised on another install, or the link may be stale.")
+		c.refuse(w, r, caller, http.StatusNotFound, "Request not found", "It may have been raised on another install, or the link may be out of date.")
 		return nil, nil, false
 	}
 	viewers, ok := c.requestAudience(r.Context(), caller, req)
 	if !ok {
-		c.refuse(w, r, caller, http.StatusNotFound, "No such request",
-			"You are not the requester, you have not been added to this one, and you are not on the reviewer roster.")
+		c.refuse(w, r, caller, http.StatusNotFound, "Request not found",
+			"Only the requester, people added to the request and reviewers can see it.")
 		return nil, nil, false
 	}
 	return req, viewers, true
@@ -183,22 +183,21 @@ func isViewer(vs []RequestViewer, id string) bool {
 // reading this cannot fix a license from here.
 func (c *Console) targetGroups(ctx context.Context, t *Target) ([]Group, string) {
 	if t == nil {
-		return nil, "The target this request was raised against is gone."
+		return nil, "The target for this request has been removed."
 	}
 	p, err := c.platformFor(t)
 	if err != nil {
-		return nil, "The stored key for " + t.Label + " could not be read: " + err.Error()
+		return nil, "Couldn’t read the stored key for " + t.Label + ": " + err.Error()
 	}
 	groups, err := p.Groups(ctx)
 	if err != nil {
-		return nil, "The group directory on " + t.Label + " could not be read: " + err.Error() +
-			" Approving anyway will fail at the push, so it is worth fixing first."
+		return nil, "Couldn’t read the groups on " + t.Label + ": " + err.Error() +
+			" Fix this before approving, or the migration will fail."
 	}
 	if len(groups) == 0 {
-		return nil, t.Label + " has no groups. A deploy key belongs to nobody, so an app created " +
-			"there needs one to own it — and a Toft install with no groups at all is usually " +
-			"one whose license tier locks them. Somebody with an administrator account on " +
-			t.Label + " has to create a group, or apply a license, before this can be approved."
+		return nil, t.Label + " has no groups, and a new app there needs a group to own it. " +
+			"An administrator on " + t.Label + " needs to create a group, or apply a license " +
+			"if groups are locked, before this can be approved."
 	}
 	sort.Slice(groups, func(i, j int) bool {
 		return strings.ToLower(groups[i].Name) < strings.ToLower(groups[j].Name)
@@ -220,7 +219,7 @@ func (c *Console) describeDestination(req *Request, link *Link) string {
 	if req.OwnerGroupName != "" {
 		return fmt.Sprintf("a new app %s, owned by %s", slug, req.OwnerGroupName)
 	}
-	return fmt.Sprintf("a new app %s — the approver has to say which group will own it", slug)
+	return fmt.Sprintf("a new app %s; the approver chooses its owning group", slug)
 }
 
 // --- Decisions --------------------------------------------------------------
@@ -233,24 +232,24 @@ func (c *Console) handleApprove(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	if !caller.Reviewer {
-		c.refuse(w, r, caller, http.StatusForbidden, "You are not on the reviewer roster",
-			"Being a Toft administrator makes you an editor of this app’s configuration; it does not make you an approver. The roster is this app’s own authority.")
+		c.refuse(w, r, caller, http.StatusForbidden, "You’re not a reviewer",
+			"Only people on this console’s Reviewers page can approve requests. Toft administrators aren’t reviewers unless they’re added there.")
 		return
 	}
 	if req.RequesterID == caller.ID() {
-		c.refuse(w, r, caller, http.StatusForbidden, "You raised this one",
-			"A reviewer may not approve their own request. Ask another reviewer, or — where an administrator has switched fast-track on for this target — send an established link’s current release from the Links page, which is flagged as a fast-track and needs a reason.")
+		c.refuse(w, r, caller, http.StatusForbidden, "You can’t approve your own request",
+			"Ask another reviewer. If fast-track is allowed for this target, you can send the current release from the Links page instead.")
 		return
 	}
 	if req.Status != StatusSubmitted {
 		c.refuse(w, r, caller, http.StatusConflict, "This request has already been decided",
-			"Its history is on the request. A rejected request is never reopened — raise a new one.")
+			"To try again, raise a new request.")
 		return
 	}
 	target, _ := c.store.GetTarget(ctx, req.TargetID)
 	if target == nil {
-		c.refuse(w, r, caller, http.StatusConflict, "The target is gone",
-			"This request names a target install that has since been removed from the console. Its record stays; nothing can be sent to it.")
+		c.refuse(w, r, caller, http.StatusConflict, "The target has been removed",
+			"This request’s target was removed from the console, so nothing can be sent to it.")
 		return
 	}
 	_ = r.ParseForm()
@@ -267,8 +266,8 @@ func (c *Console) handleApprove(w http.ResponseWriter, r *http.Request) {
 	if link == nil {
 		group := trimForm(r, "owner_group_id")
 		if group == "" {
-			c.refuse(w, r, caller, http.StatusUnprocessableEntity, "This one needs an owning group",
-				"Nothing has been migrated from this app to this target before, so the app will be created there — and a deploy key belongs to nobody, so a group has to own it. Pick one from the list on the request.")
+			c.refuse(w, r, caller, http.StatusUnprocessableEntity, "Choose an owning group",
+				"This is the app’s first migration to this target, so it will be created there and needs a group to own it. Choose one from the list on the request.")
 			return
 		}
 		// **Decide, then confirm — before the push rather than during it.**
@@ -287,7 +286,7 @@ func (c *Console) handleApprove(w http.ResponseWriter, r *http.Request) {
 		// both for ever.
 		groups, refusal := c.targetGroups(ctx, target)
 		if refusal != "" {
-			c.refuse(w, r, caller, http.StatusBadGateway, "The target could not be checked", refusal)
+			c.refuse(w, r, caller, http.StatusBadGateway, "Couldn’t check the target", refusal)
 			return
 		}
 		var chosen *Group
@@ -297,13 +296,13 @@ func (c *Console) handleApprove(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if chosen == nil {
-			c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That is not a group on the target",
-				fmt.Sprintf("%s does not have a group with that id. Pick one from the list on the request — it is read from that install, with the key stored for it.", target.Label))
+			c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That group isn’t on the target",
+				fmt.Sprintf("%s has no group with that id. Choose one from the list on the request.", target.Label))
 			return
 		}
 		if chosen.Members == 0 {
-			c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That group has nobody in it",
-				fmt.Sprintf("%s exists on %s and has no members, so the app would be created owned by nobody — which the target refuses at the push, several minutes from now, in words about the app rather than about this choice. Somebody with an administrator account there has to put a person in it first.", chosen.Name, target.Label))
+			c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That group has no members",
+				fmt.Sprintf("%s on %s has no members, so it can’t own an app. Choose another group, or ask an administrator there to add someone to it.", chosen.Name, target.Label))
 			return
 		}
 		fields["owner_group_id"] = chosen.ID
@@ -314,8 +313,8 @@ func (c *Console) handleApprove(w http.ResponseWriter, r *http.Request) {
 	}
 	if vis := trimForm(r, "destination_visibility"); vis != "" {
 		if !validVisibility(vis) {
-			c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That is not a visibility",
-				"Private, signed-in viewers or public.")
+			c.refuse(w, r, caller, http.StatusUnprocessableEntity, "Choose a valid visibility",
+				"Choose private, signed-in viewers or public.")
 			return
 		}
 		fields["destination_visibility"] = vis
@@ -325,7 +324,7 @@ func (c *Console) handleApprove(w http.ResponseWriter, r *http.Request) {
 	if when := trimForm(r, "scheduled_for"); when != "" {
 		t, err := time.ParseInLocation("2006-01-02T15:04", when, scheduleZone(r))
 		if err != nil {
-			c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That is not a time", "Use the date and time field.")
+			c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That isn’t a valid time", "Use the date and time field.")
 			return
 		}
 		fields["scheduled_for"] = t.UTC()
@@ -341,12 +340,12 @@ func (c *Console) handleApprove(w http.ResponseWriter, r *http.Request) {
 		RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID,
 		Detail: detail}, fields)
 	if err != nil {
-		c.refuse(w, r, caller, http.StatusInternalServerError, "The approval could not be saved", err.Error())
+		c.refuse(w, r, caller, http.StatusInternalServerError, "Couldn’t save the approval", err.Error())
 		return
 	}
 	if !moved {
 		c.refuse(w, r, caller, http.StatusConflict, "This request has already been decided",
-			"It changed while you were approving it — withdrawn, or decided by another reviewer. Its history is on the request.")
+			"It was withdrawn or decided by another reviewer while you were approving it.")
 		return
 	}
 	if _, scheduled := fields["scheduled_for"]; !scheduled {
@@ -372,8 +371,8 @@ func (c *Console) handleReject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !caller.Reviewer || req.Status != StatusSubmitted || req.RequesterID == caller.ID() {
-		c.refuse(w, r, caller, http.StatusForbidden, "This is not yours to decide",
-			"Rejecting needs a reviewer who did not raise the request, on a request still awaiting review.")
+		c.refuse(w, r, caller, http.StatusForbidden, "You can’t reject this request",
+			"Only a reviewer who didn’t raise the request can reject it, while it’s awaiting review.")
 		return
 	}
 	_ = r.ParseForm()
@@ -381,7 +380,7 @@ func (c *Console) handleReject(w http.ResponseWriter, r *http.Request) {
 	reason := trimForm(r, "reason")
 	if reason == "" {
 		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "A rejection needs a reason",
-			"It is the only thing the requester has to work from, and a year later it is the only thing the record has.")
+			"Tell the requester what to change.")
 		return
 	}
 	moved, err := c.store.SetStatusIf(r.Context(), req.ID, StatusSubmitted, StatusRejected, Event{
@@ -391,12 +390,12 @@ func (c *Console) handleReject(w http.ResponseWriter, r *http.Request) {
 		"decided_by_id": caller.ID(), "decided_by_name": caller.Name(),
 		"decided_at": time.Now().UTC(), "decision_reason": reason})
 	if err != nil {
-		c.refuse(w, r, caller, http.StatusInternalServerError, "The rejection could not be saved", err.Error())
+		c.refuse(w, r, caller, http.StatusInternalServerError, "Couldn’t save the rejection", err.Error())
 		return
 	}
 	if !moved {
 		c.refuse(w, r, caller, http.StatusConflict, "This request has already been decided",
-			"It changed while you were rejecting it. Its history is on the request.")
+			"It was withdrawn or decided by another reviewer while you were rejecting it.")
 		return
 	}
 	targetName := req.TargetID
@@ -416,8 +415,8 @@ func (c *Console) handleWithdraw(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.RequesterID != caller.ID() || req.Status != StatusSubmitted {
-		c.refuse(w, r, caller, http.StatusForbidden, "This is not yours to withdraw",
-			"Only the person who raised a request can withdraw it, and only before it has been decided.")
+		c.refuse(w, r, caller, http.StatusForbidden, "You can’t withdraw this request",
+			"Only the person who raised a request can withdraw it, and only before it’s decided.")
 		return
 	}
 	// Conditional for the reason approval is: a decision that landed first stands.
@@ -463,26 +462,26 @@ func (c *Console) handleCancel(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	if !caller.Reviewer && req.RequesterID != caller.ID() {
-		c.refuse(w, r, caller, http.StatusForbidden, "This is not yours to cancel",
-			"Calling off an approved migration is open to the reviewer roster and to the person who raised it. Being a Toft administrator makes you an editor of this console’s configuration; it does not put you on the roster.")
+		c.refuse(w, r, caller, http.StatusForbidden, "You can’t cancel this migration",
+			"Only reviewers and the person who raised the request can cancel an approved migration.")
 		return
 	}
 	switch req.Status {
 	case StatusApproved:
 	case StatusDeploying:
-		c.refuse(w, r, caller, http.StatusConflict, "This one has already started",
-			"The bundle is on the target and building there. The console cannot recall it — what happens next is decided on that install, and rolling back a release that lands is done there too.")
+		c.refuse(w, r, caller, http.StatusConflict, "This migration has already started",
+			"It’s building on the target and can’t be recalled. Any rollback has to be done on that install.")
 		return
 	default:
-		c.refuse(w, r, caller, http.StatusConflict, "There is nothing to cancel",
-			"Only an approved migration that has not started can be called off. This one is "+statusLabel(req.Status)+".")
+		c.refuse(w, r, caller, http.StatusConflict, "There’s nothing to cancel",
+			"Only an approved migration that hasn’t started can be cancelled. This one is "+statusLabel(req.Status)+".")
 		return
 	}
 	_ = r.ParseForm()
 	reason := trimForm(r, "reason")
 	if reason == "" {
 		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "Cancelling needs a reason",
-			"Somebody approved this and it is being called off after the fact. A year from now the ledger is all that is left of why.")
+			"Say why this approved migration is being cancelled.")
 		return
 	}
 
@@ -491,18 +490,18 @@ func (c *Console) handleCancel(w http.ResponseWriter, r *http.Request) {
 		RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID,
 		Detail: reason}, map[string]any{"decision_reason": reason})
 	if err != nil {
-		c.refuse(w, r, caller, http.StatusInternalServerError, "The cancellation could not be saved", err.Error())
+		c.refuse(w, r, caller, http.StatusInternalServerError, "Couldn’t save the cancellation", err.Error())
 		return
 	}
 	if !moved {
 		// The tick got there first. Said plainly rather than retried: the push
 		// has begun, and the honest answer is the same 409 as above.
-		c.refuse(w, r, caller, http.StatusConflict, "The push started while you were cancelling",
-			"A tick claimed this request a moment ago and the bundle is on its way to the target. Nothing was cancelled — the request page shows where it got to.")
+		c.refuse(w, r, caller, http.StatusConflict, "The migration started while you were cancelling",
+			"Nothing was cancelled. The request page shows its progress.")
 		return
 	}
 	c.notifyRequester(ctx, req, "Your migration was cancelled",
-		fmt.Sprintf("%s called off the approved migration of %s before it started.\n\nReason: %s",
+		fmt.Sprintf("%s cancelled the approved migration of %s before it started.\n\nReason: %s",
 			caller.Name(), req.SourceAppName, reason))
 	c.redirect(w, r, "/requests/"+req.ID)
 }
@@ -514,11 +513,11 @@ func (c *Console) handleUnschedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !caller.Reviewer && req.RequesterID != caller.ID() {
-		c.refuse(w, r, caller, http.StatusForbidden, "This is not yours to unschedule", "A reviewer or the requester can — and the same two can cancel it outright.")
+		c.refuse(w, r, caller, http.StatusForbidden, "You can’t change this schedule", "Only a reviewer or the requester can.")
 		return
 	}
 	if req.Status != StatusApproved {
-		c.refuse(w, r, caller, http.StatusConflict, "Nothing is scheduled", "Only an approved request carries a time.")
+		c.refuse(w, r, caller, http.StatusConflict, "Nothing is scheduled", "Only an approved request can have a schedule.")
 		return
 	}
 	_ = c.store.UpdateRequestFields(r.Context(), req.ID, Event{
@@ -543,11 +542,11 @@ func (c *Console) handleRequestNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if Terminal(req.Status) {
-		http.Error(w, "this request has been decided and its note is now part of the record", http.StatusConflict)
+		http.Error(w, "This request has been decided, so its note can’t be changed.", http.StatusConflict)
 		return
 	}
 	if !(req.RequesterID == caller.ID() || caller.Reviewer || caller.Editor || isViewer(viewers, caller.ID())) {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		http.Error(w, "You don’t have permission to do that.", http.StatusForbidden)
 		return
 	}
 	_ = r.ParseForm()
@@ -578,28 +577,28 @@ func (c *Console) handleDestination(w http.ResponseWriter, r *http.Request) {
 	// Fixed once decided: the approver chose a name and an audience, and a
 	// change after that would ship something nobody reviewed.
 	if req.Status != StatusSubmitted {
-		http.Error(w, "the destination is fixed once the request has been decided", http.StatusConflict)
+		http.Error(w, "The destination can’t be changed after the request is decided.", http.StatusConflict)
 		return
 	}
 	if !(req.RequesterID == caller.ID() || caller.Reviewer || caller.Editor) {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		http.Error(w, "You don’t have permission to do that.", http.StatusForbidden)
 		return
 	}
 	_ = r.ParseForm()
 	slug := sanitizeSlug(trimForm(r, "destination_slug"))
 	if slug == "" {
-		http.Error(w, "a slug is required — it is what the app answers on over there", http.StatusUnprocessableEntity)
+		http.Error(w, "Enter the app’s name on the target.", http.StatusUnprocessableEntity)
 		return
 	}
 	vis := trimForm(r, "destination_visibility")
 	if !validVisibility(vis) {
-		http.Error(w, "visibility is private, authenticated or public", http.StatusUnprocessableEntity)
+		http.Error(w, "Choose private, signed-in viewers or public.", http.StatusUnprocessableEntity)
 		return
 	}
 	if err := c.store.UpdateRequestFields(r.Context(), req.ID, Event{
 		Action: "request.destination_changed", ActorID: caller.ID(), ActorName: caller.Name(),
 		RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID,
-		Detail: fmt.Sprintf("landing as %s, %s", slug, visibilityWord(vis))},
+		Detail: fmt.Sprintf("as %s, %s", slug, visibilityWord(vis))},
 		map[string]any{"destination_slug": slug, "destination_visibility": vis}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -620,7 +619,7 @@ func visibilityWord(v string) string {
 	case "private":
 		return "private"
 	}
-	return "with whatever visibility it already has"
+	return "visibility unchanged"
 }
 
 // handleAddViewer names somebody else on this request.
@@ -637,18 +636,18 @@ func (c *Console) handleAddViewer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if Terminal(req.Status) {
-		http.Error(w, "this request has been decided", http.StatusConflict)
+		http.Error(w, "This request has already been decided.", http.StatusConflict)
 		return
 	}
 	if req.RequesterID != caller.ID() && !caller.Editor {
-		http.Error(w, "only the person who raised a request may add people to it", http.StatusForbidden)
+		http.Error(w, "Only the person who raised a request can add people to it.", http.StatusForbidden)
 		return
 	}
 	_ = r.ParseForm()
 	id := trimForm(r, "user_id")
 	name := trimForm(r, "user_name")
 	if id == "" {
-		http.Error(w, "a Toft user id is required", http.StatusUnprocessableEntity)
+		http.Error(w, "Enter a Toft user id.", http.StatusUnprocessableEntity)
 		return
 	}
 	if name == "" {
@@ -675,7 +674,7 @@ func (c *Console) handleRemoveViewer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.RequesterID != caller.ID() && !caller.Editor {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		http.Error(w, "You don’t have permission to do that.", http.StatusForbidden)
 		return
 	}
 	userID := r.PathValue("userID")

@@ -90,7 +90,7 @@ func (c *Console) notifyGroupAbout(ctx context.Context, req *Request, subject, t
 	if addr == "" {
 		return
 	}
-	c.deliver(ctx, req, []string{addr}, subject, text, "administrators group")
+	c.deliver(ctx, req, []string{addr}, subject, text, "administrators’ group")
 }
 
 func (c *Console) deliver(ctx context.Context, req *Request, to []string, subject, text, audience string) {

@@ -61,13 +61,13 @@ func tickActor(trigger, role string) string {
 	}
 	switch trigger {
 	case "schedule":
-		return "the platform's scheduler"
+		return "the platform’s scheduler"
 	case "ui":
-		return "a person, from Toft's Automation tab" + who
+		return "a person, from Toft’s Automation tab" + who
 	case "cli":
 		return "a person, with toft job run" + who
 	case "viewer":
-		return "a console user, by approving or pressing Run the tick" + who
+		return "a console user, by approving or using Run the tick now" + who
 	case "app":
 		return "the console itself"
 	case "":
@@ -154,7 +154,7 @@ var ErrJobsUnavailable = errors.New("jobs are switched off on this install")
 // this app can see only at the moment it asks.
 func (c *Console) startTick(ctx context.Context, r *http.Request) error {
 	if c.cfg.AppToken == "" || c.cfg.APIURL == "" {
-		return fmt.Errorf("this app has no platform token, so it cannot start its own tick — the schedule still runs it")
+		return fmt.Errorf("this app has no platform token, so it can’t start the tick now; the schedule still runs it")
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		c.cfg.APIURL+"/api/v1/app/jobs/tick/runs", bytes.NewReader([]byte(`{}`)))
@@ -201,7 +201,7 @@ func (c *Console) watchInFlight(ctx context.Context, actor string) int {
 		}
 		if target == nil {
 			c.failInFlight(ctx, &req, actor, "the target",
-				"The target was removed from this console while the release was building there, so nothing can watch the build. Check that install for the app.")
+				"The target was removed from this console while the release was building there. Check that install for the app.")
 			continue
 		}
 		// This runs under the tick lock, so no other tick is part-way through a
@@ -209,8 +209,8 @@ func (c *Console) watchInFlight(ctx context.Context, actor string) int {
 		// belongs to a tick that died between the claim and that answer.
 		if req.TargetAppID == "" || req.TargetDeploymentID == "" {
 			c.failInFlight(ctx, &req, actor, target.Label,
-				"The push started and the run carrying it stopped before the target's answer was recorded, so whether "+
-					target.Label+" received the release is unknown. Look for the app there before raising this again.")
+				"The migration stopped before the target’s answer was recorded, so it’s unknown whether "+
+					target.Label+" received the release. Check for the app there before raising this again.")
 			continue
 		}
 		tp, err := c.platformFor(target)
@@ -225,10 +225,10 @@ func (c *Console) watchInFlight(ctx context.Context, actor string) int {
 			switch {
 			case errors.As(err, &api) && api.Status == http.StatusNotFound:
 				c.failInFlight(ctx, &req, actor, target.Label,
-					"The target no longer has this deployment — the app or the release was deleted there while it was being watched.")
+					"The target no longer has this deployment. The app or the release was deleted there during the build.")
 			case time.Since(req.UpdatedAt) > inFlightLimit:
 				c.failInFlight(ctx, &req, actor, target.Label, fmt.Sprintf(
-					"Nothing could be learned about this build from %s for %s, so the console has stopped watching it. The last answer was: %v. Check that install for the app.",
+					"%s hasn’t reported on this build for %s, so the console stopped following it. Last response: %v. Check that install for the app.",
 					target.Label, inFlightLimit, err))
 			}
 			continue
@@ -255,9 +255,9 @@ func (c *Console) watchInFlight(ctx context.Context, actor string) int {
 			if !moved {
 				continue
 			}
-			c.notifyFailure(ctx, &req, "The build failed on the target", why)
+			c.notifyFailure(ctx, &req, "A build failed on the target", why)
 			c.notifyRequester(ctx, &req, "Your migration failed",
-				fmt.Sprintf("The bundle reached %s and the build there failed.\n\n%s", target.Label, why))
+				fmt.Sprintf("The release reached %s, but the build there failed.\n\n%s", target.Label, why))
 		}
 	}
 	return len(reqs)
@@ -279,9 +279,9 @@ func (c *Console) failInFlight(ctx context.Context, req *Request, actor, targetL
 	if err != nil || !moved {
 		return
 	}
-	c.notifyFailure(ctx, req, "A migration could no longer be watched", why)
+	c.notifyFailure(ctx, req, "Couldn’t follow a migration", why)
 	c.notifyRequester(ctx, req, "Your migration failed",
-		fmt.Sprintf("The release was sent to %s and its build there could not be followed.\n\n%s", targetLabel, why))
+		fmt.Sprintf("The release was sent to %s, but the console couldn’t follow its build.\n\n%s", targetLabel, why))
 }
 
 // afterSuccess writes the link — the binding is made by the **first successful
@@ -325,7 +325,7 @@ func (c *Console) afterSuccess(ctx context.Context, req *Request, d *Deployment)
 func (c *Console) startOneDue(ctx context.Context, actor string) (started int, skipped string, failed bool) {
 	due, err := c.store.DueRequests(ctx, time.Now().UTC())
 	if err != nil {
-		return 0, "the ledger could not be read: " + err.Error(), true
+		return 0, "couldn’t read the console’s database: " + err.Error(), true
 	}
 	if len(due) == 0 {
 		return 0, "", false
@@ -358,7 +358,7 @@ func (c *Console) startOneDue(ctx context.Context, actor string) (started int, s
 func (c *Console) push(ctx context.Context, req *Request, actor string) (bool, error) {
 	source, err := c.store.SourceTarget(ctx)
 	if err != nil || source == nil {
-		return false, fmt.Errorf("this install has not been added as the source")
+		return false, fmt.Errorf("this install hasn’t been added as the source")
 	}
 	sp, err := c.platformFor(source)
 	if err != nil {
@@ -366,7 +366,7 @@ func (c *Console) push(ctx context.Context, req *Request, actor string) (bool, e
 	}
 	target, err := c.store.GetTarget(ctx, req.TargetID)
 	if err != nil || target == nil {
-		return false, fmt.Errorf("the target row is gone")
+		return false, fmt.Errorf("the target has been removed")
 	}
 	tp, err := c.platformFor(target)
 	if err != nil {
@@ -384,13 +384,13 @@ func (c *Console) push(ctx context.Context, req *Request, actor string) (bool, e
 		req.TargetAppID = link.TargetAppID
 	}
 	if req.TargetAppID == "" && req.OwnerGroupID == "" {
-		why := "This request was approved to ship a new version of an app that this console no longer has a link to, so it would now create the app — and nobody chose a group to own it. Raise it again; the approver will be asked for one."
+		why := "The link to the target app was deleted after approval, so this would now create a new app with no owning group. Raise the request again and the approver will choose a group."
 		moved, _ := c.store.SetStatusIf(ctx, req.ID, StatusApproved, StatusFailed, Event{
 			Action: "push.failed", ActorName: actor,
 			RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID,
 			Detail: why}, map[string]any{"failure": why})
 		if moved {
-			c.notifyRequester(ctx, req, "Your migration could not start", why)
+			c.notifyRequester(ctx, req, "Your migration couldn’t start", why)
 		}
 		return true, errors.New(why)
 	}
@@ -406,7 +406,7 @@ func (c *Console) push(ctx context.Context, req *Request, actor string) (bool, e
 	drift := ""
 	if deploys, err := sp.Deployments(ctx, req.SourceAppID); err == nil {
 		if newest := newestSuccess(deploys); newest != nil && newest.ID != req.SourceDeploymentID {
-			drift = fmt.Sprintf("pinned release %s, serving release %s at execution",
+			drift = fmt.Sprintf("Approved release %s; the source was serving %s when the migration ran.",
 				req.SourceReleaseLabel, newest.Label())
 		}
 	}
@@ -422,10 +422,10 @@ func (c *Console) push(ctx context.Context, req *Request, actor string) (bool, e
 		moved, _ := c.store.SetStatusIf(ctx, req.ID, StatusApproved, StatusFailed, Event{
 			Action: "push.failed", ActorName: actor,
 			RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID,
-			Detail: "the release could not be downloaded: " + err.Error()},
+			Detail: "couldn’t download the release: " + err.Error()},
 			map[string]any{"failure": err.Error()})
 		if moved {
-			c.notifyFailure(ctx, req, "A release could not be downloaded", err.Error())
+			c.notifyFailure(ctx, req, "Couldn’t download a release", err.Error())
 		}
 		return false, err
 	}
@@ -452,14 +452,14 @@ func (c *Console) push(ctx context.Context, req *Request, actor string) (bool, e
 	if !claimed {
 		_ = c.store.WriteEvent(ctx, Event{Action: "push.abandoned", ActorName: actor,
 			RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID,
-			Detail: "the release was downloaded and then discarded: this request stopped being approved while it was coming down"})
+			Detail: "the release was downloaded and then discarded because the request was no longer approved"})
 		return false, nil
 	}
 	if drift != "" {
 		_ = c.store.WriteEvent(ctx, Event{Action: "push.drift", ActorName: actor,
 			RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID, Detail: drift})
-		c.notifyFailure(ctx, req, "A migration ran against a superseded release", drift)
-		c.notifyRequester(ctx, req, "Your migration is shipping the release it was approved for", drift)
+		c.notifyFailure(ctx, req, "A migration is shipping an older release", drift)
+		c.notifyRequester(ctx, req, "Your migration is shipping the approved release", drift)
 	}
 
 	// From here the row reads `deploying`, and whatever happens next has to be
@@ -490,7 +490,7 @@ func (c *Console) push(ctx context.Context, req *Request, actor string) (bool, e
 			Action: "push.failed", ActorName: actor,
 			RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID,
 			Detail: err.Error()}, map[string]any{"failure": err.Error()})
-		c.notifyFailure(wctx, req, "A push was refused by the target", err.Error())
+		c.notifyFailure(wctx, req, "The target refused a migration", err.Error())
 		c.notifyRequester(wctx, req, "Your migration failed", err.Error())
 		return true, err
 	}
@@ -539,8 +539,8 @@ func (c *Console) retestTargetsDaily(ctx context.Context, actor string) int {
 		_ = c.store.WriteEvent(ctx, Event{Action: "target.tested",
 			ActorName: actor, TargetID: t.ID, Detail: result})
 		if was && !ok {
-			c.notifyGroup(ctx, "A migration target has stopped working",
-				fmt.Sprintf("%s (%s) tested green yesterday and red today.\n\n%s", t.Label, t.BaseURL, result))
+			c.notifyGroup(ctx, "A migration target stopped responding",
+				fmt.Sprintf("%s (%s) passed its last daily test and failed today’s.\n\n%s", t.Label, t.BaseURL, result))
 		}
 		tested++
 	}

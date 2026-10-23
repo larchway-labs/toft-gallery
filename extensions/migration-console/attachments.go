@@ -53,7 +53,7 @@ func (c *Console) attachmentLimit(r *http.Request) int64 {
 // bytes plus their digest.
 func readUpload(r *http.Request, limit int64) (name string, body []byte, sum string, err error) {
 	if err := r.ParseMultipartForm(limit); err != nil {
-		return "", nil, "", fmt.Errorf("the upload did not arrive: %v", err)
+		return "", nil, "", fmt.Errorf("the upload didn’t arrive: %v", err)
 	}
 	f, header, err := r.FormFile("file")
 	if err != nil {
@@ -80,7 +80,7 @@ func readUpload(r *http.Request, limit int64) (name string, body []byte, sum str
 	// stops being true quietly.
 	name = path.Base(strings.ReplaceAll(header.Filename, `\`, "/"))
 	if name == "" || name == "." || name == "/" || strings.HasPrefix(name, ".") {
-		return "", nil, "", fmt.Errorf("give the file an ordinary name")
+		return "", nil, "", fmt.Errorf("rename the file and try again")
 	}
 	h := sha256.Sum256(body)
 	return name, body, hex.EncodeToString(h[:]), nil
@@ -107,7 +107,7 @@ func (c *Console) handleAddRequestAttachment(w http.ResponseWriter, r *http.Requ
 	// on a finished request because what the reviewer read stays with it, and
 	// a record that can grow after the fact but never shrink is not one either.
 	if Terminal(req.Status) || req.Status == StatusDeploying {
-		http.Error(w, "this request has finished; documents can no longer be added to it", http.StatusConflict)
+		http.Error(w, "This request has finished, so documents can’t be added to it.", http.StatusConflict)
 		return
 	}
 	limit := c.attachmentLimit(r)
@@ -145,7 +145,7 @@ func (c *Console) handleAddAppAttachment(w http.ResponseWriter, r *http.Request)
 	caller := c.resolveCaller(r)
 	appID := r.PathValue("appID")
 	if !c.mayTouchApp(r, caller, appID) {
-		http.Error(w, "you can attach to an app you own, or one somebody has named you on", http.StatusForbidden)
+		http.Error(w, "You can attach documents only to an app you own or have been added to on a request.", http.StatusForbidden)
 		return
 	}
 	limit := c.attachmentLimit(r)
@@ -181,7 +181,7 @@ func (c *Console) handleServeAttachment(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if caller.Viewer == nil {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		http.Error(w, "You don’t have permission to do that.", http.StatusForbidden)
 		return
 	}
 	a, body, err := c.store.GetAttachment(r.Context(), r.PathValue("aid"))
@@ -250,7 +250,7 @@ func (c *Console) handleDeleteAttachment(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if caller.Viewer == nil {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		http.Error(w, "You don’t have permission to do that.", http.StatusForbidden)
 		return
 	}
 	a, _, err := c.store.GetAttachment(r.Context(), r.PathValue("aid"))
@@ -265,13 +265,13 @@ func (c *Console) handleDeleteAttachment(w http.ResponseWriter, r *http.Request)
 	// Only the person who attached it, or an editor. An approver removing the
 	// evidence they were shown is the one deletion this app must not make easy.
 	if a.UploadedByID != caller.ID() && !caller.Editor {
-		http.Error(w, "only whoever attached this, or a console editor, can remove it", http.StatusForbidden)
+		http.Error(w, "Only the person who attached this, or a console editor, can remove it.", http.StatusForbidden)
 		return
 	}
 	if a.Scope == AttachRequest {
 		req, _ := c.store.GetRequest(r.Context(), a.RequestID)
 		if req != nil && Terminal(req.Status) {
-			http.Error(w, "this request has been decided, and what the reviewer read stays with it", http.StatusConflict)
+			http.Error(w, "This request has been decided, so its documents can’t be removed.", http.StatusConflict)
 			return
 		}
 	}

@@ -2,9 +2,7 @@
 <div class="pagehead">
   <div>
     <h1>What this install still needs</h1>
-    <p>The Gallery guarantees that installing an extension grants it nothing, so this console is
-       <em>deliberately</em> not working when it lands. Each step below is a separate, audited
-       administrator action.</p>
+    <p>An extension starts with no access, so the console needs these administrator steps before it works.</p>
   </div>
 </div>
 
@@ -24,10 +22,9 @@
       </li>
       {{end}}
     </ol>
-    <p class="hint">The tick is a Toft job declared in this app’s <code>toft.toml</code>, so it
-       comes with the deploy. What is said about it here is read from Toft’s own record of its
-       runs. Its logs, a pause until the next deploy and Run now are on this app’s Automation tab.
-       <em>Not recorded</em> is still not <em>missing</em>.</p>
+    <p class="hint">The tick is a Toft job declared in this app’s <code>toft.toml</code> and runs
+       every five minutes. Its logs, pause and Run now are on this app’s Automation tab.
+       <em>Not recorded</em> means Toft has no runs to report yet, not that the job is missing.</p>
     {{if .Caller.Editor}}
     <form method="post" action="{{url "/health/tick"}}" style="margin-top:12px">
       <button type="submit">Run the tick now</button>
@@ -40,12 +37,12 @@
 <div class="card measure" style="margin-top:16px">
   <div class="cardhead"><h2>What this app can reach</h2></div>
   <div class="body small">
-    <p>It holds two kinds of credential and nothing else. On this install, a <strong>read-scoped</strong>
-       deploy key: it lists apps and groups, reads deployment history and a dependency verdict, and
-       downloads a release — and it cannot deploy anything, including to this app. On each target, a
-       <strong>deploy-scoped</strong> key minted there by an administrator of that install.</p>
-    <p>It never acts as you. Your role tells it what you may do; your identity, where an
-       administrator has switched it on, tells it what to write on the record.</p>
+    <p>The console holds two kinds of credential. On this install, a <strong>read-scoped</strong>
+       deploy key that lists apps and groups, reads deployment history and dependency verdicts, and
+       downloads releases. It can’t deploy anything. On each target, a <strong>deploy-scoped</strong>
+       key minted there by an administrator of that install.</p>
+    <p>It never acts as you. Your role decides what you may do here, and your identity is what the
+       history records.</p>
   </div>
 </div>
 {{end}}

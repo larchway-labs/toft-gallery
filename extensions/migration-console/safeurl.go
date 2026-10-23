@@ -52,25 +52,25 @@ func validateTargetURL(raw string, allowedRanges []string) (string, error) {
 	}
 	u, err := url.Parse(raw)
 	if err != nil {
-		return "", fmt.Errorf("that is not a URL: %v", err)
+		return "", fmt.Errorf("that isn’t a valid URL: %v", err)
 	}
 	if u.Scheme != "https" && u.Scheme != "http" {
-		return "", fmt.Errorf("the address must start with https:// (http:// is accepted only for a host inside an allowed private range)")
+		return "", fmt.Errorf("the address must start with https:// (http:// is accepted only inside an allowed private range)")
 	}
 	if u.User != nil {
-		return "", fmt.Errorf("take the credentials out of the URL — the key field below is where the credential goes")
+		return "", fmt.Errorf("remove the credentials from the URL and put the key in the Deploy key field")
 	}
 	if u.Host == "" {
 		return "", fmt.Errorf("the address has no host")
 	}
 	if u.Path != "" && u.Path != "/" {
-		return "", fmt.Errorf("give the install's address only, with no path after it")
+		return "", fmt.Errorf("enter the install’s address only, with no path")
 	}
 
 	host := u.Hostname()
 	ips, err := net.LookupIP(host)
 	if err != nil || len(ips) == 0 {
-		return "", fmt.Errorf("%s does not resolve from this install", host)
+		return "", fmt.Errorf("%s doesn’t resolve from this install", host)
 	}
 	nets := parseCIDRs(allowedRanges)
 	for _, ip := range ips {
@@ -78,7 +78,7 @@ func validateTargetURL(raw string, allowedRanges []string) (string, error) {
 			continue
 		}
 		if !inAny(ip, nets) {
-			return "", fmt.Errorf("%s resolves to %s, which is a private address this console has not been told to allow — add the range on Settings, or use a public name",
+			return "", fmt.Errorf("%s resolves to %s, a private address that isn’t allowed; add its range in Settings, or use a public name",
 				host, ip)
 		}
 		// A private address that *is* allowed may be plain http: an estate on

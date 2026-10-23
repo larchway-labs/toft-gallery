@@ -3,19 +3,16 @@
 <div class="pagehead">
   <div>
     <h1>Reviewers</h1>
-    <p>Who may approve and reject. This roster is the console’s own authority, and it is deliberately
-       not the platform’s: a Toft administrator arrives here as an <em>editor</em> of this app’s
-       configuration, and that does not make them an approver. An app that could not refuse an
-       administrator in its own domain would have no domain.</p>
+    <p>People and groups who can approve and reject requests. Toft administrators are not reviewers unless they’re added here.</p>
   </div>
 </div>
 
 <div class="stack">
   <div class="card">
-    <div class="cardhead"><h2>The roster</h2></div>
+    <div class="cardhead"><h2>Roster</h2></div>
     {{if not $d.Roster}}
       <div class="empty"><h3>Nobody can approve anything yet</h3>
-        <p>Add a person, or a group so a whole team is one row.</p></div>
+        <p>Add a person, or a group to add a whole team at once.</p></div>
     {{else}}
     <div class="tablewrap"><table>
       <thead><tr><th>Who</th><th>Kind</th><th class="drop-md">Added by</th><th></th></tr></thead>
@@ -38,7 +35,7 @@
           <select id="st" name="subject_type"><option value="user">A person</option><option value="group">A group</option></select></div>
         <div class="field"><label for="sid">Id</label>
           <input id="sid" name="subject_id" required list="knownpeople" autocomplete="off"
-                 placeholder="user id, or a group id from below">
+                 placeholder="A user id, or a group id from below">
           {{/* Suggestions, not a list of everybody. A deploy key of either
                scope may read the group directory and never the user one, so the
                only people this console can name are the ones already in its own
@@ -55,16 +52,14 @@
         <label>Groups on this install</label>
         <div class="tablewrap"><table><tbody>
           {{range $d.Groups}}<tr><td class="mono xs">{{.ID}}</td><td>{{.Name}}</td>
-            <td class="small muted">{{.Members}} member(s)</td></tr>{{end}}
+            <td class="small muted">Members: {{.Members}}</td></tr>{{end}}
         </tbody></table></div>
-        <p class="hint">The console can read the directory of group names and addresses. It cannot
-           read who is in a group — that stays with Toft.</p>
+        <p class="hint">The console can see group names and addresses, but not who is in each group.</p>
       </div>
       {{end}}
       {{if $d.People}}
-      <p class="hint">The id field suggests the people this console already has a name for — anyone
-         who has raised, decided or been named on a request here. It cannot offer the install's
-         whole user directory: the key it holds may read group names and never who is in one.</p>
+      <p class="hint">The id field suggests people who have raised, decided or been named on a request
+         here. Anyone else can be added by their Toft user id.</p>
       {{end}}
       <button class="primary" type="submit">Add</button>
     </div>

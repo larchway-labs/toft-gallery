@@ -3,20 +3,19 @@
 <div class="pagehead">
   <div>
     <h1>Links</h1>
-    <p>A link binds one source app to one app on a target, and it is written by the
-       <strong>first successful deploy</strong> of that pair — never by an intention. Every later
-       request for that source follows it, so the submitter never picks a destination.</p>
+    <p>A link ties a source app to an app on a target. It’s created by the
+       <strong>first successful deploy</strong>, and every later request for that app follows it.</p>
   </div>
 </div>
 
 <div class="card">
   {{if not (index $d "Links")}}
     <div class="empty"><h3>No links yet</h3>
-      <p>The first approved migration of a pair creates one. Until then, the approver chooses the
-         destination on the request.</p></div>
+      <p>The first successful migration of an app creates one. Until then, the approver chooses
+         the destination on the request.</p></div>
   {{else}}
   <div class="tablewrap"><table>
-    <thead><tr><th>App</th><th class="nowrap">Target</th><th class="nowrap">As</th><th>State</th><th class="drop-lg nowrap">Last looked</th><th></th></tr></thead>
+    <thead><tr><th>App</th><th class="nowrap">Target</th><th class="nowrap">App on target</th><th>State</th><th class="drop-lg nowrap">Last checked</th><th></th></tr></thead>
     <tbody>
     {{range index $d "Links"}}
       <tr data-row>
@@ -26,8 +25,8 @@
         <td class="mono small nowrap">{{if .AppURL}}<a href="{{.AppURL}}" target="_blank" rel="noopener">{{.TargetAppSlug}} ↗</a>{{else}}{{.TargetAppSlug}}{{end}}</td>
         <td>{{template "_chip" .State}}
           <div class="xs muted">{{.Detail}}</div>
-          {{if .SourceRelease}}<div class="xs muted">source: {{.SourceRelease}}</div>{{end}}
-          {{if .TargetRelease}}<div class="xs muted">target: {{.TargetRelease}}</div>{{end}}
+          {{if .SourceRelease}}<div class="xs muted">Source: {{.SourceRelease}}</div>{{end}}
+          {{if .TargetRelease}}<div class="xs muted">Target: {{.TargetRelease}}</div>{{end}}
         </td>
         <td class="drop-lg lastlooked">{{ago .CheckedAt}}</td>
         <td>
@@ -36,18 +35,17 @@
             <summary class="btn small">Send newest…</summary>
             <form method="post" action="{{url (printf "/links/%s/send" .ID)}}" class="stack" style="margin-top:8px;min-width:280px">
               <div class="field"><label>Reason</label><input name="reason" required
-                  placeholder="Required — it is what the second reviewer would have been."></div>
+                  placeholder="Why this release is going without a review"></div>
               <div class="field"><label>Type <span class="mono">{{.TargetLabel}}</span> to confirm</label>
                 <input name="confirm" required></div>
               <button class="primary small" type="submit">Send this release</button>
-              <p class="hint">One person, both roles. It is not a new destination, it is not code you
-                 chose, and it is not a new authority — but it does collapse the second pair of eyes,
-                 and the ledger records it as a fast-track.</p>
+              <p class="hint">Sends the newest release to the linked app without a second reviewer.
+                 The history records it as a fast-track.</p>
             </form>
           </details>
           {{else if eq .State "diverged"}}
-            <span class="hint">Somebody deployed there directly. The console will not offer a button
-              for this — raise an ordinary request.</span>
+            <span class="hint">Someone deployed to the target app directly. Raise a request to
+              migrate.</span>
           {{end}}
           {{if index $d "Editor"}}
           <details style="margin-top:6px">
@@ -56,9 +54,8 @@
               <div class="field"><label>Type <span class="mono">{{.SourceAppSlug}}</span> to confirm</label>
                 <input name="confirm" required></div>
               <button class="danger small" type="submit">Delete</button>
-              <p class="hint">Nothing is deployed or deleted. The next request for this pair becomes a
-                 first deploy again, with the approver’s choice back in play. A link is deleted and
-                 remade, never re-pointed.</p>
+              <p class="hint">No app is changed. The next request for this app is treated as a first
+                 deploy, and the approver chooses the destination again.</p>
             </form>
           </details>
           {{end}}
@@ -67,11 +64,9 @@
     {{end}}
     </tbody>
   </table></div>
-  <div class="body"><p class="hint">Every state is derived when this page is opened and never
-     stored, and each row says when the console last looked. <em>Not checked</em> means one of the
-     two installs did not answer — it is not agreement.
-     {{if not (index $d "Editor")}}You are reading this as a reviewer: deleting a link is
-     configuration and stays with this app’s editors.{{end}}</p></div>
+  <div class="body"><p class="hint">States are checked when this page is opened. <em>Not checked</em>
+     means one of the two installs didn’t answer.
+     {{if not (index $d "Editor")}}Only this app’s editors can delete a link.{{end}}</p></div>
   {{end}}
 </div>
 {{end}}

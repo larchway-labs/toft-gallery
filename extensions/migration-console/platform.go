@@ -230,7 +230,7 @@ func (r *DependencyReport) Describes(deployID string) bool {
 // scan for it would put another release's verdict on the record as this one's.
 func (r *DependencyReport) VerdictFor(deployID string) (word, summary string) {
 	if r != nil && r.Serving != nil && r.Serving.DeploymentID != deployID {
-		return "", "Toft records a verdict only for the release serving on the source, and this is a different one"
+		return "", "Toft records a verdict only for the release serving on the source, and this isn’t it"
 	}
 	return r.Verdict()
 }
@@ -246,7 +246,7 @@ func (r *DependencyReport) Verdict() (word, summary string) {
 	case !r.Available:
 		return "", firstNonEmpty(r.Reason, "dependency policy is off on that install")
 	case !r.HasData:
-		return "", "no advisory data has ever loaded there, so nothing here is a clean bill of health"
+		return "", "no advisory data has loaded on that install, so this isn’t a clean result"
 	case !r.Scanned:
 		return "", "this release was never scanned"
 	case r.Serving == nil:
@@ -254,10 +254,10 @@ func (r *DependencyReport) Verdict() (word, summary string) {
 	case r.Serving.Counts.Malware > 0:
 		return "vulnerable", fmt.Sprintf("%d flagged as malware", r.Serving.Counts.Malware)
 	case r.Serving.Counts.Counted > 0:
-		return "warn", fmt.Sprintf("%d finding(s) this install counts, of %d",
+		return "warn", fmt.Sprintf("%d of %d findings count on this install",
 			r.Serving.Counts.Counted, r.Serving.Counts.Total)
 	}
-	return "clean", fmt.Sprintf("%d direct dependencies, nothing counted", r.Serving.Direct)
+	return "clean", fmt.Sprintf("%d direct dependencies, no findings", r.Serving.Direct)
 }
 
 func firstNonEmpty(vals ...string) string {

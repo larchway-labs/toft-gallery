@@ -53,8 +53,8 @@
 
 <main class="wrap" id="main">
   {{if .Caller.IdentityOff}}
-    {{template "_notice" dict "Tone" "attention" "Title" "This install is not finished"
-        "Body" "Viewer identity is switched off for this app, so the console cannot tell who you are — which means it cannot record who raised or approved anything. A Toft administrator turns it on from this app’s settings. Until then nothing here can be submitted."}}
+    {{template "_notice" dict "Tone" "attention" "Title" "Setup isn’t finished"
+        "Body" "Viewer identity is off for this app, so the console can’t tell who you are and nothing can be submitted. A Toft administrator can turn it on in this app’s settings."}}
   {{end}}
   {{if .Notice}}{{template "_notice" .Notice}}{{end}}
   {{template "content" .}}

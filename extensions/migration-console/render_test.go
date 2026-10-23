@@ -209,8 +209,8 @@ func TestTheControlsAnEndToEndPassAddedActuallyRender(t *testing.T) {
 		View{Title: "r", Caps: map[string]bool{}, Data: first}); err != nil {
 		t.Fatalf("the approval form with a group picker does not render: %v", err)
 	}
-	for _, want := range []string{`name="owner_group_id"`, "Service Owners", "3 member(s)",
-		"Empty Team", "empty, cannot own an app", "disabled"} {
+	for _, want := range []string{`name="owner_group_id"`, "Service Owners", "Members: 3",
+		"Empty Team", "no members, can’t own an app", "disabled"} {
 		if !strings.Contains(buf.String(), want) {
 			t.Errorf("the group picker does not mention %q", want)
 		}

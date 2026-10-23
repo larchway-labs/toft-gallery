@@ -42,15 +42,15 @@ func (c *Console) handleQueue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !caller.Submitter {
-		c.refuse(w, r, caller, http.StatusForbidden, "You are not signed in to this app",
-			"The console is told what the caller in front of it may do on every request, and this one arrived with no role. Sign in to Toft and open the app again.")
+		c.refuse(w, r, caller, http.StatusForbidden, "You’re not signed in to this app",
+			"Sign in to Toft and open the app again.")
 		return
 	}
 
 	ctx := r.Context()
 	all, err := c.store.ListRequests(ctx)
 	if err != nil {
-		c.refuse(w, r, caller, http.StatusInternalServerError, "The queue could not be read", err.Error())
+		c.refuse(w, r, caller, http.StatusInternalServerError, "Couldn’t load requests", err.Error())
 		return
 	}
 	targets, _ := c.store.ListTargets(ctx)
@@ -201,7 +201,7 @@ type NewRequestData struct {
 func (c *Console) raisableApps(ctx context.Context, caller Caller) ([]App, map[string]bool, error) {
 	source, err := c.store.SourceTarget(ctx)
 	if err != nil || source == nil {
-		return nil, nil, fmt.Errorf("this install has not been added as the source yet — an administrator does that on Targets")
+		return nil, nil, fmt.Errorf("this install hasn’t been added as the source yet; an administrator adds it on the Targets page")
 	}
 	p, err := c.platformFor(source)
 	if err != nil {
@@ -235,8 +235,8 @@ func (c *Console) handleNewRequestForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if caller.Viewer == nil {
-		c.refuse(w, r, caller, http.StatusForbidden, "The console cannot tell who you are",
-			"Raising a request writes your name on a record that outlives this app, so it needs viewer identity switched on for this app. A Toft administrator can do that.")
+		c.refuse(w, r, caller, http.StatusForbidden, "The console can’t tell who you are",
+			"Raising a request needs viewer identity, which is off for this app. A Toft administrator can turn it on.")
 		return
 	}
 	ctx := r.Context()
@@ -294,7 +294,7 @@ func (c *Console) handleReleasePicker(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if caller.Viewer == nil {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		http.Error(w, "You don’t have permission to do that.", http.StatusForbidden)
 		return
 	}
 	// The name the form actually sends. The select is `name="app_id"` and the
@@ -314,7 +314,7 @@ func (c *Console) handleReleasePicker(w http.ResponseWriter, r *http.Request) {
 	source, err := c.store.SourceTarget(r.Context())
 	if err != nil || source == nil {
 		c.render.fragment(w, "new", "releases", map[string]any{
-			"Error": "this install has not been added as the source yet"})
+			"Error": "This install hasn’t been added as the source yet."})
 		return
 	}
 	p, err := c.platformFor(source)
@@ -390,12 +390,12 @@ func (c *Console) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if caller.Viewer == nil {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		http.Error(w, "You don’t have permission to do that.", http.StatusForbidden)
 		return
 	}
 	ctx := r.Context()
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+		http.Error(w, "The form couldn’t be read. Reload the page and try again.", http.StatusBadRequest)
 		return
 	}
 
@@ -404,7 +404,7 @@ func (c *Console) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 	targetID := trimForm(r, "target_id")
 	if appID == "" || deployID == "" || targetID == "" {
 		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "The request is incomplete",
-			"Pick an app, the release to promote and where it is going.")
+			"Choose an app, a release and a target.")
 		return
 	}
 
@@ -412,7 +412,7 @@ func (c *Console) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 	// because a form field is not an authorization decision.
 	apps, _, err := c.raisableApps(ctx, caller)
 	if err != nil {
-		c.refuse(w, r, caller, http.StatusBadGateway, "The source install could not be read", err.Error())
+		c.refuse(w, r, caller, http.StatusBadGateway, "Couldn’t read the source install", err.Error())
 		return
 	}
 	var app *App
@@ -426,14 +426,14 @@ func (c *Console) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 		// asks of every refusal. An editor on somebody else's app cannot raise
 		// a migration for it, and the copy says so rather than rendering an
 		// empty list.
-		c.refuse(w, r, caller, http.StatusForbidden, "That is not an app you can migrate",
-			"The console offers the apps you own — personally, or through a group — and the apps somebody has named you on in an earlier request. Ask the app’s owner to raise this one, or to add you to a request for it.")
+		c.refuse(w, r, caller, http.StatusForbidden, "You can’t migrate that app",
+			"You can migrate apps you own, directly or through a group, and apps you’ve been added to on a request. Ask the app’s owner to raise this one or add you to a request.")
 		return
 	}
 
 	target, err := c.store.GetTarget(ctx, targetID)
 	if err != nil || target == nil || target.Kind != TargetKindTarget {
-		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That target does not exist", "Pick one from the list.")
+		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That target doesn’t exist", "Choose one from the list.")
 		return
 	}
 
@@ -442,32 +442,32 @@ func (c *Console) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 	// back a day later for a sentence its author has by then forgotten.
 	settings, _ := c.store.Settings(ctx)
 	if settings[SettingRequireNoteOnNew] == "true" && trimForm(r, "note") == "" {
-		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "This install asks for a note",
-			"An administrator here has made the note for the reviewer required. Say what is in this release and what to watch after it lands.")
+		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "A note is required",
+			"Add a note for the reviewer saying what’s in this release and what to watch after it ships.")
 		return
 	}
 
 	source, _ := c.store.SourceTarget(ctx)
 	sp, err := c.platformFor(source)
 	if err != nil {
-		c.refuse(w, r, caller, http.StatusBadGateway, "The source install could not be read", err.Error())
+		c.refuse(w, r, caller, http.StatusBadGateway, "Couldn’t read the source install", err.Error())
 		return
 	}
 	deploy, err := sp.Deployment(ctx, appID, deployID)
 	if err != nil {
-		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That release could not be read", err.Error())
+		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "Couldn’t read that release", err.Error())
 		return
 	}
 	// The picker offers only successful releases; a form built by hand is
 	// held to the same rule here, rather than failing minutes after approval.
 	if deploy.Status != "success" {
-		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That release did not build",
-			"Only a release that built successfully on this install can be promoted. Pick one from the list.")
+		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That release didn’t build",
+			"Only a release that built successfully can be migrated. Choose one from the list.")
 		return
 	}
 	if vis := trimForm(r, "destination_visibility"); !validVisibility(vis) {
-		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That is not a visibility",
-			"Private, signed-in viewers or public.")
+		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "Choose a valid visibility",
+			"Choose private, signed-in viewers or public.")
 		return
 	}
 
@@ -508,13 +508,13 @@ func (c *Console) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 		req.TargetAppID = link.TargetAppID
 	}
 	if err := c.store.InsertRequest(ctx, req); err != nil {
-		c.refuse(w, r, caller, http.StatusInternalServerError, "The request could not be saved", err.Error())
+		c.refuse(w, r, caller, http.StatusInternalServerError, "Couldn’t save the request", err.Error())
 		return
 	}
 	_ = c.store.WriteEvent(ctx, Event{
 		Action: "request.submitted", ActorID: caller.ID(), ActorName: caller.Name(),
 		RequestID: req.ID, SourceAppID: app.ID, TargetID: targetID,
-		Detail: fmt.Sprintf("%s → %s, release %s, landing as %s",
+		Detail: fmt.Sprintf("%s → %s, release %s, as %s",
 			app.Name, target.Label, deploy.Label(), destSlug)})
 
 	// The dependency verdict for the exact release being promoted, recorded on
@@ -534,7 +534,7 @@ func (c *Console) recordDependencyCheck(ctx context.Context, sp *Platform, req *
 	}
 	verdict, summary := rep.VerdictFor(req.SourceDeploymentID)
 	if rep.LockedByPolicy {
-		summary += "; Toft's dependency policy has locked this app on the source"
+		summary += "; Toft’s dependency policy has locked this app on the source"
 	}
 	now := time.Now().UTC()
 	_ = c.store.SaveCheck(ctx, Check{

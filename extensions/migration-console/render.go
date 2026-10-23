@@ -112,7 +112,7 @@ func (r *renderer) funcs() template.FuncMap {
 func (r *renderer) page(w http.ResponseWriter, status int, name string, data any) {
 	t, ok := r.pages[name]
 	if !ok {
-		http.Error(w, "no such page", http.StatusInternalServerError)
+		http.Error(w, "Couldn’t show this page.", http.StatusInternalServerError)
 		return
 	}
 	// Rendered into a buffer first, and this is the whole reason: a template
@@ -123,7 +123,7 @@ func (r *renderer) page(w http.ResponseWriter, status int, name string, data any
 	var buf bytes.Buffer
 	if err := t.ExecuteTemplate(&buf, "layout.html", data); err != nil {
 		log.Printf("rendering %s: %v", name, err)
-		http.Error(w, "this page could not be rendered", http.StatusInternalServerError)
+		http.Error(w, "Couldn’t show this page.", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -136,7 +136,7 @@ func (r *renderer) page(w http.ResponseWriter, status int, name string, data any
 func (r *renderer) fragment(w http.ResponseWriter, page, block string, data any) {
 	t, ok := r.pages[page]
 	if !ok {
-		http.Error(w, "no such page", http.StatusInternalServerError)
+		http.Error(w, "Couldn’t show this page.", http.StatusInternalServerError)
 		return
 	}
 	// Same rule as page, and it matters more: an htmx swap of a truncated
@@ -145,7 +145,7 @@ func (r *renderer) fragment(w http.ResponseWriter, page, block string, data any)
 	var buf bytes.Buffer
 	if err := t.ExecuteTemplate(&buf, block, data); err != nil {
 		log.Printf("rendering %s/%s: %v", page, block, err)
-		http.Error(w, "this region could not be rendered", http.StatusInternalServerError)
+		http.Error(w, "Couldn’t show this part of the page.", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

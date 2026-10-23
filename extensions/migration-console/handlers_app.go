@@ -57,8 +57,8 @@ func (c *Console) handleAppActivity(w http.ResponseWriter, r *http.Request) {
 	}
 	appID := r.PathValue("appID")
 	if !c.mayTouchApp(r, caller, appID) {
-		c.refuse(w, r, caller, http.StatusNotFound, "No such app here",
-			"The console shows the apps you own — personally or through a group — and the apps somebody has named you on in an earlier request.")
+		c.refuse(w, r, caller, http.StatusNotFound, "App not found",
+			"You can see apps you own, directly or through a group, and apps you’ve been added to on a request.")
 		return
 	}
 	ctx := r.Context()
@@ -98,7 +98,7 @@ func (c *Console) handleAppNote(w http.ResponseWriter, r *http.Request) {
 	caller := c.resolveCaller(r)
 	appID := r.PathValue("appID")
 	if !c.mayTouchApp(r, caller, appID) {
-		http.Error(w, "you can write a note on an app you own, or one somebody has named you on", http.StatusForbidden)
+		http.Error(w, "You can edit the note only on an app you own or have been added to on a request.", http.StatusForbidden)
 		return
 	}
 	_ = r.ParseForm()

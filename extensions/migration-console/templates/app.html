@@ -3,9 +3,7 @@
 <div class="pagehead">
   <div>
     <h1>{{if $d.App}}{{$d.App.Name}}{{else}}This app{{end}}</h1>
-    <p>Everything ever shipped from this app, across every target.
-       Neither install can answer that on its own — the source records nothing when a release is
-       downloaded, and the target’s log names a deploy key and not the request behind it.</p>
+    <p>Everything shipped from this app, across every target.</p>
   </div>
   <div class="actions">
     {{if $d.MayRaise}}<a class="btn primary" href="{{url (printf "/requests/new?app=%s" $d.AppID)}}">New request</a>{{end}}
@@ -19,7 +17,7 @@
   <div class="card">
     <div class="cardhead"><h2>Where it is now</h2></div>
     <div class="tablewrap"><table>
-      <thead><tr><th>Target</th><th>As</th><th>State</th><th class="drop-md">Detail</th><th class="drop-lg">Last looked</th></tr></thead>
+      <thead><tr><th>Target</th><th>App on target</th><th>State</th><th class="drop-md">Detail</th><th class="drop-lg">Last checked</th></tr></thead>
       <tbody>{{range $d.Links}}
         <tr><td>{{.TargetLabel}}</td>
             <td class="mono">{{if .AppURL}}<a href="{{.AppURL}}" target="_blank" rel="noopener">{{.TargetAppSlug}} ↗</a>{{else}}{{.TargetAppSlug}}{{end}}</td>
@@ -28,9 +26,8 @@
             <td class="drop-lg lastlooked">{{ago .CheckedAt}}</td></tr>
       {{end}}</tbody>
     </table></div>
-    <div class="body"><p class="hint">Derived when this page was opened, never stored.
-       <em>Not checked</em> means the console could not reach one of the two installs — it is not
-       agreement.</p></div>
+    <div class="body"><p class="hint">Checked when this page was opened. <em>Not checked</em> means
+       the console couldn’t reach one of the two installs.</p></div>
   </div>
   {{end}}
 
@@ -39,8 +36,8 @@
   <div class="card">
     <div class="cardhead"><h2>Requests</h2></div>
     {{if not $d.Requests}}
-      <div class="empty"><h3>Nothing has been raised for this app</h3>
-        <p>A request pins one release and a reviewer approves those bytes.</p></div>
+      <div class="empty"><h3>No requests for this app yet</h3>
+        <p>A request moves one release of this app to a target, once a reviewer approves it.</p></div>
     {{else}}
     <div class="tablewrap"><table>
       <thead><tr><th>Request</th><th>Target</th><th>State</th><th class="drop-md">Release</th><th class="drop-lg">Raised</th></tr></thead>
@@ -77,14 +74,14 @@
 {{define "appnote"}}
 <div class="card" id="appnote">
   <div class="cardhead"><h2>About this app</h2>
-    {{if .Note}}<span class="muted xs" style="margin-left:auto">last edited by {{.Note.UpdatedByName}}, {{ago .Note.UpdatedAt}}</span>{{end}}
+    {{if .Note}}<span class="muted xs" style="margin-left:auto">Last edited by {{.Note.UpdatedByName}}, {{ago .Note.UpdatedAt}}</span>{{end}}
   </div>
   <div class="body">
     {{if .MayEdit}}
     <form hx-post="{{url (printf "/apps/%s/note" .AppID)}}" hx-target="#appnote" hx-swap="outerHTML">
-      <textarea name="body" placeholder="What a reviewer needs to know about this app every time — the change reference, the on-call rota, the thing that broke last quarter.">{{if .Note}}{{.Note.Body}}{{end}}</textarea>
+      <textarea name="body" placeholder="What a reviewer should know about this app every time, such as the change reference or on-call contact.">{{if .Note}}{{.Note.Body}}{{end}}</textarea>
       <div class="inline" style="margin-top:8px"><button type="submit">Save</button>
-        <span class="hint">Shown on every request raised for this app, so it is written once rather than pasted into each one.</span></div>
+        <span class="hint">Shown on every request for this app.</span></div>
     </form>
     {{else if .Note}}
       <div style="white-space:pre-wrap">{{.Note.Body}}</div>
@@ -97,10 +94,10 @@
 
 {{define "appattachments"}}
 <div class="card" id="appattachments">
-  <div class="cardhead"><h2>Standing paperwork</h2></div>
+  <div class="cardhead"><h2>App documents</h2></div>
   <div class="body">
     {{if not .Attachments}}
-      <p class="muted small">Nothing attached to the app itself.</p>
+      <p class="muted small">No documents attached to this app.</p>
     {{else}}
     <ul class="attachments">
       {{range .Attachments}}
@@ -120,8 +117,7 @@
           hx-encoding="multipart/form-data" hx-target="#appattachments" hx-swap="outerHTML">
       <div class="field"><label for="af">Attach a document to the app</label>
         <input id="af" type="file" name="file" required>
-        <p class="hint">Every request raised for this app shows these, so the architecture note is
-           attached once instead of to every migration.</p></div>
+        <p class="hint">Shown on every request for this app.</p></div>
       <button type="submit">Attach</button>
     </form>
     {{end}}
