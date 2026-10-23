@@ -300,12 +300,13 @@
               <td class="mono small">{{ r.id[:12] }}</td>
               <td>
                 {% if r.status == 'succeeded' %}<span class="badge tone-ok">succeeded</span>
-                {% elif r.status in ('failed','cancelled') %}<span class="badge tone-dan">{{ r.status }}</span>
+                {% elif r.status in ('failed','timed_out','out_of_memory','cancelled','skipped') %}<span class="badge tone-dan">{{ r.status }}</span>
                 {% elif r.status == 'running' %}<span class="badge tone-info">running {{ r.progress }}%</span>
                 {% else %}<span class="badge">{{ r.status }}</span>{% endif %}
               </td>
-              <td>{% if r.started_by_viewer %}<span class="badge tone-brand">a person</span>
-                  {% else %}<span class="badge">the app</span>{% endif %}</td>
+              <td><span class="badge{% if r.started_by == 'viewer' %} tone-brand{% endif %}">{{
+                  {'viewer': 'a person', 'app': 'the app', 'schedule': 'the schedule',
+                   'cli': 'the CLI', 'ui': "Toft's UI"}.get(r.started_by, r.started_by or '—') }}</span></td>
               <td class="small muted">
                 {% if r.status == 'succeeded' and r.progress_message %}{{ r.progress_message }}
                 {% elif r.failure_reason %}{{ r.failure_reason }}

@@ -288,7 +288,7 @@ def runs(request: Request):
     rs, note = seam.runs(request.headers)
     return {"note": note, "runs": [
         {"id": r.id, "status": r.status, "progress": r.progress,
-         "started_by_viewer": r.started_by_viewer, "summary": r.progress_message,
+         "started_by": r.started_by, "started_by_viewer": r.started_by_viewer, "summary": r.progress_message,
          "failure_reason": r.failure_reason}
         for r in rs
     ]}
@@ -332,28 +332,3 @@ def announce(request: Request, period: str = Body(embed=True, default="2026-06")
     })
     return {"message": seam.announce(text, f"Reconciliation — {period}"), "text": text}
 
-
-# ── the scheduled task ──────────────────────────────────────────────────────
-
-@app.post("/tasks/nightly-close", tags=["Deciding"])
-def nightly_close(request: Request):
-    """A path a scheduled task fires at.
-
-    A task is an **HTTP request to a path this app published** — never a command
-    — which is why it needs nothing switched on and why its ceiling is the
-    install's request timeout rather than a job's deadline. Toft signs the
-    firing with the same role header a page load carries, so this endpoint
-    verifies it exactly as every other one does; `system` is the schedule firing
-    on its own, and a person pressing *Run now* arrives as themselves.
-    """
-    who = require_editor(request)
-    cfg, _v, _n = seam.settings()
-    result = engine.run_close(cfg["period"],
-                              tolerance_pence=int(cfg["tolerance_pence"]),
-                              date_window_days=int(cfg["date_window_days"]),
-                              trigger="schedule")
-    line = engine.summary_text(result)
-    out = {"fired_by": who.role, "result": result, "summary": line}
-    if cfg.get("announce"):
-        out["announced"] = seam.announce(line, f"Reconciliation — {result['period']}")
-    return out

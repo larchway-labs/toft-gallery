@@ -104,6 +104,13 @@
       .finally(function () { btn.disabled = false; btn.textContent = was; });
   });
 
+  // A run ends in one of six states and never changes again. Polling until
+  // only two of them is a page that spins for three minutes on a timeout.
+  var ENDED = { succeeded: 1, failed: 1, timed_out: 1, out_of_memory: 1, cancelled: 1, skipped: 1 };
+
+  // `started_by` is five words, not two: a close from the CLI is not the app.
+  var BY = { viewer: "a person", app: "the app", schedule: "the schedule", cli: "the CLI", ui: "Toft's UI" };
+
   function poll(runId, tries) {
     if (!runId || tries > 90) return;
     setTimeout(function () {
@@ -112,11 +119,9 @@
         if (!run) return poll(runId, tries + 1);
         paintRuns(r.runs);
         if (run.status === "succeeded") {
-          LP.toast("Close finished. " + (run.result
-            ? LP.num(run.result.matched) + " matched, " + LP.num(run.result.exceptions) + " exceptions."
-            : ""), "ok", 8000);
+          LP.toast("Close finished. " + (run.summary || ""), "ok", 8000);
           setTimeout(reload, 1500);
-        } else if (run.status === "failed" || run.status === "cancelled") {
+        } else if (ENDED[run.status]) {
           LP.toast("The close " + run.status + ". " + (run.failure_reason || ""), "dan", 10000);
         } else {
           poll(runId, tries + 1);
@@ -130,7 +135,7 @@
     if (!body || !runs) return;
     body.innerHTML = runs.map(function (r) {
       var badge = r.status === "succeeded" ? '<span class="badge tone-ok">succeeded</span>'
-        : (r.status === "failed" || r.status === "cancelled")
+        : ENDED[r.status]
           ? '<span class="badge tone-dan">' + LP.esc(r.status) + "</span>"
           : r.status === "running"
             ? '<span class="badge tone-info">running ' + r.progress + "%</span>"
@@ -139,8 +144,8 @@
         : (r.failure_reason || "—");
       return "<tr><td class='mono small'>" + LP.esc(r.id.slice(0, 12)) + "</td><td>" + badge +
         "</td><td>" +
-        (r.started_by_viewer ? '<span class="badge tone-brand">a person</span>'
-                             : '<span class="badge">the app</span>') +
+        '<span class="badge' + (r.started_by === "viewer" ? " tone-brand" : "") + '">' +
+        LP.esc(BY[r.started_by] || r.started_by || "—") + "</span>" +
         "</td><td class='small muted'>" + LP.esc(result) + "</td></tr>";
     }).join("");
   }

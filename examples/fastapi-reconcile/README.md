@@ -71,13 +71,6 @@ a named mount, else scratch. The Platform tab says which, and what it costs: on
 a shared-mode install with no storage attached, a redeploy starts the month
 again.
 
-**Scheduled tasks.** `POST /tasks/nightly-close` is a path a task fires at. A
-task is an HTTP request to a path the app published, never a command, which is
-why it needs nothing switched on. Toft signs the firing with the same role
-header a page load carries, so the endpoint verifies it exactly as every other
-one does; `system` is the schedule firing on its own, and a person pressing
-*Run now* arrives as themselves.
-
 ## The matching
 
 Three passes, cheapest first, each seeing only what the one before could not
