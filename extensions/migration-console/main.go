@@ -89,6 +89,9 @@ func newConsole(ctx context.Context, cfg Config) (*Console, func()) {
 		store.Close()
 		log.Fatalf("TARGET_KEY_SECRET: %v", err)
 	}
+	if settings, err := store.Settings(ctx); err == nil {
+		setDisplayZone(settings[SettingTimeZone])
+	}
 	return &Console{
 		cfg:   cfg,
 		store: store,

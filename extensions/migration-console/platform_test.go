@@ -216,12 +216,18 @@ func TestTheFirstPushStatesItsSlugExactly(t *testing.T) {
 	defer srv.Close()
 
 	res, err := newPlatform(srv.URL, "toftd_x").CreateFromArchive(context.Background(),
-		[]byte("PK"), "Orders", "orders", "g1", "authenticated", "")
+		[]byte("PK"), "Orders", "orders", "g1", "authenticated",
+		EnvNamesJSON([]string{"GREETING", "API_TOKEN"}), EnvSensitiveJSON([]string{"API_TOKEN"}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if v := got["slug_exact"]; len(v) != 1 || v[0] != "true" {
 		t.Errorf("slug_exact = %v, want true", v)
+	}
+	// A name marked sensitive on the source arrives sensitive, so the value the
+	// target's administrator fills in is masked there too.
+	if v := got["env_sensitive"]; len(v) != 1 || v[0] != `{"API_TOKEN":true}` {
+		t.Errorf("env_sensitive = %v", v)
 	}
 	if res.AppSlug != "orders" || res.AppID != "a1" || res.DeploymentID != "d1" {
 		t.Errorf("result = %+v", res)

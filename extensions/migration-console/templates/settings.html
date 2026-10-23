@@ -42,6 +42,14 @@
     </div>
 
     <div class="field">
+      <label for="tz">Time zone</label>
+      <input id="tz" name="time_zone" list="tzlist" autocomplete="off"
+             value="{{index $d.Settings "time_zone"}}" placeholder="UTC">
+      <datalist id="tzlist">{{range zones}}<option value="{{.}}">{{end}}</datalist>
+      <p class="hint">All times are shown in this zone, and scheduled times are entered in it. Leave blank for the install’s clock (UTC).</p>
+    </div>
+
+    <div class="field">
       <label for="amax">Largest attachment (MB)</label>
       <input id="amax" name="attachment_max_mb" type="text" inputmode="numeric"
              value="{{index $d.Settings "attachment_max_mb"}}" placeholder="25">

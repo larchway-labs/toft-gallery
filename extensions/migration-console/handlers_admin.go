@@ -435,6 +435,16 @@ func (c *Console) handleSaveSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		_ = c.store.SetSetting(ctx, SettingAttachmentMaxMB, v)
 	}
+	tz := trimForm(r, "time_zone")
+	if tz != "" {
+		if _, err := loadZone(tz); err != nil {
+			c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That isn’t a time zone",
+				"Use a time zone name such as America/New_York or Europe/London, or leave it blank for UTC.")
+			return
+		}
+	}
+	_ = c.store.SetSetting(ctx, SettingTimeZone, tz)
+	setDisplayZone(tz)
 	_ = c.store.SetSetting(ctx, SettingPrivateRangesOK, trimForm(r, "private_ranges_allowed"))
 	_ = c.store.SetSetting(ctx, SettingNotifyByDefault, boolValue(r.FormValue("notify_by_default")))
 	_ = c.store.SetSetting(ctx, SettingRequireNoteOnNew, boolValue(r.FormValue("require_note")))

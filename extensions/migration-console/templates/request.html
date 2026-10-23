@@ -144,8 +144,9 @@
             <label for="sched">Schedule for</label>
             <input id="sched" name="scheduled_for" type="datetime-local">
             <input type="hidden" name="tz_offset" id="tzoff">
-            <p class="hint">Leave blank to migrate now. Uses <strong>your browser’s time zone</strong>;
-               the install’s clock reads {{installclock}}.</p>
+            <p class="hint">Leave blank to migrate now. {{with zonename}}Enter the time in <strong>{{.}}</strong>;
+               it’s now {{installclock}}.{{else}}Uses <strong>your browser’s time zone</strong>;
+               the install’s clock reads {{installclock}}.{{end}}</p>
             <script>
             (function () {
               var f = document.getElementById('sched'), o = document.getElementById('tzoff');

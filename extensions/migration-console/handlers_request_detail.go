@@ -328,7 +328,7 @@ func (c *Console) handleApprove(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		fields["scheduled_for"] = t.UTC()
-		detail = "approved, scheduled for " + t.Format("2 Jan 2006 15:04")
+		detail = "approved, scheduled for " + inZone(t, "2 Jan 2006 15:04 MST")
 	}
 
 	// Conditional on the row still being `submitted`. The checks above can
@@ -739,6 +739,11 @@ func validVisibility(v string) bool {
 // clock, which in a Toft workload is UTC — a reviewer at UTC-5 scheduling
 // 22:00 would otherwise ship at 17:00 their time.
 func scheduleZone(r *http.Request) *time.Location {
+	// A zone chosen on Settings is the clock every time is shown in, so a
+	// typed time is read on it too — the field and the page then agree.
+	if zoneSet() {
+		return zone()
+	}
 	if v := trimForm(r, "tz_offset"); v != "" {
 		if mins, err := strconv.Atoi(v); err == nil && mins >= -14*60 && mins <= 14*60 {
 			return time.FixedZone("browser", mins*60)

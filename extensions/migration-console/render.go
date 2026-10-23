@@ -71,13 +71,13 @@ func (r *renderer) funcs() template.FuncMap {
 			if t.IsZero() {
 				return "—"
 			}
-			return t.Format("2 Jan 2006, 15:04 MST")
+			return inZone(t, "2 Jan 2006, 15:04 MST")
 		},
 		"whenp": func(t *time.Time) string {
 			if t == nil || t.IsZero() {
 				return "—"
 			}
-			return t.Format("2 Jan 2006, 15:04 MST")
+			return inZone(*t, "2 Jan 2006, 15:04 MST")
 		},
 		// A release label is one string — "main@aa0a1e3e · 27 Aug 2026 19:01 · by
 		// manual · python 3.14.7" — because on a request page every part of it
@@ -88,9 +88,17 @@ func (r *renderer) funcs() template.FuncMap {
 		"relwhen": func(s string) string { return relField(s, 1) },
 		// The install's clock, now — so somebody typing a window into a
 		// datetime-local field can see what it will be read as.
-		"installclock": func() string { return time.Now().Format("2 Jan 2006, 15:04 MST") },
-		"ago":          ago,
-		"bytes":        humanBytes,
+		"installclock": func() string { return inZone(time.Now(), "2 Jan 2006, 15:04 MST") },
+		// The zone's name as the settings page and the schedule hint print it.
+		"zonename": func() string {
+			if zoneSet() {
+				return zone().String()
+			}
+			return ""
+		},
+		"zones": func() []string { return commonZones },
+		"ago":   ago,
+		"bytes": humanBytes,
 		"short": func(n int, s string) string {
 			if len(s) <= n {
 				return s
@@ -226,7 +234,7 @@ func ago(t time.Time) string {
 	case d < 30*24*time.Hour:
 		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
 	}
-	return t.Format("2 Jan 2006")
+	return inZone(t, "2 Jan 2006")
 }
 
 func humanBytes(n int64) string {

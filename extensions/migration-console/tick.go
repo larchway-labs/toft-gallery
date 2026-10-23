@@ -478,12 +478,13 @@ func (c *Console) push(ctx context.Context, req *Request, actor string) (bool, e
 		//
 		// Best effort: a source that cannot be re-read is not a reason to
 		// refuse a migration whose bytes are already in hand.
-		envSeed := ""
+		envSeed, envSensitive := "", ""
 		if detail, err := sp.AppDetail(ctx, req.SourceAppID); err == nil {
 			envSeed = EnvNamesJSON(detail.EnvKeys)
+			envSensitive = EnvSensitiveJSON(detail.EnvSensitive)
 		}
 		result, err = tp.CreateFromArchive(ctx, zip, req.SourceAppName, req.DestinationSlug,
-			req.OwnerGroupID, req.DestinationVisibility, envSeed)
+			req.OwnerGroupID, req.DestinationVisibility, envSeed, envSensitive)
 	}
 	if err != nil {
 		_ = c.store.SetStatus(wctx, req.ID, StatusFailed, Event{

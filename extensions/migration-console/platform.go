@@ -158,7 +158,7 @@ func (d Deployment) Label() string {
 		when = *d.FinishedAt
 	}
 	if !when.IsZero() {
-		parts = append(parts, when.Format("2 Jan 2006 15:04"))
+		parts = append(parts, inZone(when, "2 Jan 2006 15:04 MST"))
 	}
 	if d.TriggeredBy != "" {
 		parts = append(parts, "by "+d.TriggeredBy)
@@ -307,6 +307,10 @@ type appEnvelope struct {
 type AppDetail struct {
 	App
 	EnvKeys []string
+	// EnvSensitive is the names the source marks sensitive. The flag travels
+	// with the name, so a value the target's administrator fills in later is
+	// masked there as it was here.
+	EnvSensitive []string
 }
 
 func (p *Platform) AppDetail(ctx context.Context, id string) (*AppDetail, error) {
@@ -317,6 +321,9 @@ func (p *Platform) AppDetail(ctx context.Context, id string) (*AppDetail, error)
 	out := &AppDetail{App: env.App}
 	for _, v := range env.EnvVars {
 		out.EnvKeys = append(out.EnvKeys, v.Key)
+		if v.Sensitive {
+			out.EnvSensitive = append(out.EnvSensitive, v.Key)
+		}
 	}
 	return out, nil
 }
@@ -354,6 +361,23 @@ func EnvNamesJSON(keys []string) string {
 		seed[k] = ""
 	}
 	out, err := json.Marshal(seed)
+	if err != nil {
+		return ""
+	}
+	return string(out)
+}
+
+// EnvSensitiveJSON is `env_sensitive` for the same create: {"NAME": true} for
+// each name the source marks sensitive, or "" when none is.
+func EnvSensitiveJSON(keys []string) string {
+	if len(keys) == 0 {
+		return ""
+	}
+	flags := make(map[string]bool, len(keys))
+	for _, k := range keys {
+		flags[k] = true
+	}
+	out, err := json.Marshal(flags)
 	if err != nil {
 		return ""
 	}
@@ -525,7 +549,7 @@ func bundleForm(fields map[string]string, filename string, zipBytes []byte) (*by
 // the approver's chosen name quietly becoming somebody else's, while the ledger
 // records the one they chose. Exact, a taken slug is refused with `name_taken`
 // and the request fails saying so.
-func (p *Platform) CreateFromArchive(ctx context.Context, zipBytes []byte, name, slug, ownerGroupID, visibility, envVarsJSON string) (*UploadResult, error) {
+func (p *Platform) CreateFromArchive(ctx context.Context, zipBytes []byte, name, slug, ownerGroupID, visibility, envVarsJSON, envSensitiveJSON string) (*UploadResult, error) {
 	body, ct, err := bundleForm(map[string]string{
 		"name":           name,
 		"slug":           slug,
@@ -533,6 +557,7 @@ func (p *Platform) CreateFromArchive(ctx context.Context, zipBytes []byte, name,
 		"owner_group_id": ownerGroupID,
 		"visibility":     visibility,
 		"env_vars":       envVarsJSON,
+		"env_sensitive":  envSensitiveJSON,
 	}, slug+".zip", zipBytes)
 	if err != nil {
 		return nil, err

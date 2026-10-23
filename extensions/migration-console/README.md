@@ -95,6 +95,11 @@ app may sleep between visits like any other. The one thing that stops it is an
 administrator switching jobs off on the install, and the Install page says so
 when Toft refuses to start one.
 
+Optionally, choose a **time zone** on Settings. Every time the console shows —
+pages, history, release labels and mail — is written in it, and a migration's
+scheduled time is entered in it. Unset, times are on the install's clock (UTC)
+and a schedule is read in the reviewer's browser time zone.
+
 Optionally, **attach an email connection** to this app if you want
 notifications.
 
@@ -108,7 +113,8 @@ outstanding.
 - It does not avoid a rebuild. Toft exports source and imports source, so
   the target builds what it receives.
 - It does not copy environment variable **values**, ever. It seeds the names
-  once, when it creates the app, and never touches them again.
+  once, when it creates the app — with the sensitive flag each had on the
+  source — and never touches them again.
 - It does not carry storage or connections. The app arrives on
   the target with no storage mapped and no connection attached, and
   the key it pushes with cannot add any of them — the target's administrator
