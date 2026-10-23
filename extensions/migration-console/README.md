@@ -84,16 +84,19 @@ Then four steps, each an ordinary administrator action:
    **deploy**-scoped key there and gives it to you. No credential moves between
    installs on its own.
 
-There is no schedule to add. The **tick** — which starts due migrations,
-watches builds on the far side and re-tests every target once a day — is a job
-declared in this app's `toft.toml`, so it arrives with the deploy and runs every
-five minutes in a process of its own. Approving a migration to go now starts a
-tick straight away. Its runs, a pause until the next deploy and Run now are on
-the app's **Automation** tab, and the Install page has a *Run the tick now*
-button for the console's owners and editors. Because the tick is a job, this
-app may sleep between visits like any other. The one thing that stops it is an
-administrator switching jobs off on the install, and the Install page says so
-when Toft refuses to start one.
+There is no schedule to add. Migrations are processed by a job,
+**`process-migrations`**, declared in this app's `toft.toml`: every five minutes
+it starts approved migrations that are due, follows their builds on the target
+and re-tests each target once a day. It arrives with the deploy and runs in a
+process of its own, so this app may sleep between visits like any other.
+Approving a migration to run now starts the job straight away. Its runs and a
+pause until the next deploy are on the app's **Automation** tab, and the Install
+page has a *Process migrations now* button for the console's owners and
+editors. The one thing that stops it is an administrator switching jobs off on
+the install, and the Install page says so when Toft refuses to start it.
+
+A mail about a migration names the app, the install it came from, the target,
+the release and the request, and links to the app on the target once it exists.
 
 Optionally, choose a **time zone** on Settings. Every time the console shows —
 pages, history, release labels and mail — is written in it, and a migration's

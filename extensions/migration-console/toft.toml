@@ -2,7 +2,7 @@
 # versions with the code it runs and arrives with every deploy. There is nothing
 # for an administrator to add.
 
-[jobs.tick]
+[jobs.process-migrations]
 # This same binary, as `migration-console tick`: one pass over the ledger, then
 # exit. Its stdout is the run's log and its exit code the run's outcome.
 args = ["tick"]

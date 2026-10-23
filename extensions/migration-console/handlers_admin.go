@@ -480,16 +480,16 @@ func (c *Console) handleHealth(w http.ResponseWriter, r *http.Request) {
 func (c *Console) handleRunTick(w http.ResponseWriter, r *http.Request) {
 	caller := c.resolveCaller(r)
 	if !caller.Editor {
-		c.refuse(w, r, caller, http.StatusForbidden, "Only this app’s owners and editors can run the tick",
-			"The tick runs every five minutes on its own.")
+		c.refuse(w, r, caller, http.StatusForbidden, "Only this app’s owners and editors can process migrations now",
+			"Migrations are processed every five minutes on their own.")
 		return
 	}
 	v := c.view(r, "Install", "health", caller, nil)
 	if err := c.startTick(r.Context(), r); err != nil {
-		v.Notice = &Notice{Tone: "danger", Title: "Couldn’t start the tick", Body: err.Error()}
+		v.Notice = &Notice{Tone: "danger", Title: "Couldn’t start processing migrations", Body: err.Error()}
 	} else {
-		v.Notice = &Notice{Tone: "ok", Title: "The tick is running",
-			Body: "Its log and result are on this app’s Automation tab in Toft."}
+		v.Notice = &Notice{Tone: "ok", Title: "Processing migrations",
+			Body: "The process-migrations job is running. Its log and result are on this app’s Automation tab in Toft."}
 	}
 	v.Setup = c.setupSteps(r.Context(), caller, v.Caps)
 	c.render.page(w, http.StatusOK, "health", v)

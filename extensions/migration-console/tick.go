@@ -15,7 +15,7 @@ import (
 
 // The scheduler is the platform's, not a ticker inside this process.
 //
-// The tick is a **job**: `[jobs.tick]` in toft.toml runs this same binary as
+// The tick is a **job**: `[jobs.process-migrations]` in toft.toml runs this same binary as
 // `migration-console tick`, every five minutes, in a process of its own. Three
 // reasons, in order of weight:
 //
@@ -53,6 +53,12 @@ const tickLockKey int64 = 0x6d637469636b
 // the platform hands every run. `trigger` is how it started and `role` who
 // started it, and the ledger needs both: "a person, from the Automation tab" is
 // a different answer to "who put release M on production" than "the schedule".
+
+// jobName is the tick's name in toft.toml, and so what Toft shows on the
+// Automation tab and in a failure mail. It says what the job does, because
+// "tick" said nothing to anybody reading either.
+const jobName = "process-migrations"
+
 func tickActor(trigger, role string) string {
 	who := ""
 	switch role {
@@ -67,7 +73,7 @@ func tickActor(trigger, role string) string {
 	case "cli":
 		return "a person, with toft job run" + who
 	case "viewer":
-		return "a console user, by approving or using Run the tick now" + who
+		return "a console user, by approving or using Process migrations now" + who
 	case "app":
 		return "the console itself"
 	case "":
@@ -162,10 +168,10 @@ var ErrJobsUnavailable = errors.New("jobs are switched off on this install")
 // this app can see only at the moment it asks.
 func (c *Console) startTick(ctx context.Context, r *http.Request) error {
 	if c.cfg.AppToken == "" || c.cfg.APIURL == "" {
-		return fmt.Errorf("this app has no platform token, so it can’t start the tick now; the schedule still runs it")
+		return fmt.Errorf("this app has no platform token, so it can’t start processing migrations now; the five-minute schedule still runs")
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		c.cfg.APIURL+"/api/v1/app/jobs/tick/runs", bytes.NewReader([]byte(`{}`)))
+		c.cfg.APIURL+"/api/v1/app/jobs/"+jobName+"/runs", bytes.NewReader([]byte(`{}`)))
 	if err != nil {
 		return err
 	}
@@ -318,12 +324,6 @@ func (c *Console) afterSuccess(ctx context.Context, req *Request, d *Deployment)
 			Detail: fmt.Sprintf("%s → %s", req.SourceAppSlug, req.DestinationSlug)})
 	}
 	msg := fmt.Sprintf("%s is now serving release %s as %s.", req.SourceAppName, req.SourceReleaseLabel, req.DestinationSlug)
-	if t, _ := c.store.GetTarget(ctx, req.TargetID); t != nil {
-		c.withAppsURL(ctx, t)
-		if u := t.AppURL(req.DestinationSlug); u != "" {
-			msg += "\n\nOpen it: " + u
-		}
-	}
 	c.notifyRequester(ctx, req, "Your migration finished", msg)
 }
 

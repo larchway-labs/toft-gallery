@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"regexp"
@@ -106,6 +107,7 @@ func (c *Console) deliver(ctx context.Context, req *Request, to []string, subjec
 			Detail: audience + ": " + subject}
 		if req != nil {
 			ev.RequestID, ev.SourceAppID, ev.TargetID = req.ID, req.SourceAppID, req.TargetID
+			subject, text = c.aboutMigration(sendCtx, req, subject, text)
 		}
 		if err := c.sendMail(sendCtx, to, subject, text); err != nil {
 			ev.Action = "notification.failed"
@@ -123,6 +125,56 @@ func (c *Console) deliver(ctx context.Context, req *Request, to []string, subjec
 // newID is this app's own id, and it is not a UUID library: a random 128-bit
 // hex string is the same thing for this purpose and is one fewer dependency in
 // a repository whose whole point is that `go build` is the build.
+// aboutMigration puts the migration a mail is about into it: the app and the
+// route in the subject, and a block at the foot naming the app, where it came
+// from, where it went, the release and the request. A mail that said only
+// "Your migration failed" left the reader to work out which one.
+func (c *Console) aboutMigration(ctx context.Context, req *Request, subject, text string) (string, string) {
+	from, to := "the source", "the target"
+	var target *Target
+	if s, _ := c.store.SourceTarget(ctx); s != nil && s.Label != "" {
+		from = s.Label
+	}
+	if t, _ := c.store.GetTarget(ctx, req.TargetID); t != nil {
+		target = t
+		if t.Label != "" {
+			to = t.Label
+		}
+	}
+	app := firstNonEmpty(req.SourceAppName, req.SourceAppSlug)
+	subject = fmt.Sprintf("%s: %s, %s → %s", subject, app, from, to)
+	return subject, strings.TrimRight(text, "\n") + "\n\n" + migrationFacts(req, from, to, target)
+}
+
+// migrationFacts is the block at the foot of every mail about a migration.
+func migrationFacts(req *Request, from, to string, target *Target) string {
+	var b strings.Builder
+	b.WriteString("Migration details\n")
+	app := req.SourceAppName
+	if req.SourceAppSlug != "" && req.SourceAppSlug != app {
+		app = strings.TrimSpace(app + " (" + req.SourceAppSlug + ")")
+	}
+	fmt.Fprintf(&b, "App:      %s\n", app)
+	fmt.Fprintf(&b, "From:     %s\n", from)
+	dest := to
+	if req.DestinationSlug != "" {
+		dest += ", as " + req.DestinationSlug
+	}
+	fmt.Fprintf(&b, "To:       %s\n", dest)
+	if u := target.AppURL(req.DestinationSlug); u != "" && req.TargetAppID != "" {
+		fmt.Fprintf(&b, "Open it:  %s\n", u)
+	}
+	if req.SourceReleaseLabel != "" {
+		fmt.Fprintf(&b, "Release:  %s\n", req.SourceReleaseLabel)
+	}
+	if req.Seq > 0 {
+		fmt.Fprintf(&b, "Request:  #%d in the Migration Console, raised by %s\n", req.Seq, firstNonEmpty(req.RequesterName, "unknown"))
+	} else if req.RequesterName != "" {
+		fmt.Fprintf(&b, "Raised by: %s\n", req.RequesterName)
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
 func newID() string {
 	buf := make([]byte, 16)
 	if _, err := rand.Read(buf); err != nil {

@@ -74,7 +74,7 @@ func (c *Console) fetchLastTickRun(ctx context.Context) (*tickRun, error) {
 		return nil, fmt.Errorf("no platform token")
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		c.cfg.APIURL+"/api/v1/app/job-runs?scope=app&job=tick&limit=1", nil)
+		c.cfg.APIURL+"/api/v1/app/job-runs?scope=app&job="+jobName+"&limit=1", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -102,9 +102,10 @@ func (c *Console) fetchLastTickRun(ctx context.Context) (*tickRun, error) {
 // tickStep is the install page's line about the tick.
 func (c *Console) tickStep(ctx context.Context, refused string) SetupStep {
 	step := SetupStep{
-		Title: "The tick runs every five minutes",
-		Body: "It comes with this app, so there’s nothing to set up. It starts approved migrations, " +
-			"follows their builds on the target and re-tests every target once a day.",
+		Title: "Migrations are processed every five minutes",
+		Body: "The process-migrations job comes with this app, so there’s nothing to set up. Every five " +
+			"minutes it starts approved migrations that are due, follows their builds on the target, " +
+			"and re-tests each target once a day.",
 	}
 	if at, why, ok := strings.Cut(refused, " "); ok && at != "" {
 		if t, err := time.Parse(time.RFC3339, at); err == nil {
@@ -121,7 +122,7 @@ func (c *Console) tickStep(ctx context.Context, refused string) SetupStep {
 	case run == nil:
 		step.Unknown = true
 		step.Body += " It hasn’t run yet; the first run starts within five minutes of the deploy. If it " +
-			"doesn’t, Run the tick now shows why."
+			"doesn’t, Process migrations now shows why."
 	default:
 		last := run.QueuedAt
 		if run.FinishedAt != nil {

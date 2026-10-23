@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // Rejection is terminal, and so is everything else that has finished. A
 // rejected request is not reopened: reopening would let the serving release
@@ -82,5 +85,29 @@ func TestTheThreeWaysItDoesNotGoAreDistinct(t *testing.T) {
 	}
 	if StatusCancelled == StatusWithdrawn {
 		t.Error("cancelling after an approval is not withdrawing before a decision")
+	}
+}
+
+// Every mail about a migration says which app moved, from where, to where.
+func TestAMailSaysWhichAppMovedFromWhere(t *testing.T) {
+	req := &Request{Seq: 4, SourceAppName: "mc-hello", SourceAppSlug: "mc-hello",
+		SourceReleaseLabel: "23 Oct 2026 19:50 · by manual", DestinationSlug: "mc-hello",
+		TargetAppID: "a1", RequesterName: "publisher-one"}
+	got := migrationFacts(req, "Dev", "trytoft", &Target{AppsURL: "https://apps.trytoft.dev/apps/"})
+	for _, want := range []string{"App:      mc-hello", "From:     Dev", "To:       trytoft, as mc-hello",
+		"Open it:  https://apps.trytoft.dev/apps/mc-hello/", "Release:  23 Oct 2026 19:50",
+		"Request:  #4 in the Migration Console, raised by publisher-one"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the facts block lacks %q:\n%s", want, got)
+		}
+	}
+	// No link before the app exists on the target, and none to an install
+	// whose apps address is unknown.
+	req.TargetAppID = ""
+	if strings.Contains(migrationFacts(req, "Dev", "trytoft", &Target{AppsURL: "https://apps.trytoft.dev/apps/"}), "Open it") {
+		t.Error("linked an app the target does not have yet")
+	}
+	if strings.Contains(migrationFacts(&Request{TargetAppID: "a1", DestinationSlug: "x"}, "Dev", "t", nil), "Open it") {
+		t.Error("linked with no apps address")
 	}
 }

@@ -22,13 +22,15 @@
       </li>
       {{end}}
     </ol>
-    <p class="hint">The tick is a Toft job declared in this app’s <code>toft.toml</code> and runs
-       every five minutes. Its logs, pause and Run now are on this app’s Automation tab.
+    <p class="hint">Migrations run in the background: <code>process-migrations</code>, a Toft job
+       declared in this app’s <code>toft.toml</code>, runs every five minutes. It starts approved
+       migrations that are due, follows their builds on the target and re-tests targets. Approving a
+       migration to run now starts it straight away. Its logs and pause are on this app’s Automation tab.
        <em>Not recorded</em> means Toft has no runs to report yet, not that the job is missing.</p>
     {{if .Caller.Editor}}
     <form method="post" action="{{url "/health/tick"}}" style="margin-top:12px">
-      <button type="submit">Run the tick now</button>
-      <span class="hint">Starts approved migrations that are due and re-tests stale targets, in your name.</span>
+      <button type="submit">Process migrations now</button>
+      <span class="hint">Runs the job once, in your name, instead of waiting for the next five-minute run.</span>
     </form>
     {{end}}
   </div>
