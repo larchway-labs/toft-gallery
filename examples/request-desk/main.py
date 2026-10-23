@@ -52,10 +52,10 @@ from desk import Caller, Store
 TITLE = os.getenv("DESK_TITLE", "Request Desk")
 
 # The release this tree is, matching the tag the gallery catalog names. It is
-# in the footer of every page because an extension is updated in place: "which
-# version is actually serving" is otherwise a question you answer by reading a
-# deploy log, and after a redeploy it is the first thing anybody asks.
-VERSION = "1.0.2"
+# in the footer of every page because "which version is actually serving" is
+# otherwise a question you answer by reading a deploy log, and after a redeploy
+# it is the first thing anybody asks.
+VERSION = "1.2.0"
 
 app = FastAPI(title=TITLE, docs_url=None, redoc_url=None)
 

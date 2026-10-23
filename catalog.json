@@ -3,8 +3,8 @@
   "generated_at": "2026-08-31T02:00:51Z",
   "items": [
     {
-      "id": "5b64ef63-5514-4964-9f72-1d2ba224045c",
-      "kind": "extension",
+      "id": "b54c406b-c8a1-4431-af83-598a98a7505a",
+      "kind": "example",
       "name": "Status Board",
       "summary": "Poll a list of internal endpoints and show what is up, slow or down.",
       "description": "A status page for the services your team runs. It polls each endpoint from inside the network on an interval and shows the result as a board, with the last error text when there is one. Go, standard library only — no database, no external assets, nothing persisted: the board is what the process has seen since it started.",
@@ -14,14 +14,14 @@
         "monitoring",
         "status",
         "go",
-        "operations"
+        "operations",
+        "example"
       ],
-      "version": "1.1.0",
+      "version": "1.2.0",
       "min_platform_version": "0.7.0",
-      "repo_url": "https://github.com/larchway-labs/toft-gallery",
-      "ref": "status-board/v1.1.0",
-      "path": "extensions/status-board",
-      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/extensions/status-board",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/status-board/v1.2.0.zip",
+      "path": "examples/status-board",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/status-board",
       "suggested_slug": "status-board",
       "env": [
         {
@@ -52,8 +52,8 @@
       "notes": "The board makes outbound HTTP requests to whatever SERVICES names. Point it only at endpoints this install is meant to reach."
     },
     {
-      "id": "9e3e6c69-612b-46df-9aba-928b2be4f443",
-      "kind": "extension",
+      "id": "beafda56-2711-4b4d-b921-0a1a88aabe81",
+      "kind": "example",
       "name": "Webhook Inspector",
       "summary": "See exactly what a third party is sending you: method, headers, query and body.",
       "description": "Point any webhook at this app's /hook path and every request is captured and shown newest first. FastAPI. Nothing is persisted — the buffer lives in the process and is lost on restart, which is the right trade for a tool that routinely receives signatures, customer identifiers and one-time tokens. Authorization, Cookie and X-API-Key are recorded as redacted rather than dropped, because 'did they send one at all' is usually the real question.",
@@ -63,14 +63,14 @@
         "webhooks",
         "debugging",
         "fastapi",
-        "integration"
+        "integration",
+        "example"
       ],
-      "version": "1.1.0",
+      "version": "1.2.0",
       "min_platform_version": "0.7.0",
-      "repo_url": "https://github.com/larchway-labs/toft-gallery",
-      "ref": "webhook-inspector/v1.1.0",
-      "path": "extensions/webhook-inspector",
-      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/extensions/webhook-inspector",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/webhook-inspector/v1.2.0.zip",
+      "path": "examples/webhook-inspector",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/webhook-inspector",
       "suggested_slug": "webhook-inspector",
       "env": [
         {
@@ -87,55 +87,6 @@
         }
       ],
       "notes": "The token is a convenience for handing the URL to an external sender, not a boundary — the app already sits behind Toft's authorization."
-    },
-    {
-      "id": "1003f1e0-4c97-4c57-bde2-fb941072a94e",
-      "kind": "extension",
-      "name": "Ops Console",
-      "summary": "On-call, the operations checklist by cadence, and four short runbooks.",
-      "description": "An internal operations console for the team that runs the platform. Next.js App Router, React 19, no dependencies beyond the framework. It reads no platform API at all: checklists and runbooks are content in the repository, and only what genuinely differs per install — team name, who is on call — comes from the environment.",
-      "author": "Toft",
-      "language": "JavaScript",
-      "tags": [
-        "operations",
-        "runbooks",
-        "on-call",
-        "nextjs"
-      ],
-      "version": "1.1.0",
-      "min_platform_version": "0.7.0",
-      "repo_url": "https://github.com/larchway-labs/toft-gallery",
-      "ref": "ops-console/v1.1.0",
-      "path": "extensions/ops-console",
-      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/extensions/ops-console",
-      "suggested_slug": "ops-console",
-      "env": [
-        {
-          "name": "TEAM_NAME",
-          "required": false,
-          "default": "Platform",
-          "description": "Heading on the overview."
-        },
-        {
-          "name": "ONCALL_PRIMARY",
-          "required": false,
-          "default": "unassigned",
-          "description": "Who is holding the pager."
-        },
-        {
-          "name": "ONCALL_SECONDARY",
-          "required": false,
-          "default": "unassigned",
-          "description": "Who takes the weekly work."
-        },
-        {
-          "name": "ESCALATION_CHANNEL",
-          "required": false,
-          "default": "#platform-oncall",
-          "description": "Where to escalate when the primary is unreachable."
-        }
-      ],
-      "notes": "The overview is rendered per request, so changing an on-call name and restarting the app is enough — no rebuild."
     },
     {
       "id": "7a172cbf-e666-4db7-b1a5-7a8b7c35baf3",
@@ -182,8 +133,8 @@
       "notes": "Attach the volumes this app should manage, then redeploy it — a storage mapping takes effect on the next deployment. It shows whatever those mounts contain to anyone who can open the app, so keep its visibility to the people who should see the data."
     },
     {
-      "id": "a5c4129d-9633-4840-bfdf-69c5415abe3b",
-      "kind": "extension",
+      "id": "5f17b4f9-ebc3-4ec7-87dd-2693a07850c0",
+      "kind": "example",
       "name": "Request Desk",
       "summary": "A request-and-approval desk on embedded SQLite, where who may do what comes from the identity Toft supplies.",
       "description": "Somebody asks for a monitor, a conference ticket, a license; somebody else approves or refuses it. FastAPI and the standard library's sqlite3 — no JavaScript framework, no build step, nothing beyond the two lines in requirements.txt. What it is really for is the seam underneath: Toft answers one question the app cannot forge — who is looking — by resolving the signed act-for blob the request arrives with, and everything after that is the app's own directory, its own groups and its own rule. Three sources of authority, deliberately not one. The platform's role on the app (owner, editor, install administrator) administers the desk and nothing else, because 'may redeploy this app' is not 'may approve an expense'; a desk group an editor put you in is the ordinary path; and a desk group linked to a Toft group is the same thing with the directory doing the bookkeeping. Two groups ship — Requesters and Approvers — and both are ordinary rows an editor can reshape. An Access page renders the identity the platform supplied beside the decision the app made and the sentences connecting them, which is the part worth reading before building your own. desk.py imports nothing from Toft, so the rule is tested without a running install: 31 tests construct callers by hand.",
@@ -195,14 +146,14 @@
         "sqlite",
         "fastapi",
         "approvals",
-        "viewer-identity"
+        "viewer-identity",
+        "example"
       ],
-      "version": "1.1.1",
+      "version": "1.2.0",
       "min_platform_version": "0.7.0",
-      "repo_url": "https://github.com/larchway-labs/toft-gallery",
-      "ref": "request-desk/v1.1.1",
-      "path": "extensions/request-desk",
-      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/extensions/request-desk",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/request-desk/v1.2.0.zip",
+      "path": "examples/request-desk",
+      "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/request-desk",
       "suggested_slug": "request-desk",
       "env": [
         {

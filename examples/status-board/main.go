@@ -88,7 +88,7 @@ type service struct {
 
 // loadConfig reads the environment. Every value has a working default, so the
 // app starts and explains itself even when nobody filled anything in — an
-// extension whose first screen is a stack trace teaches nothing.
+// app whose first screen is a stack trace teaches nothing.
 func loadConfig() config {
 	cfg := config{
 		Host:     env("HOST", "127.0.0.1"),

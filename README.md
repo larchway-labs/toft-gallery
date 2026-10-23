@@ -55,12 +55,12 @@ never updated from here, and unaffected if the gallery is switched off later.
 
 | Name | Kind | Language | What |
 |---|---|---|---|
-| Status Board | extension | Go | Poll internal endpoints; show what is up, slow or down. |
-| Webhook Inspector | extension | Python (FastAPI) | See exactly what a third party is sending you. |
-| Ops Console | extension | JavaScript (Next.js) | On-call, the checklist by cadence, four runbooks. |
-| Volume Browser | extension | Go | Browse, upload and manage the EFS volumes attached to an app. |
-| Request Desk | extension | Python (FastAPI) | Request and approval on embedded SQLite, driven by the identity Toft supplies. |
 | Migration Console | extension | Go | Request, approve and carry out moves of an app from one Toft install to another. |
+| Volume Browser | extension | Go | Browse, upload and manage the EFS volumes attached to an app. |
+| Security Probe | extension | Python | Report, from inside an app, what it can and cannot reach — checked against what it should. |
+| Status Board | example | Go | Poll internal endpoints; show what is up, slow or down. |
+| Webhook Inspector | example | Python (FastAPI) | See exactly what a third party is sending you. |
+| Request Desk | example | Python (FastAPI) | Request and approval on embedded SQLite, driven by the identity Toft supplies. |
 | Flask Hello | example | Python (Flask) | The smallest complete Flask app, and the base-path trap. |
 | CSV Explorer | example | Python (Streamlit) | Upload, filter, chart, download. |
 | Next.js Dashboard | example | JavaScript (Next.js) | Stat tiles and a chart with no chart library. |
