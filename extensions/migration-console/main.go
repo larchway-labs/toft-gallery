@@ -70,6 +70,12 @@ type Console struct {
 	// sends counts mail still on its way. The web app never waits on it; the
 	// tick job does, because a job that exits takes its goroutines with it.
 	sends sync.WaitGroup
+
+	// Answers from the platform's app surface, kept so the console stays
+	// inside its token's rate limit (cache.go).
+	viewers *ttlCache[*Viewer]
+	caps    *ttlCache[map[string]bool]
+	ticks   *ttlCache[*tickRun]
 }
 
 // newConsole opens the ledger and assembles the app, for either entrypoint.
@@ -92,6 +98,10 @@ func newConsole(ctx context.Context, cfg Config) (*Console, func()) {
 		// on. Reaching a *target* goes through Platform, which has its own.
 		http:   &http.Client{Timeout: 20 * time.Second},
 		render: newRenderer(newURLs(cfg.BasePath)),
+
+		viewers: newTTLCache[*Viewer](viewerTTL),
+		caps:    newTTLCache[map[string]bool](appWideTTL),
+		ticks:   newTTLCache[*tickRun](viewerTTL),
 	}, store.Close
 }
 

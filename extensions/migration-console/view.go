@@ -57,6 +57,19 @@ type tickRun struct {
 // platform's record, not this app's, so a tick that never reached the ledger
 // is still seen.
 func (c *Console) lastTickRun(ctx context.Context) (*tickRun, error) {
+	if c.ticks != nil {
+		if v, ok := c.ticks.get("", time.Now()); ok {
+			return v, nil
+		}
+	}
+	run, err := c.fetchLastTickRun(ctx)
+	if err == nil && c.ticks != nil {
+		c.ticks.put("", run, time.Now())
+	}
+	return run, err
+}
+
+func (c *Console) fetchLastTickRun(ctx context.Context) (*tickRun, error) {
 	if c.cfg.AppToken == "" || c.cfg.APIURL == "" {
 		return nil, fmt.Errorf("no platform token")
 	}
@@ -229,6 +242,19 @@ func (c *Console) setupSteps(ctx context.Context, caller Caller, caps map[string
 			Optional: true,
 		},
 	}
+}
+
+// refuseUnidentified answers 503 when Toft did not say who the caller is, and
+// reports whether it did. A 503 is also what keeps an htmx poll from swapping
+// a region for an error: htmx leaves the old content in place.
+func (c *Console) refuseUnidentified(w http.ResponseWriter, r *http.Request, caller Caller) bool {
+	if !caller.LookupFailed {
+		return false
+	}
+	w.Header().Set("Retry-After", "5")
+	c.refuse(w, r, caller, http.StatusServiceUnavailable, "Toft did not say who you are just now",
+		"The platform did not answer this console’s question about who is signed in — usually because it is busy. Nothing was changed. Try again in a few seconds.")
+	return true
 }
 
 func (c *Console) refuse(w http.ResponseWriter, r *http.Request, caller Caller, status int, title, body string) {

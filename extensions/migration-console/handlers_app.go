@@ -52,6 +52,9 @@ func (c *Console) mayTouchApp(r *http.Request, caller Caller, appID string) bool
 
 func (c *Console) handleAppActivity(w http.ResponseWriter, r *http.Request) {
 	caller := c.resolveCaller(r)
+	if c.refuseUnidentified(w, r, caller) {
+		return
+	}
 	appID := r.PathValue("appID")
 	if !c.mayTouchApp(r, caller, appID) {
 		c.refuse(w, r, caller, http.StatusNotFound, "No such app here",

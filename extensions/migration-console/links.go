@@ -197,6 +197,9 @@ func (c *Console) handleDeleteLink(w http.ResponseWriter, r *http.Request) {
 // answer, and it is a request row.
 func (c *Console) handleSendNewest(w http.ResponseWriter, r *http.Request) {
 	caller := c.resolveCaller(r)
+	if c.refuseUnidentified(w, r, caller) {
+		return
+	}
 	if caller.Viewer == nil || !caller.Reviewer {
 		c.refuse(w, r, caller, http.StatusForbidden, "This needs a reviewer",
 			"Sending an established link’s current release collapses the second pair of eyes, so it is only open to somebody already on the roster.")

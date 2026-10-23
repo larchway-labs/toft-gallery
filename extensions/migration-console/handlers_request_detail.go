@@ -78,6 +78,9 @@ func (c *Console) requestAudience(ctx context.Context, caller Caller, req *Reque
 }
 
 func (c *Console) loadRequest(w http.ResponseWriter, r *http.Request, caller Caller) (*Request, []RequestViewer, bool) {
+	if c.refuseUnidentified(w, r, caller) {
+		return nil, nil, false
+	}
 	if caller.Viewer == nil {
 		c.refuse(w, r, caller, http.StatusForbidden, "The console cannot tell who you are",
 			"Viewer identity is switched off for this app, so it cannot decide whether this request is yours to read. A Toft administrator can turn it on.")

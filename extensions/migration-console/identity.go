@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -120,6 +121,12 @@ func (a *Console) fetchViewer(ctx context.Context, r *http.Request) (*Viewer, er
 	if a.cfg.AppToken == "" || a.cfg.APIURL == "" {
 		return nil, ErrIdentityOff
 	}
+	blob := r.Header.Get("X-Toft-Act-For")
+	if blob != "" && a.viewers != nil {
+		if v, ok := a.viewers.get(blobKey(blob), time.Now()); ok {
+			return v, nil
+		}
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.cfg.APIURL+"/api/v1/app/viewer", nil)
 	if err != nil {
 		return nil, err
@@ -145,6 +152,9 @@ func (a *Console) fetchViewer(ctx context.Context, r *http.Request) (*Viewer, er
 	if err := json.NewDecoder(resp.Body).Decode(&v); err != nil {
 		return nil, err
 	}
+	if blob != "" && a.viewers != nil {
+		a.viewers.put(blobKey(blob), &v, time.Now())
+	}
 	return &v, nil
 }
 
@@ -153,6 +163,24 @@ func (a *Console) fetchViewer(ctx context.Context, r *http.Request) (*Viewer, er
 // when `email` is not among them the settings are **not in the interface**, not
 // greyed with a tooltip and not a switch that fails on save.
 func (a *Console) capabilities(ctx context.Context) map[string]bool {
+	if a.caps != nil {
+		if v, ok := a.caps.get("", time.Now()); ok {
+			return v
+		}
+	}
+	out := a.fetchCapabilities(ctx)
+	if out != nil && a.caps != nil {
+		a.caps.put("", out, time.Now())
+	}
+	if out == nil {
+		out = map[string]bool{}
+	}
+	return out
+}
+
+// fetchCapabilities is one read of /api/v1/app/self; nil when it did not answer,
+// so a refused call is not cached as "no capabilities".
+func (a *Console) fetchCapabilities(ctx context.Context) map[string]bool {
 	out := map[string]bool{}
 	if a.cfg.AppToken == "" || a.cfg.APIURL == "" {
 		return out
@@ -164,17 +192,17 @@ func (a *Console) capabilities(ctx context.Context) map[string]bool {
 	req.Header.Set("Authorization", "Bearer "+a.cfg.AppToken)
 	resp, err := a.http.Do(req)
 	if err != nil {
-		return out
+		return nil
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		return out
+		return nil
 	}
 	var body struct {
 		Capabilities []string `json:"capabilities"`
 	}
 	if json.NewDecoder(resp.Body).Decode(&body) != nil {
-		return out
+		return nil
 	}
 	for _, c := range body.Capabilities {
 		out[c] = true
@@ -193,6 +221,11 @@ type Caller struct {
 	// IdentityOff means an administrator has not switched viewer identity on.
 	// Distinct from "no viewer", and the copy differs.
 	IdentityOff bool
+	// LookupFailed means the platform did not answer who this is — refused or
+	// unreachable, most often its rate limit. Not "nobody": a page built as if
+	// the person were unknown tells them they have no requests and that their
+	// own request is not theirs, which is worse than saying Toft is busy.
+	LookupFailed bool
 
 	// Editor may write targets, the roster, the links and the settings. It is
 	// the platform's `owner` or `editor` on this app — which a Toft
@@ -258,7 +291,11 @@ func (a *Console) resolveCaller(r *http.Request) Caller {
 	case errors.Is(err, ErrIdentityOff):
 		c.IdentityOff = true
 		return c
+	case errors.Is(err, ErrNoViewer):
+		return c
 	case err != nil:
+		log.Printf("asking Toft who the viewer is: %v", err)
+		c.LookupFailed = true
 		return c
 	}
 	c.Viewer = v

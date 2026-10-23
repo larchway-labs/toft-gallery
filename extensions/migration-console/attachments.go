@@ -177,6 +177,9 @@ func (c *Console) handleAddAppAttachment(w http.ResponseWriter, r *http.Request)
 // above. It is gated by whatever the attachment hangs off.
 func (c *Console) handleServeAttachment(w http.ResponseWriter, r *http.Request) {
 	caller := c.resolveCaller(r)
+	if c.refuseUnidentified(w, r, caller) {
+		return
+	}
 	if caller.Viewer == nil {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
@@ -243,6 +246,9 @@ func (c *Console) mayReadAttachment(r *http.Request, caller Caller, a *Attachmen
 
 func (c *Console) handleDeleteAttachment(w http.ResponseWriter, r *http.Request) {
 	caller := c.resolveCaller(r)
+	if c.refuseUnidentified(w, r, caller) {
+		return
+	}
 	if caller.Viewer == nil {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return

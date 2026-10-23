@@ -38,6 +38,9 @@ type QueueData struct {
 // change-management tool to learn a rate.
 func (c *Console) handleQueue(w http.ResponseWriter, r *http.Request) {
 	caller := c.resolveCaller(r)
+	if c.refuseUnidentified(w, r, caller) {
+		return
+	}
 	if !caller.Submitter {
 		c.refuse(w, r, caller, http.StatusForbidden, "You are not signed in to this app",
 			"The console is told what the caller in front of it may do on every request, and this one arrived with no role. Sign in to Toft and open the app again.")
@@ -228,6 +231,9 @@ func (c *Console) raisableApps(ctx context.Context, caller Caller) ([]App, map[s
 
 func (c *Console) handleNewRequestForm(w http.ResponseWriter, r *http.Request) {
 	caller := c.resolveCaller(r)
+	if c.refuseUnidentified(w, r, caller) {
+		return
+	}
 	if caller.Viewer == nil {
 		c.refuse(w, r, caller, http.StatusForbidden, "The console cannot tell who you are",
 			"Raising a request writes your name on a record that outlives this app, so it needs viewer identity switched on for this app. A Toft administrator can do that.")
@@ -284,6 +290,9 @@ func (c *Console) handleNewRequestForm(w http.ResponseWriter, r *http.Request) {
 // which is the exact misunderstanding this design exists to prevent.
 func (c *Console) handleReleasePicker(w http.ResponseWriter, r *http.Request) {
 	caller := c.resolveCaller(r)
+	if c.refuseUnidentified(w, r, caller) {
+		return
+	}
 	if caller.Viewer == nil {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
@@ -377,6 +386,9 @@ func refusedRelease(rep *DependencyReport) map[string]string {
 
 func (c *Console) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 	caller := c.resolveCaller(r)
+	if c.refuseUnidentified(w, r, caller) {
+		return
+	}
 	if caller.Viewer == nil {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
