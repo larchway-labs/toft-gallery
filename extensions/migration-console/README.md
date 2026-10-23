@@ -42,6 +42,8 @@ Gallery on the **source** install, then completes a short setup.
 - **Everything is recorded.** Every action — submitted, approved, rejected,
   scheduled, pushed, failed, attached, edited — is a row, and the record is
   readable per app: *what has ever shipped from this app, and where is it now*.
+  A deployed request, the Links page and the app's page link to the app where it
+  now runs, at the address the target itself says it serves apps from.
 - **It can email.** The requester when their migration finishes, and an
   administrators' group when something fails. Both need an email connection
   attached to this app; without one, nothing about email appears at all.

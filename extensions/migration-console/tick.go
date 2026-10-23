@@ -309,8 +309,14 @@ func (c *Console) afterSuccess(ctx context.Context, req *Request, d *Deployment)
 			RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID,
 			Detail: fmt.Sprintf("%s → %s", req.SourceAppSlug, req.DestinationSlug)})
 	}
-	c.notifyRequester(ctx, req, "Your migration finished",
-		fmt.Sprintf("%s is now serving release %s as %s.", req.SourceAppName, req.SourceReleaseLabel, req.DestinationSlug))
+	msg := fmt.Sprintf("%s is now serving release %s as %s.", req.SourceAppName, req.SourceReleaseLabel, req.DestinationSlug)
+	if t, _ := c.store.GetTarget(ctx, req.TargetID); t != nil {
+		c.withAppsURL(ctx, t)
+		if u := t.AppURL(req.DestinationSlug); u != "" {
+			msg += "\n\nOpen it: " + u
+		}
+	}
+	c.notifyRequester(ctx, req, "Your migration finished", msg)
 }
 
 // startOneDue claims one approved request whose time has come and starts it.
@@ -529,7 +535,7 @@ func (c *Console) retestTargetsDaily(ctx context.Context, actor string) int {
 		}
 		was := t.Reached()
 		ok, result := c.testTarget(ctx, &t)
-		_ = c.store.RecordTargetTest(ctx, t.ID, ok, result)
+		_ = c.store.RecordTargetTest(ctx, t.ID, ok, result, t.AppsURL)
 		_ = c.store.WriteEvent(ctx, Event{Action: "target.tested",
 			ActorName: actor, TargetID: t.ID, Detail: result})
 		if was && !ok {

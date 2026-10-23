@@ -231,8 +231,12 @@ func (c *Console) testTarget(ctx context.Context, t *Target) (bool, string) {
 	// 1. Is there a Toft at this address? /api/v1/config is the platform's
 	//    own unauthenticated probe and is one of the things a chart may never
 	//    template, so it is the one endpoint guaranteed to be there.
-	if err := p.Reachable(callCtx); err != nil {
+	appsURL, err := p.Reachable(callCtx)
+	if err != nil {
 		return false, fmt.Sprintf("The address did not answer as a Toft: %v. The key was not tried.", err)
+	}
+	if appsURL != "" {
+		t.AppsURL = appsURL
 	}
 	// 2. Does the credential work — and is it the right scope for what this row
 	//    is for? A read-scoped key on a target would 403 the push later, which
@@ -258,7 +262,7 @@ func (c *Console) handleTestTarget(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ok, result := c.testTarget(r.Context(), t)
-	_ = c.store.RecordTargetTest(r.Context(), t.ID, ok, result)
+	_ = c.store.RecordTargetTest(r.Context(), t.ID, ok, result, t.AppsURL)
 	_ = c.store.WriteEvent(r.Context(), Event{Action: "target.tested",
 		ActorID: caller.ID(), ActorName: caller.Name(), TargetID: t.ID, Detail: result})
 	refreshed, _ := c.store.GetTarget(r.Context(), t.ID)

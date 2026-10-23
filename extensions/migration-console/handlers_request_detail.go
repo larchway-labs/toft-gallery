@@ -110,6 +110,9 @@ func (c *Console) handleRequest(w http.ResponseWriter, r *http.Request) {
 
 	data := RequestData{Request: *req, Viewers: viewers}
 	data.Target, _ = c.store.GetTarget(ctx, req.TargetID)
+	if req.Status == StatusDeployed {
+		c.withAppsURL(ctx, data.Target)
+	}
 	data.Link, _ = c.store.FindLink(ctx, req.TargetID, req.SourceAppID)
 	data.Events, _ = c.store.RequestEvents(ctx, req.ID)
 	data.Attachments, _ = c.store.RequestAttachments(ctx, req.ID)
@@ -702,6 +705,9 @@ func (c *Console) handleRequestProgress(w http.ResponseWriter, r *http.Request) 
 	}
 	data := RequestData{Request: *req}
 	data.Target, _ = c.store.GetTarget(r.Context(), req.TargetID)
+	if req.Status == StatusDeployed {
+		c.withAppsURL(r.Context(), data.Target)
+	}
 	c.render.fragment(w, "request", "progress", data)
 }
 

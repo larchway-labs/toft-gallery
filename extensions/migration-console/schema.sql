@@ -208,3 +208,9 @@ CREATE TABLE IF NOT EXISTS mc_events (
 
 CREATE INDEX IF NOT EXISTS mc_events_request_idx ON mc_events (request_id, id DESC);
 CREATE INDEX IF NOT EXISTS mc_events_app_idx ON mc_events (source_app_id, id DESC);
+
+-- Where the target serves its apps — `apps_base_url` and `apps_path_prefix` from
+-- its own /api/v1/config, recorded at every test. A link to a migrated app is
+-- this plus the slug; the target's address alone is wrong wherever apps have an
+-- origin of their own (trytoft serves them from apps.trytoft.dev).
+ALTER TABLE mc_targets ADD COLUMN IF NOT EXISTS apps_url text NOT NULL DEFAULT '';

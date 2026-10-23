@@ -22,7 +22,7 @@
       <thead><tr><th>Target</th><th>As</th><th>State</th><th class="drop-md">Detail</th><th class="drop-lg">Last looked</th></tr></thead>
       <tbody>{{range $d.Links}}
         <tr><td>{{.TargetLabel}}</td>
-            <td class="mono">{{.TargetAppSlug}}</td>
+            <td class="mono">{{if .AppURL}}<a href="{{.AppURL}}" target="_blank" rel="noopener">{{.TargetAppSlug}} ↗</a>{{else}}{{.TargetAppSlug}}{{end}}</td>
             <td>{{template "_chip" .State}}</td>
             <td class="drop-md small">{{.Detail}}</td>
             <td class="drop-lg lastlooked">{{ago .CheckedAt}}</td></tr>

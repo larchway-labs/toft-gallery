@@ -23,7 +23,7 @@
         <td><a data-open href="{{url (printf "/apps/%s" .SourceAppID)}}">{{.SourceAppName}}</a>
             <div class="mono xs muted">{{.SourceAppSlug}}</div></td>
         <td class="nowrap">{{.TargetLabel}}</td>
-        <td class="mono small nowrap">{{.TargetAppSlug}}</td>
+        <td class="mono small nowrap">{{if .AppURL}}<a href="{{.AppURL}}" target="_blank" rel="noopener">{{.TargetAppSlug}} ↗</a>{{else}}{{.TargetAppSlug}}{{end}}</td>
         <td>{{template "_chip" .State}}
           <div class="xs muted">{{.Detail}}</div>
           {{if .SourceRelease}}<div class="xs muted">source: {{.SourceRelease}}</div>{{end}}

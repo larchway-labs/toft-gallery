@@ -432,20 +432,48 @@ func (p *Platform) Archive(ctx context.Context, appID, deployID string) ([]byte,
 // credential. /api/v1/config is the platform's own unauthenticated probe and is
 // one of the things a chart may never template, so it is the one endpoint
 // guaranteed to be there.
-func (p *Platform) Reachable(ctx context.Context) error {
+//
+// It also answers where that install serves apps, from the same response:
+// `apps_base_url` (empty on a single-origin install, meaning this address) and
+// `apps_path_prefix`. "" when the install did not say.
+func (p *Platform) Reachable(ctx context.Context) (appsURL string, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.BaseURL+"/api/v1/config", nil)
 	if err != nil {
-		return err
+		return "", err
 	}
 	resp, err := p.HTTP.Do(req)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		return readAPIError(resp)
+		return "", readAPIError(resp)
 	}
-	return nil
+	var cfg struct {
+		AppsBaseURL    string `json:"apps_base_url"`
+		AppsPathPrefix string `json:"apps_path_prefix"`
+	}
+	if json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&cfg) != nil {
+		return "", nil
+	}
+	return appsURLFrom(p.BaseURL, cfg.AppsBaseURL, cfg.AppsPathPrefix), nil
+}
+
+// appsURLFrom joins an install's apps origin and path prefix into one address
+// ending in a slash. A base that is not http(s) is refused rather than linked.
+func appsURLFrom(baseURL, appsBase, prefix string) string {
+	base := strings.TrimRight(strings.TrimSpace(appsBase), "/")
+	if base == "" {
+		base = strings.TrimRight(baseURL, "/")
+	}
+	u, err := url.Parse(base)
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+		return ""
+	}
+	if prefix == "" {
+		prefix = "/apps/"
+	}
+	return base + "/" + strings.Trim(prefix, "/") + "/"
 }
 
 // --- Pushes -----------------------------------------------------------------

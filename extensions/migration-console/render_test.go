@@ -401,3 +401,15 @@ func TestAScheduleIsReadInTheBrowsersZone(t *testing.T) {
 		t.Error("an unusable offset was not ignored")
 	}
 }
+
+// A deployed request links to the app where it now runs.
+func TestADeployedRequestLinksToTheApp(t *testing.T) {
+	r := newRenderer(newURLs("/apps/mc"))
+	w := httptest.NewRecorder()
+	r.fragment(w, "request", "progress", RequestData{
+		Request: Request{ID: "r1", Status: StatusDeployed, DestinationSlug: "mc-hello"},
+		Target:  &Target{Label: "trytoft", AppsURL: "https://apps.trytoft.dev/apps/"}})
+	if !strings.Contains(w.Body.String(), `href="https://apps.trytoft.dev/apps/mc-hello/"`) {
+		t.Errorf("no link to the app:\n%s", w.Body.String())
+	}
+}

@@ -244,3 +244,25 @@ func TestAnAcceptedPushRecordsTheSlugTheTargetReports(t *testing.T) {
 		t.Error("a version push, which reports no slug, cleared the destination")
 	}
 }
+
+// Where a target serves its apps, from its own /api/v1/config: a separate apps
+// origin when it has one (trytoft), its own address when it does not.
+func TestAMigratedAppIsLinkedWhereTheTargetServesIt(t *testing.T) {
+	for _, tc := range []struct{ base, appsBase, prefix, want string }{
+		{"https://trytoft.dev", "https://apps.trytoft.dev", "/apps/", "https://apps.trytoft.dev/apps/"},
+		{"http://127.0.0.1:8080", "", "/apps/", "http://127.0.0.1:8080/apps/"},
+		{"https://toft.example.com", "https://apps.example.com/", "", "https://apps.example.com/apps/"},
+		{"https://toft.example.com", "javascript:alert(1)", "/apps/", ""},
+	} {
+		if got := appsURLFrom(tc.base, tc.appsBase, tc.prefix); got != tc.want {
+			t.Errorf("appsURLFrom(%q, %q, %q) = %q, want %q", tc.base, tc.appsBase, tc.prefix, got, tc.want)
+		}
+	}
+	tg := &Target{AppsURL: "https://apps.trytoft.dev/apps/"}
+	if got := tg.AppURL("mc-hello"); got != "https://apps.trytoft.dev/apps/mc-hello/" {
+		t.Errorf("AppURL = %q", got)
+	}
+	if (&Target{}).AppURL("mc-hello") != "" || (&Target{AppsURL: "ftp://x/"}).AppURL("a") != "" {
+		t.Error("a target with no usable apps address produced a link")
+	}
+}

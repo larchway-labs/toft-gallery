@@ -15,13 +15,13 @@ import (
 
 const targetCols = `id, kind, label, base_url, deploy_key_enc, key_prefix,
 	default_owner_group_id, default_owner_group_name, fast_track,
-	created_by_id, created_by_name, created_at, last_tested_at, last_test_ok, last_test_result`
+	created_by_id, created_by_name, created_at, last_tested_at, last_test_ok, last_test_result, apps_url`
 
 func scanTarget(row pgx.Row) (*Target, error) {
 	var t Target
 	err := row.Scan(&t.ID, &t.Kind, &t.Label, &t.BaseURL, &t.DeployKeyEnc, &t.KeyPrefix,
 		&t.DefaultOwnerGroupID, &t.DefaultOwnerGroupName, &t.FastTrack,
-		&t.CreatedByID, &t.CreatedByName, &t.CreatedAt, &t.LastTestedAt, &t.LastTestOK, &t.LastTestResult)
+		&t.CreatedByID, &t.CreatedByName, &t.CreatedAt, &t.LastTestedAt, &t.LastTestOK, &t.LastTestResult, &t.AppsURL)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func (s *Store) SourceTarget(ctx context.Context) (*Target, error) {
 func (s *Store) SaveTarget(ctx context.Context, t *Target) error {
 	_, err := s.pool.Exec(ctx, `
 		INSERT INTO mc_targets (`+targetCols+`)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
 		ON CONFLICT (id) DO UPDATE SET
 			label=EXCLUDED.label, base_url=EXCLUDED.base_url,
 			deploy_key_enc=EXCLUDED.deploy_key_enc, key_prefix=EXCLUDED.key_prefix,
@@ -87,17 +87,27 @@ func (s *Store) SaveTarget(ctx context.Context, t *Target) error {
 			fast_track=EXCLUDED.fast_track,
 			last_tested_at=EXCLUDED.last_tested_at,
 			last_test_ok=EXCLUDED.last_test_ok,
-			last_test_result=EXCLUDED.last_test_result`,
+			last_test_result=EXCLUDED.last_test_result,
+			apps_url=EXCLUDED.apps_url`,
 		t.ID, t.Kind, t.Label, t.BaseURL, t.DeployKeyEnc, t.KeyPrefix,
 		t.DefaultOwnerGroupID, t.DefaultOwnerGroupName, t.FastTrack,
-		t.CreatedByID, t.CreatedByName, t.CreatedAt, t.LastTestedAt, t.LastTestOK, t.LastTestResult)
+		t.CreatedByID, t.CreatedByName, t.CreatedAt, t.LastTestedAt, t.LastTestOK, t.LastTestResult, t.AppsURL)
 	return err
 }
 
-func (s *Store) RecordTargetTest(ctx context.Context, id string, ok bool, result string) error {
+// RecordTargetTest writes a test's outcome. appsURL is what the test learned
+// about where that install serves apps; empty keeps what was known, so a target
+// that failed to answer does not lose it.
+func (s *Store) RecordTargetTest(ctx context.Context, id string, ok bool, result, appsURL string) error {
 	_, err := s.pool.Exec(ctx,
-		`UPDATE mc_targets SET last_tested_at=now(), last_test_ok=$2, last_test_result=$3 WHERE id=$1`,
-		id, ok, result)
+		`UPDATE mc_targets SET last_tested_at=now(), last_test_ok=$2, last_test_result=$3,
+			apps_url=COALESCE(NULLIF($4, ''), apps_url) WHERE id=$1`,
+		id, ok, result, appsURL)
+	return err
+}
+
+func (s *Store) SetTargetAppsURL(ctx context.Context, id, appsURL string) error {
+	_, err := s.pool.Exec(ctx, `UPDATE mc_targets SET apps_url=$2 WHERE id=$1`, id, appsURL)
 	return err
 }
 

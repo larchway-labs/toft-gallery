@@ -16,6 +16,25 @@ import (
 // stored*. Each state carries **when the console last looked**, because the
 // answer moves only when it looks, and a freshness claim it cannot support is
 // worse than a stale one it admits to.
+// withAppsURL fills in where a target serves its apps when no test has
+// recorded it yet — a target saved before the console asked. One short call,
+// remembered; a target that does not answer simply gets no link this time.
+func (c *Console) withAppsURL(ctx context.Context, t *Target) {
+	if t == nil || t.Kind != TargetKindTarget || t.AppsURL != "" {
+		return
+	}
+	p, err := c.platformFor(t)
+	if err != nil {
+		return
+	}
+	callCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if u, err := p.Reachable(callCtx); err == nil && u != "" {
+		t.AppsURL = u
+		_ = c.store.SetTargetAppsURL(ctx, t.ID, u)
+	}
+}
+
 func (c *Console) linkStates(ctx context.Context, caller Caller) []LinkState {
 	links, err := c.store.ListLinks(ctx)
 	if err != nil {
@@ -24,6 +43,7 @@ func (c *Console) linkStates(ctx context.Context, caller Caller) []LinkState {
 	targets, _ := c.store.ListTargets(ctx)
 	byID := map[string]Target{}
 	for _, t := range targets {
+		c.withAppsURL(ctx, &t)
 		byID[t.ID] = t
 	}
 	source, _ := c.store.SourceTarget(ctx)
@@ -39,6 +59,7 @@ func (c *Console) linkStates(ctx context.Context, caller Caller) []LinkState {
 		t, ok := byID[l.TargetID]
 		if ok {
 			ls.TargetLabel = t.Label
+			ls.AppURL = t.AppURL(l.TargetAppSlug)
 		}
 		if sp == nil || !ok {
 			ls.Detail = "the console could not reach one of the two installs on its last look"

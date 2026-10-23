@@ -351,6 +351,8 @@
   <div class="card"><div class="body waiting">
     <span class="chip ok">Deployed</span>
     <div class="small">{{.DestinationSlug}} is serving this release{{if .Target}} on {{.Target.Label}}{{end}}.
+      {{with .Target}}{{with .AppURL $.DestinationSlug}}<div><a href="{{.}}" target="_blank" rel="noopener">Open {{$.DestinationSlug}} on {{$.Target.Label}} ↗</a>
+        <span class="mono xs muted">{{.}}</span></div>{{end}}{{end}}
       {{if .BundleSHA256}}<div class="mono xs muted">sha256 {{short 16 .BundleSHA256}}…</div>{{end}}</div>
   </div></div>
 {{else if eq .Status "failed"}}

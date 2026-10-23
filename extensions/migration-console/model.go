@@ -1,6 +1,10 @@
 package main
 
-import "time"
+import (
+	"net/url"
+	"strings"
+	"time"
+)
 
 // The request's states, and rejection is terminal.
 //
@@ -64,6 +68,22 @@ type Target struct {
 	LastTestedAt          *time.Time
 	LastTestOK            *bool
 	LastTestResult        string
+	// AppsURL is where this install serves apps, ending in a slash; empty until
+	// a test has read it.
+	AppsURL string
+}
+
+// AppURL is the address of one app on this install, or "" when the console
+// has not learned where its apps live yet. Only an http(s) address is ever
+// returned: it came from another install's API and goes into an href.
+func (t *Target) AppURL(slug string) string {
+	if t == nil || t.AppsURL == "" || slug == "" {
+		return ""
+	}
+	if !strings.HasPrefix(t.AppsURL, "https://") && !strings.HasPrefix(t.AppsURL, "http://") {
+		return ""
+	}
+	return t.AppsURL + url.PathEscape(slug) + "/"
 }
 
 // Reached is whether the last test of this target succeeded.
@@ -250,7 +270,10 @@ const (
 // column cannot have.
 type LinkState struct {
 	Link
-	TargetLabel     string
+	TargetLabel string
+	// AppURL is the migrated app on the target, or "" when the console does
+	// not know where that install serves apps.
+	AppURL          string
 	State           string
 	SourceRelease   string
 	TargetRelease   string
