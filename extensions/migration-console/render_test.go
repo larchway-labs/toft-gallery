@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -360,5 +361,43 @@ func TestThePickerSaysWhatTheSourcePolicyDid(t *testing.T) {
 	quiet := render(map[string]any{"AppID": "a1", "Rows": rows, "Locked": false, "Refused": refusedRelease(nil)})
 	if strings.Contains(quiet, "dependency policy on the source") || strings.Contains(quiet, "was refused") {
 		t.Error("a picker for an app the policy left alone still talks about the policy")
+	}
+}
+
+// The destination form is offered only while the request awaits review; once a
+// reviewer decides, the name and the audience are what they approved.
+func TestTheDestinationIsFixedOnceDecided(t *testing.T) {
+	r := newRenderer(newURLs("/apps/mc"))
+	for _, tc := range []struct {
+		may  bool
+		want bool
+	}{{true, true}, {false, false}} {
+		w := httptest.NewRecorder()
+		r.fragment(w, "request", "destination", RequestData{
+			Request: Request{ID: "r1", Status: StatusApproved, DestinationSlug: "orders"},
+			MayEdit: true, MayEditDestination: tc.may, Destination: "the existing app orders"})
+		if got := strings.Contains(w.Body.String(), "/requests/r1/destination"); got != tc.want {
+			t.Errorf("MayEditDestination=%v: form offered = %v", tc.may, got)
+		}
+	}
+}
+
+// A schedule is read in the zone the browser said it was typed in.
+func TestAScheduleIsReadInTheBrowsersZone(t *testing.T) {
+	form := func(off string) *http.Request {
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("tz_offset="+off))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		_ = r.ParseForm()
+		return r
+	}
+	at, err := time.ParseInLocation("2006-01-02T15:04", "2026-11-02T22:00", scheduleZone(form("-300")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := at.UTC().Format("15:04"); got != "03:00" {
+		t.Errorf("22:00 at UTC-5 is %s UTC, want 03:00", got)
+	}
+	if scheduleZone(form("nonsense")) != time.Local || scheduleZone(form("99999")) != time.Local {
+		t.Error("an unusable offset was not ignored")
 	}
 }

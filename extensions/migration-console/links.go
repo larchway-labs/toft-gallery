@@ -268,7 +268,9 @@ func (c *Console) handleSendNewest(w http.ResponseWriter, r *http.Request) {
 		c.refuse(w, r, caller, http.StatusInternalServerError, "The request could not be saved", err.Error())
 		return
 	}
-	_ = c.store.SetStatus(ctx, req.ID, StatusApproved, Event{
+	// The row was inserted approved, so the tick may already have claimed it:
+	// this records the decision without moving the status back under it.
+	_ = c.store.UpdateRequestFields(ctx, req.ID, Event{
 		Action: "request.fast_tracked", ActorID: caller.ID(), ActorName: caller.Name(),
 		RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: target.ID,
 		Detail: fmt.Sprintf("one person, both roles — %s", reason)},

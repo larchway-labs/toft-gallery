@@ -83,6 +83,12 @@ func (c *Console) handleQueue(w http.ResponseWriter, r *http.Request) {
 			Mine:       rq.RequesterID == caller.ID() || viewerOf[rq.ID],
 			AwaitingMe: caller.Reviewer && rq.Status == StatusSubmitted && rq.RequesterID != caller.ID(),
 		}
+		// The queue shows a person what the request page would let them open
+		// (requestAudience): the roster and the console's editors see every
+		// request, everybody else the ones they raised or were named on.
+		if !(caller.Editor || caller.Reviewer) && !row.Mine {
+			continue
+		}
 		if row.Mine {
 			counts["mine"]++
 		}
@@ -117,7 +123,9 @@ func (c *Console) handleQueue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := QueueData{Tab: tab, Rows: shown, Counts: counts, CanRaise: caller.Viewer != nil}
-	if tab == "behind" {
+	// Links are the roster's and the editors' page (handleLinks), and this tab
+	// is the same list.
+	if tab == "behind" && (caller.Editor || caller.Reviewer) {
 		data.Behind = c.linkStates(ctx, caller)
 		counts["behind"] = 0
 		for _, l := range data.Behind {
@@ -436,6 +444,18 @@ func (c *Console) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 	deploy, err := sp.Deployment(ctx, appID, deployID)
 	if err != nil {
 		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That release could not be read", err.Error())
+		return
+	}
+	// The picker offers only successful releases; a form built by hand is
+	// held to the same rule here, rather than failing minutes after approval.
+	if deploy.Status != "success" {
+		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That release did not build",
+			"Only a release that built successfully on this install can be promoted. Pick one from the list.")
+		return
+	}
+	if vis := trimForm(r, "destination_visibility"); !validVisibility(vis) {
+		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That is not a visibility",
+			"Private, signed-in viewers or public.")
 		return
 	}
 

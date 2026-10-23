@@ -146,9 +146,21 @@
           <div class="field">
             <label for="sched">Run it at</label>
             <input id="sched" name="scheduled_for" type="datetime-local">
-            <p class="hint">Leave blank to send it now — approving starts the tick. Read on <strong>the install’s
-               clock</strong>, which is now {{installclock}} — the field beside this shows your
-               browser’s, and they are only the same where you and the install are.</p>
+            <input type="hidden" name="tz_offset" id="tzoff">
+            <p class="hint">Leave blank to send it now — approving starts the tick. Read in <strong>your
+               browser’s time zone</strong>; the install’s clock is now {{installclock}}.</p>
+            <script>
+            (function () {
+              var f = document.getElementById('sched'), o = document.getElementById('tzoff');
+              if (!f || !o || !f.form) return;
+              /* Minutes east of UTC at the moment chosen, so a schedule across a
+                 daylight-saving change is still the time that was typed. */
+              f.form.addEventListener('submit', function () {
+                var d = f.value ? new Date(f.value) : new Date();
+                o.value = String(-d.getTimezoneOffset());
+              });
+            })();
+            </script>
           </div>
         </div>
         <div class="field">
@@ -272,7 +284,7 @@
     <p><strong class="mono">{{.SourceAppSlug}}</strong> · release <strong>{{.SourceReleaseLabel}}</strong></p>
     <p class="small">Landing on {{.Destination}}{{if .DestinationVisibility}}, as
        <strong>{{.DestinationVisibility}}</strong>{{end}}.</p>
-    {{if .MayEdit}}
+    {{if .MayEditDestination}}
     <form class="row" style="margin-top:10px" hx-post="{{url (printf "/requests/%s/destination" .ID)}}"
           hx-target="#destination" hx-swap="outerHTML">
       <div class="field">

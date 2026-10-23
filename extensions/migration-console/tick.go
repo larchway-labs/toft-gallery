@@ -196,40 +196,92 @@ func (c *Console) watchInFlight(ctx context.Context, actor string) int {
 	}
 	for _, req := range reqs {
 		target, err := c.store.GetTarget(ctx, req.TargetID)
-		if err != nil || target == nil {
+		if err != nil {
+			continue
+		}
+		if target == nil {
+			c.failInFlight(ctx, &req, actor, "the target",
+				"The target was removed from this console while the release was building there, so nothing can watch the build. Check that install for the app.")
+			continue
+		}
+		// This runs under the tick lock, so no other tick is part-way through a
+		// push: a row that is deploying with no answer from the target recorded
+		// belongs to a tick that died between the claim and that answer.
+		if req.TargetAppID == "" || req.TargetDeploymentID == "" {
+			c.failInFlight(ctx, &req, actor, target.Label,
+				"The push started and the run carrying it stopped before the target's answer was recorded, so whether "+
+					target.Label+" received the release is unknown. Look for the app there before raising this again.")
 			continue
 		}
 		tp, err := c.platformFor(target)
 		if err != nil {
 			continue
 		}
-		d, err := tp.Deployment(ctx, req.TargetAppID, req.TargetDeploymentID)
+		callCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		d, err := tp.Deployment(callCtx, req.TargetAppID, req.TargetDeploymentID)
+		cancel()
 		if err != nil {
+			var api *APIError
+			switch {
+			case errors.As(err, &api) && api.Status == http.StatusNotFound:
+				c.failInFlight(ctx, &req, actor, target.Label,
+					"The target no longer has this deployment — the app or the release was deleted there while it was being watched.")
+			case time.Since(req.UpdatedAt) > inFlightLimit:
+				c.failInFlight(ctx, &req, actor, target.Label, fmt.Sprintf(
+					"Nothing could be learned about this build from %s for %s, so the console has stopped watching it. The last answer was: %v. Check that install for the app.",
+					target.Label, inFlightLimit, err))
+			}
 			continue
 		}
 		switch d.Status {
 		case "success":
-			_ = c.store.SetStatus(ctx, req.ID, StatusDeployed, Event{
+			moved, _ := c.store.SetStatusIf(ctx, req.ID, StatusDeploying, StatusDeployed, Event{
 				Action: "push.succeeded", ActorName: actor,
 				RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID,
 				Detail: fmt.Sprintf("%s is serving release %s", req.DestinationSlug, d.Label())}, nil)
-			c.afterSuccess(ctx, &req, d)
+			if moved {
+				c.afterSuccess(ctx, &req, d)
+			}
 		case "failed":
 			// The platform describes a failed build through its log, so the
 			// tail of that log is what the request records and what the mail
 			// carries. A generic "it failed" would send somebody to the other
 			// install to read the thing this app already has.
 			why := lastLines(d.BuildLog, 12)
-			_ = c.store.SetStatus(ctx, req.ID, StatusFailed, Event{
+			moved, _ := c.store.SetStatusIf(ctx, req.ID, StatusDeploying, StatusFailed, Event{
 				Action: "push.failed", ActorName: actor,
 				RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID,
 				Detail: why}, map[string]any{"failure": why})
+			if !moved {
+				continue
+			}
 			c.notifyFailure(ctx, &req, "The build failed on the target", why)
 			c.notifyRequester(ctx, &req, "Your migration failed",
 				fmt.Sprintf("The bundle reached %s and the build there failed.\n\n%s", target.Label, why))
 		}
 	}
 	return len(reqs)
+}
+
+// inFlightLimit is how long a push may go without the target saying anything
+// about its build before the console stops watching it. A build reports within
+// minutes; six hours of silence is a target that has gone, not a slow one.
+const inFlightLimit = 6 * time.Hour
+
+// failInFlight ends a request the console can no longer watch. It is the way
+// out of `deploying` that nothing else offers — cancel refuses a push that has
+// started, and raise-again is only offered for a request that ended.
+func (c *Console) failInFlight(ctx context.Context, req *Request, actor, targetLabel, why string) {
+	moved, err := c.store.SetStatusIf(ctx, req.ID, StatusDeploying, StatusFailed, Event{
+		Action: "push.failed", ActorName: actor,
+		RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID,
+		Detail: why}, map[string]any{"failure": why})
+	if err != nil || !moved {
+		return
+	}
+	c.notifyFailure(ctx, req, "A migration could no longer be watched", why)
+	c.notifyRequester(ctx, req, "Your migration failed",
+		fmt.Sprintf("The release was sent to %s and its build there could not be followed.\n\n%s", targetLabel, why))
 }
 
 // afterSuccess writes the link — the binding is made by the **first successful
@@ -315,6 +367,28 @@ func (c *Console) push(ctx context.Context, req *Request, actor string) (bool, e
 		return false, err
 	}
 
+	// **The link decides create or version, now** — not the copy of it taken
+	// when the request was raised. Two requests raised before a first migration
+	// landed both copied "no link", and the second would create a second app;
+	// a link an editor deleted since would still be pushed to. Approval reads
+	// the link the same way, which is what decided whether a group was asked
+	// for.
+	req.TargetAppID = ""
+	if link, _ := c.store.FindLink(ctx, req.TargetID, req.SourceAppID); link != nil {
+		req.TargetAppID = link.TargetAppID
+	}
+	if req.TargetAppID == "" && req.OwnerGroupID == "" {
+		why := "This request was approved to ship a new version of an app that this console no longer has a link to, so it would now create the app — and nobody chose a group to own it. Raise it again; the approver will be asked for one."
+		moved, _ := c.store.SetStatusIf(ctx, req.ID, StatusApproved, StatusFailed, Event{
+			Action: "push.failed", ActorName: actor,
+			RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID,
+			Detail: why}, map[string]any{"failure": why})
+		if moved {
+			c.notifyRequester(ctx, req, "Your migration could not start", why)
+		}
+		return true, errors.New(why)
+	}
+
 	// **The pin is re-checked at execution, and drift is told rather than
 	// obeyed.** It proceeds because the pin *is* the approval: shipping the
 	// newer code would ship something nobody read. It does not proceed
@@ -382,6 +456,11 @@ func (c *Console) push(ctx context.Context, req *Request, actor string) (bool, e
 		c.notifyRequester(ctx, req, "Your migration is shipping the release it was approved for", drift)
 	}
 
+	// From here the row reads `deploying`, and whatever happens next has to be
+	// written down even if the run is being stopped: a failure write on a
+	// cancelled context is a request left deploying with nothing to watch.
+	wctx := context.WithoutCancel(ctx)
+
 	var result *UploadResult
 	if req.TargetAppID != "" {
 		result, err = tp.PushVersion(ctx, req.TargetAppID, zip, req.DestinationSlug, req.DestinationVisibility)
@@ -401,16 +480,16 @@ func (c *Console) push(ctx context.Context, req *Request, actor string) (bool, e
 			req.OwnerGroupID, req.DestinationVisibility, envSeed)
 	}
 	if err != nil {
-		_ = c.store.SetStatus(ctx, req.ID, StatusFailed, Event{
+		_ = c.store.SetStatus(wctx, req.ID, StatusFailed, Event{
 			Action: "push.failed", ActorName: actor,
 			RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID,
 			Detail: err.Error()}, map[string]any{"failure": err.Error()})
-		c.notifyFailure(ctx, req, "A push was refused by the target", err.Error())
-		c.notifyRequester(ctx, req, "Your migration failed", err.Error())
+		c.notifyFailure(wctx, req, "A push was refused by the target", err.Error())
+		c.notifyRequester(wctx, req, "Your migration failed", err.Error())
 		return true, err
 	}
 
-	_ = c.store.UpdateRequestFields(ctx, req.ID, Event{
+	_ = c.store.UpdateRequestFields(wctx, req.ID, Event{
 		Action: "push.accepted", ActorName: actor,
 		RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID,
 		Detail: "the target accepted the bundle and is building"},

@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -16,22 +17,23 @@ import (
 // pointless for.
 type RequestData struct {
 	Request
-	Target       *Target
-	Link         *Link
-	Events       []Event
-	Attachments  []Attachment
-	AppAttach    []Attachment
-	AppNote      *AppNote
-	Viewers      []RequestViewer
-	Checks       []Check
-	Drift        string
-	MayDecide    bool
-	MayWithdraw  bool
-	MayCancel    bool
-	MayEdit      bool
-	MayAddPeople bool
-	FastTrack    bool
-	Destination  string
+	Target             *Target
+	Link               *Link
+	Events             []Event
+	Attachments        []Attachment
+	AppAttach          []Attachment
+	AppNote            *AppNote
+	Viewers            []RequestViewer
+	Checks             []Check
+	Drift              string
+	MayDecide          bool
+	MayWithdraw        bool
+	MayCancel          bool
+	MayEdit            bool
+	MayEditDestination bool
+	MayAddPeople       bool
+	FastTrack          bool
+	Destination        string
 
 	// TargetGroups is the group directory of the install this is going *to*,
 	// read with that target's own key, and it is only ever populated on the
@@ -122,6 +124,10 @@ func (c *Console) handleRequest(w http.ResponseWriter, r *http.Request) {
 	// the paperwork rather than reject and make somebody start again.
 	data.MayEdit = !Terminal(req.Status) &&
 		(req.RequesterID == caller.ID() || caller.Reviewer || caller.Editor || isViewer(viewers, caller.ID()))
+	// The destination is narrower: once a reviewer has decided, the name and
+	// the audience are what they approved, and changing either would ship
+	// something nobody reviewed.
+	data.MayEditDestination = data.MayEdit && req.Status == StatusSubmitted
 	data.MayAddPeople = !Terminal(req.Status) && (req.RequesterID == caller.ID() || caller.Editor)
 	// **Cancelling is a different act from withdrawing, and a different one
 	// from dropping a schedule.** It undoes a decision somebody recorded, so it
@@ -297,16 +303,21 @@ func (c *Console) handleApprove(w http.ResponseWriter, r *http.Request) {
 		fields["owner_group_id"] = chosen.ID
 		fields["owner_group_name"] = chosen.Name
 	}
-	if slug := trimForm(r, "destination_slug"); slug != "" {
+	if slug := sanitizeSlug(trimForm(r, "destination_slug")); slug != "" {
 		fields["destination_slug"] = slug
 	}
 	if vis := trimForm(r, "destination_visibility"); vis != "" {
+		if !validVisibility(vis) {
+			c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That is not a visibility",
+				"Private, signed-in viewers or public.")
+			return
+		}
 		fields["destination_visibility"] = vis
 	}
 
 	detail := "approved"
 	if when := trimForm(r, "scheduled_for"); when != "" {
-		t, err := time.ParseInLocation("2006-01-02T15:04", when, time.Local)
+		t, err := time.ParseInLocation("2006-01-02T15:04", when, scheduleZone(r))
 		if err != nil {
 			c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That is not a time", "Use the date and time field.")
 			return
@@ -315,11 +326,21 @@ func (c *Console) handleApprove(w http.ResponseWriter, r *http.Request) {
 		detail = "approved, scheduled for " + t.Format("2 Jan 2006 15:04")
 	}
 
-	if err := c.store.SetStatus(ctx, req.ID, StatusApproved, Event{
+	// Conditional on the row still being `submitted`. The checks above can
+	// take a network round trip to the target, and a withdrawal or another
+	// reviewer's rejection that lands meanwhile must stand: an approval
+	// written over either would ship something its requester called off.
+	moved, err := c.store.SetStatusIf(ctx, req.ID, StatusSubmitted, StatusApproved, Event{
 		Action: "request.approved", ActorID: caller.ID(), ActorName: caller.Name(),
 		RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID,
-		Detail: detail}, fields); err != nil {
+		Detail: detail}, fields)
+	if err != nil {
 		c.refuse(w, r, caller, http.StatusInternalServerError, "The approval could not be saved", err.Error())
+		return
+	}
+	if !moved {
+		c.refuse(w, r, caller, http.StatusConflict, "This request has already been decided",
+			"It changed while you were approving it — withdrawn, or decided by another reviewer. Its history is on the request.")
 		return
 	}
 	if _, scheduled := fields["scheduled_for"]; !scheduled {
@@ -357,7 +378,7 @@ func (c *Console) handleReject(w http.ResponseWriter, r *http.Request) {
 			"It is the only thing the requester has to work from, and a year later it is the only thing the record has.")
 		return
 	}
-	err := c.store.SetStatus(r.Context(), req.ID, StatusRejected, Event{
+	moved, err := c.store.SetStatusIf(r.Context(), req.ID, StatusSubmitted, StatusRejected, Event{
 		Action: "request.rejected", ActorID: caller.ID(), ActorName: caller.Name(),
 		RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID,
 		Detail: reason}, map[string]any{
@@ -367,9 +388,18 @@ func (c *Console) handleReject(w http.ResponseWriter, r *http.Request) {
 		c.refuse(w, r, caller, http.StatusInternalServerError, "The rejection could not be saved", err.Error())
 		return
 	}
+	if !moved {
+		c.refuse(w, r, caller, http.StatusConflict, "This request has already been decided",
+			"It changed while you were rejecting it. Its history is on the request.")
+		return
+	}
+	targetName := req.TargetID
+	if t, _ := c.store.GetTarget(r.Context(), req.TargetID); t != nil {
+		targetName = t.Label
+	}
 	c.notifyRequester(r.Context(), req, "Your migration request was rejected",
 		fmt.Sprintf("%s rejected the request to move %s to %s.\n\nReason: %s",
-			caller.Name(), req.SourceAppName, req.TargetID, reason))
+			caller.Name(), req.SourceAppName, targetName, reason))
 	c.redirect(w, r, "/requests/"+req.ID)
 }
 
@@ -384,7 +414,8 @@ func (c *Console) handleWithdraw(w http.ResponseWriter, r *http.Request) {
 			"Only the person who raised a request can withdraw it, and only before it has been decided.")
 		return
 	}
-	_ = c.store.SetStatus(r.Context(), req.ID, StatusWithdrawn, Event{
+	// Conditional for the reason approval is: a decision that landed first stands.
+	_, _ = c.store.SetStatusIf(r.Context(), req.ID, StatusSubmitted, StatusWithdrawn, Event{
 		Action: "request.withdrawn", ActorID: caller.ID(), ActorName: caller.Name(),
 		RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID}, nil)
 	c.redirect(w, r, "/requests/"+req.ID)
@@ -538,8 +569,10 @@ func (c *Console) handleDestination(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if Terminal(req.Status) || req.Status == StatusDeploying {
-		http.Error(w, "the destination is fixed once the push has started", http.StatusConflict)
+	// Fixed once decided: the approver chose a name and an audience, and a
+	// change after that would ship something nobody reviewed.
+	if req.Status != StatusSubmitted {
+		http.Error(w, "the destination is fixed once the request has been decided", http.StatusConflict)
 		return
 	}
 	if !(req.RequesterID == caller.ID() || caller.Reviewer || caller.Editor) {
@@ -553,9 +586,7 @@ func (c *Console) handleDestination(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	vis := trimForm(r, "destination_visibility")
-	switch vis {
-	case "", "private", "authenticated", "public":
-	default:
+	if !validVisibility(vis) {
 		http.Error(w, "visibility is private, authenticated or public", http.StatusUnprocessableEntity)
 		return
 	}
@@ -570,7 +601,7 @@ func (c *Console) handleDestination(w http.ResponseWriter, r *http.Request) {
 	req.DestinationSlug, req.DestinationVisibility = slug, vis
 	link, _ := c.store.FindLink(r.Context(), req.TargetID, req.SourceAppID)
 	c.render.fragment(w, "request", "destination", RequestData{
-		Request: *req, Link: link, Viewers: viewers, MayEdit: true,
+		Request: *req, Link: link, Viewers: viewers, MayEdit: true, MayEditDestination: true,
 		Destination: c.describeDestination(req, link)})
 }
 
@@ -685,3 +716,25 @@ func firstLine(s string) string {
 }
 
 var _ = context.Background
+
+func validVisibility(v string) bool {
+	switch v {
+	case "", "private", "authenticated", "public":
+		return true
+	}
+	return false
+}
+
+// scheduleZone is the zone a `datetime-local` value was typed in. The field
+// carries no offset, so the form adds the browser's (`tz_offset`, minutes east
+// of UTC at the chosen moment); without it the value is read on the process
+// clock, which in a Toft workload is UTC — a reviewer at UTC-5 scheduling
+// 22:00 would otherwise ship at 17:00 their time.
+func scheduleZone(r *http.Request) *time.Location {
+	if v := trimForm(r, "tz_offset"); v != "" {
+		if mins, err := strconv.Atoi(v); err == nil && mins >= -14*60 && mins <= 14*60 {
+			return time.FixedZone("browser", mins*60)
+		}
+	}
+	return time.Local
+}

@@ -22,7 +22,8 @@ Gallery on the **source** install, then completes a short setup.
   binds a source app to a target app, and every later request follows that link.
 - **The approver chooses the name and the audience.** What the app is called on
   the far side, and whether it is private, signed-in only, or public. The choice
-  carries to the next migration of the same pair.
+  carries to the next migration of the same pair, and once a request is decided
+  neither can be changed on it.
 - **Notes and documents in two places.** A standing note and standing documents
   on the app, which every request for it inherits; and a note and documents on
   each request, for that release.
@@ -117,6 +118,10 @@ outstanding.
 - It does not retry. A push that failed is not re-run and a cancelled request is
   not restarted — both offer to raise the same request again, which goes back
   through review.
+- It does not watch a build for ever. A push whose deployment disappears on the
+  target, or about which the target has said nothing for six hours, is marked
+  failed with that reason, so no request stays *deploying* with nobody able to
+  move it.
 - It does not recall a push that has started. Once the bundle is on the target,
   what happens next is decided on that install.
 - It cannot list your users. The key it holds may read group names, counts and

@@ -103,6 +103,13 @@ func (c *Console) handleAddRequestAttachment(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
+	// Closed with the request, as the note is: deleting one is already refused
+	// on a finished request because what the reviewer read stays with it, and
+	// a record that can grow after the fact but never shrink is not one either.
+	if Terminal(req.Status) || req.Status == StatusDeploying {
+		http.Error(w, "this request has finished; documents can no longer be added to it", http.StatusConflict)
+		return
+	}
 	limit := c.attachmentLimit(r)
 	name, body, sum, err := readUpload(r, limit)
 	if err != nil {
