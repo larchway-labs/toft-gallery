@@ -310,9 +310,9 @@
         "integrations",
         "example"
       ],
-      "version": "1.2.0",
+      "version": "1.3.0",
       "min_platform_version": "0.7.0",
-      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/fastapi-reconcile/v1.2.0.zip",
+      "zip_url": "https://github.com/larchway-labs/toft-gallery/archive/refs/tags/fastapi-reconcile/v1.3.0.zip",
       "path": "examples/fastapi-reconcile",
       "source_url": "https://github.com/larchway-labs/toft-gallery/tree/main/examples/fastapi-reconcile",
       "suggested_slug": "reconcile",
@@ -330,7 +330,7 @@
           "description": "Comma-separated addresses for the emailed close summary. Recipients are the one destination an app chooses, which is why every address goes to the install's send log."
         }
       ],
-      "notes": "Background jobs need an isolated backend and `jobs_enabled`; where they are absent the platform says so by name and the app offers to run the close in the web process instead — which is exactly what the job system exists to avoid, and the page says that too. Slack and email are an administrator's decision on the app's Integrations tab."
+      "notes": "The close is a job that also fires by itself at month-end; the Runs tab shows each run's log and output, and editors can cancel or run one again. Where an administrator has switched jobs off, the platform says so by name and the app offers to run the close in the web process instead — which is exactly what the job system exists to avoid, and the page says that too. Slack and email are an administrator's decision on the app's Integrations tab."
     },
     {
       "id": "5ef17c95-2025-425e-bde2-abd3545a949e",
