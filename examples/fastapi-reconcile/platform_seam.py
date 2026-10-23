@@ -365,7 +365,8 @@ def announce(text: str, title: str) -> str:
     sent = []
     if can("slack.post"):
         try:
-            toft.notify.slack(text, title=title)
+            # A Slack message has no title field; the heading is the first line.
+            toft.notify.slack(f"*{title}*\n{text}")
             sent.append("Slack")
         except ToftError as exc:
             return f"Slack refused: {exc}"
