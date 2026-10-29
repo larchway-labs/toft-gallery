@@ -285,3 +285,12 @@ func TestEachConditionAloneRefuses(t *testing.T) {
 		t.Error("a request to Stage was promotable to a target that requires QA")
 	}
 }
+
+// A hashed requirements.txt is Python's lockfile on the platform (ADR §39), and
+// the console passes it on the platform's word with no Python rule of its own.
+func TestAHashedPythonReleasePassesOnThePlatformsClaim(t *testing.T) {
+	hashed := map[string]string{"toft:ecosystem:PyPI": "complete: requirements.txt pins and hashes every package"}
+	if s, why := lockfileCheck(sbomFixture(hashed, "python 3.12.4", "PyPI:flask@3.0.0"), "Stage"); s != CheckPass {
+		t.Errorf("a hashed Python release read %q: %s", s, why)
+	}
+}

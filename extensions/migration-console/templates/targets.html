@@ -114,8 +114,8 @@
         <label class="inline"><input type="checkbox" name="requires_lockfile" style="width:auto"
           {{if $e}}{{if $e.RequiresLockfile}}checked{{end}}{{end}}> Require locked dependencies</label>
         <p class="hint">A promotion here needs the earlier target’s SBOM to say every ecosystem’s lockfile
-           was read, or a reviewer’s waiver. Needs the dependency policy on there. Python apps are
-           never locked by Toft’s reading today, so they always need a waiver.</p>
+           was read, or a reviewer’s waiver. Needs the dependency policy on there. A Python app
+           counts as locked only with a hashed <code>requirements.txt</code>.</p>
       </div>
       <div class="field">
         <label class="inline"><input type="checkbox" name="fast_track" style="width:auto"

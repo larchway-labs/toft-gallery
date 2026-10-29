@@ -125,8 +125,12 @@ For **staged promotion**, edit the later target on the Targets page and choose
 read each install's SBOM, and an install records a package list only with its
 **dependency policy on, with scanning on deploy** — on both. With it off, the
 lockfile check fails saying so, and parity reads *not recorded*, which holds
-nothing. Python apps are never *locked* by Toft's reading today, so on a target
-that requires locked dependencies every Python promotion needs a waiver. A
+nothing. A Python app is *locked* when its `requirements.txt` pins and hashes
+every package (`uv pip compile --generate-hashes`), which Toft then installs
+with `--require-hashes`; any other Python app needs a waiver on a target that
+requires locked dependencies. An R app built by two Toft versions differs on
+the platform's own rows (renv, the SDK), and parity reports them for a reviewer
+to acknowledge rather than hiding them. A
 target that another requires cannot be removed until that is cleared.
 
 Optionally, choose a **time zone** on Settings. Every time the console shows —
