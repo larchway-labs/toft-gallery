@@ -165,7 +165,7 @@ func (c *Console) handleRequest(w http.ResponseWriter, r *http.Request) {
 	if data.Target != nil {
 		data.FastTrack = data.Target.FastTrack
 	}
-	if data.MayDecide && data.Link == nil {
+	if data.MayDecide && data.Link == nil && (data.Target == nil || data.Target.DefaultOwnerGroupID == "") {
 		data.TargetGroups, data.GroupsRefusal = c.targetGroups(ctx, data.Target)
 	}
 	if data.MayAddPeople {
@@ -343,13 +343,14 @@ func (c *Console) handleApprove(w http.ResponseWriter, r *http.Request) {
 	link, _ := c.store.FindLink(ctx, req.TargetID, req.SourceAppID)
 	if link == nil {
 		group := trimForm(r, "owner_group_id")
-		// The target's default owning group, copied onto the request when it
-		// was raised, stands unless the approver chooses another — so a
-		// promotion into Prod lands owned by Prod's group without anybody
-		// having to pick it again. It is checked against the target's
-		// directory below exactly as a chosen one is.
-		if group == "" {
-			group = req.OwnerGroupID
+		// **A target that names an owning group owns every app created on it.**
+		// It is the connection's setting, not the approver's choice: Stage's
+		// apps belong to Stage's group and Prod's to Prod's, whoever approves.
+		// Read from the target now, not from the copy on the request, so a
+		// change on the Targets page applies to requests already raised. It is
+		// checked against the target's directory below like any other.
+		if target.DefaultOwnerGroupID != "" {
+			group = target.DefaultOwnerGroupID
 		}
 		if group == "" {
 			c.refuse(w, r, caller, http.StatusUnprocessableEntity, "Choose an owning group",

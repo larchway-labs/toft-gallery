@@ -77,23 +77,23 @@
            be empty is worse than the box it replaced. */}}
       {{if and $e $d.EditingGroups}}
       <div class="field">
-        <label for="grp">Default owning group on {{$e.Label}}</label>
+        <label for="grp">Apps created on {{$e.Label}} are owned by</label>
         <select id="grp" name="default_owner_group_id">
-          <option value="">None — the approver picks one each time</option>
+          <option value="">No fixed group — the approver picks one each time</option>
           {{range $d.EditingGroups}}
             <option value="{{.ID}}" {{if eq .ID $e.DefaultOwnerGroupID}}selected{{end}} {{if eq .Members 0}}disabled{{end}}>
               {{.Name}}{{if eq .Members 0}} — no members, can’t own an app{{else}} · Members: {{.Members}}{{end}}
             </option>
           {{end}}
         </select>
-        <p class="hint">Pre-selected when an approver creates an app on {{$e.Label}}; they can change it
-           on the request. A group with no members can’t be chosen.</p>
+        <p class="hint">Every app the console creates on {{$e.Label}} is owned by this group — the approver
+           doesn’t choose. Apps already there keep their owner. A group with no members can’t be chosen.</p>
       </div>
       {{else}}
       <div class="row">
-        <div class="field"><label for="grp">Default owning group id (targets only)</label>
+        <div class="field"><label for="grp">Owning group id for apps created there (targets only)</label>
           <input id="grp" name="default_owner_group_id" placeholder="Group id on that install" value="{{if $e}}{{$e.DefaultOwnerGroupID}}{{end}}">
-          <p class="hint">Pre-selected when an approver creates an app there; they can change it.
+          <p class="hint">Every app the console creates there is owned by this group. Blank, the approver picks one each time.
             {{if $e}}{{if $d.EditingGroupsWhy}}<br>{{$d.EditingGroupsWhy}}{{end}}
             {{else}}After the target is saved, editing it shows a list of its groups.{{end}}</p></div>
         <div class="field"><label for="grpn">Group name</label><input id="grpn" name="default_owner_group_name" value="{{if $e}}{{$e.DefaultOwnerGroupName}}{{end}}"></div>

@@ -136,7 +136,13 @@
     <div class="cardhead"><h2>Your decision</h2></div>
     <div class="body stack">
       <form method="post" action="{{url (printf "/requests/%s/approve" $d.ID)}}" class="stack">
-        {{if not $d.Link}}
+        {{if and (not $d.Link) $d.Target}}{{if $d.Target.DefaultOwnerGroupID}}
+        {{/* The target's own setting: every app created there is owned by its
+             group, so there is nothing for the approver to choose. */}}
+        <p class="small">This is the app’s first migration to {{$d.Target.Label}}, so it’s created there,
+           owned by <strong>{{$d.Target.DefaultOwnerGroupName}}</strong> — the owning group set on this target.</p>
+        {{end}}{{end}}
+        {{if and (not $d.Link) (or (not $d.Target) (not $d.Target.DefaultOwnerGroupID))}}
         {{/* Read from the target install with the key stored for it, because
              both deploy-key scopes may read the group directory — names, counts
              and addresses, never a roster. It was a text box taking a UUID

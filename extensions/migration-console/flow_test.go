@@ -410,8 +410,8 @@ func TestAFailedBuildRecordsItsLog(t *testing.T) {
 	}
 }
 
-// A promotion into a target with a default owning group lands owned by that
-// group, with no group chosen at approval.
+// A target that names an owning group owns every app created on it: the
+// approver is not asked, and a group posted anyway does not replace it.
 func TestAPromotionIsOwnedByTheTargetsGroup(t *testing.T) {
 	hs, up := stagedApp(t)
 	ctx := context.Background()
@@ -421,7 +421,12 @@ func TestAPromotionIsOwnedByTheTargetsGroup(t *testing.T) {
 		t.Fatal(refusal(w))
 	}
 	prom := hs.newest()
-	hs.approve(prom.ID, "grace", nil)
+	hs.prod.groups = append(hs.prod.groups, Group{ID: "g-other", Name: "someone else", Members: 1})
+	if page := hs.do("grace", RoleViewer, "GET", "/requests/"+prom.ID, nil).Body.String(); strings.Contains(page, `name="owner_group_id"`) ||
+		!strings.Contains(page, "prod owners") {
+		t.Error("the approver was offered a group although Prod fixes it")
+	}
+	hs.approve(prom.ID, "grace", url.Values{"owner_group_id": {"g-other"}})
 	hs.tick()
 	got := hs.request(prom.ID)
 	if got.OwnerGroupID != "g-prod" || got.Status != StatusDeploying {
