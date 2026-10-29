@@ -623,9 +623,6 @@ func (c *Console) promotionFor(ctx context.Context, caller Caller, upstreamID st
 	if len(gated) == 0 {
 		return upstream, nil, "No target takes releases from " + upLabel + ", so there’s nowhere to promote this to. Raise an ordinary request instead."
 	}
-	if b, _ := c.store.BundleInfo(ctx, upstream.ID); b == nil {
-		return upstream, nil, fmt.Sprintf("This %s deployment was made before the console kept bundles for it, or its bundle has been pruned. Send it to %s again and promote that.", upLabel, upLabel)
-	}
 	var ok []Target
 	why := ""
 	for _, t := range gated {
@@ -638,6 +635,11 @@ func (c *Console) promotionFor(ctx context.Context, caller Caller, upstreamID st
 	}
 	if len(ok) == 0 {
 		return upstream, nil, why
+	}
+	// Asked last, so a request that could not be promoted anyway is refused
+	// for that reason rather than for the bundle a prune already removed.
+	if b, _ := c.store.BundleInfo(ctx, upstream.ID); b == nil {
+		return upstream, nil, fmt.Sprintf("This %s deployment was made before the console kept bundles for it. Send it to %s again and promote that.", upLabel, upLabel)
 	}
 	return upstream, ok, ""
 }

@@ -33,6 +33,8 @@ func TestEveryPageRendersEmpty(t *testing.T) {
 
 	empty("queue", QueueData{Tab: "mine", Counts: map[string]int{}})
 	empty("new", NewRequestData{})
+	empty("new", NewRequestData{PromoteWhy: "Nothing requires Stage."})
+	empty("new", NewRequestData{Promote: &Request{ID: "r1", Seq: 1}, PromoteTargets: []Target{{ID: "t", Label: "Prod", RequiresLabel: "Stage"}}})
 	empty("request", RequestData{Request: Request{ID: "r1", Status: StatusSubmitted}})
 	empty("app", AppData{AppID: "a1", TargetLabel: map[string]string{}})
 	empty("targets", TargetsData{})
@@ -411,5 +413,63 @@ func TestADeployedRequestLinksToTheApp(t *testing.T) {
 		Target:  &Target{Label: "trytoft", AppsURL: "https://apps.trytoft.dev/apps/"}})
 	if !strings.Contains(w.Body.String(), `href="https://apps.trytoft.dev/apps/mc-hello/"`) {
 		t.Errorf("no link to the app:\n%s", w.Body.String())
+	}
+}
+
+// A promoted request renders with every check status a promotion can carry,
+// the Promote action in both of its forms, and its provenance — so a wrong
+// field cannot abort the page mid-tag, which is this console's known failure.
+func TestAPromotedRequestRendersInEveryCheckState(t *testing.T) {
+	r := newRenderer(newURLs("/apps/mc"))
+	now := time.Now()
+	statuses := []string{CheckPass, CheckFail, CheckWaived, CheckDiffers, CheckAcknowledged, CheckNotRecorded}
+	for _, st := range statuses {
+		for _, kind := range []string{CheckLockfile, CheckParity} {
+			req := Request{ID: "r2", Seq: 14, Status: StatusDeployed, SourceAppName: "Orders", TargetID: "t-prod",
+				SourceReleaseLabel: "main@abc123", DestinationSlug: "orders", PromotedFrom: "r1",
+				BundleSHA256: strings.Repeat("c", 64), CreatedAt: now}
+			data := RequestData{
+				Request: req, MayResolveChecks: true,
+				Target:   &Target{ID: "t-prod", Label: "Prod", RequiresTargetID: "t-stage"},
+				Upstream: &Request{ID: "r1", Seq: 12, BundleSHA256: strings.Repeat("c", 64)}, UpstreamLabel: "Stage",
+				Kept: &Bundle{RequestID: "r2", Size: 4096},
+				Checks: []Check{
+					{ID: "c1", Kind: CheckDependencies, Tool: "Toft", Verdict: "clean", Summary: "On Stage: 3 direct dependencies"},
+					{ID: "c2", Kind: kind, Tool: "Toft SBOM", Status: st, Summary: "summary", Report: "changed npm:a 1 → 2"},
+				},
+				Promotions: []PromotionOffer{
+					{Target: Target{ID: "t-x", Label: "Prod EU"}, OK: true},
+					{Target: Target{ID: "t-y", Label: "Prod US"}, Why: "A newer release has deployed to Stage since."},
+				},
+			}
+			w := httptest.NewRecorder()
+			r.page(w, 200, "request", View{Title: "r", Caps: map[string]bool{}, Data: data})
+			body := w.Body.String()
+			if w.Code != 200 || strings.Contains(body, "<no value>") {
+				t.Errorf("%s/%s: %d", kind, st, w.Code)
+				continue
+			}
+			for _, want := range []string{"Promoted from", "#12", "Promote to Prod EU", "A newer release", "Kept for promotion"} {
+				if !strings.Contains(body, want) {
+					t.Errorf("%s/%s: the page lacks %q", kind, st, want)
+				}
+			}
+			action := map[string]string{CheckLockfile + CheckFail: "/waive", CheckParity + CheckDiffers: "/acknowledge"}[kind+st]
+			if action != "" && !strings.Contains(body, "/checks/c2"+action) {
+				t.Errorf("%s/%s offers no %s", kind, st, action)
+			}
+			if action == "" && (strings.Contains(body, "/checks/c2/waive") || strings.Contains(body, "/checks/c2/acknowledge")) {
+				t.Errorf("%s/%s offers an action it would refuse", kind, st)
+			}
+		}
+	}
+	// "Raise again" on a failed promotion is a promotion of the same upstream.
+	var buf bytes.Buffer
+	if err := r.pages["request"].ExecuteTemplate(&buf, "again",
+		RequestData{Request: Request{ID: "r2", PromotedFrom: "r1", TargetID: "t-prod"}}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "promote=r1") {
+		t.Errorf("raising a promotion again does not promote the same upstream: %s", buf.String())
 	}
 }
