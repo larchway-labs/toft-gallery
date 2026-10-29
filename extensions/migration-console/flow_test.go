@@ -387,3 +387,25 @@ func TestPromotionPagesRender(t *testing.T) {
 		t.Error("the Targets page does not show the chain")
 	}
 }
+
+// A failed build on the target is recorded with the tail of its log, read from
+// /logs: the platform's deployment reads carry no build_log, and a failure
+// with no reason was what the first run of the staged plan recorded.
+func TestAFailedBuildRecordsItsLog(t *testing.T) {
+	hs := newHarness(t)
+	hs.source.release("orders", "orders", "ada", orders)
+	hs.stage.failNext = "==> Installing\nERROR: app did not become ready"
+	w := hs.do("ada", RoleViewer, "POST", "/requests/new", url.Values{
+		"app_id": {"orders"}, "deployment_id": {hs.source.deploys["orders"][0].ID}, "target_id": {"t-stage"}})
+	if w.Code != http.StatusSeeOther {
+		t.Fatal(refusal(w))
+	}
+	req := hs.newest()
+	hs.approve(req.ID, "grace", url.Values{"owner_group_id": {"g-stage"}})
+	hs.tick()
+	hs.tick()
+	got := hs.request(req.ID)
+	if got.Status != StatusFailed || !strings.Contains(got.Failure, "did not become ready") {
+		t.Fatalf("the failed build recorded %s: %q", got.Status, got.Failure)
+	}
+}

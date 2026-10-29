@@ -407,6 +407,17 @@ func (p *Platform) Deployment(ctx context.Context, appID, deployID string) (*Dep
 	return &d, nil
 }
 
+// BuildLog is one deployment's build log. The deployment reads stopped
+// carrying it — the list had been shipping every retained log in full — so a
+// failed build's reason is read here, from the route that serves it.
+func (p *Platform) BuildLog(ctx context.Context, appID, deployID string) (string, error) {
+	var out struct {
+		BuildLog string `json:"build_log"`
+	}
+	err := p.getJSON(ctx, "/apps/"+url.PathEscape(appID)+"/deployments/"+url.PathEscape(deployID)+"/logs", &out)
+	return out.BuildLog, err
+}
+
 func (p *Platform) Dependencies(ctx context.Context, appID string) (*DependencyReport, error) {
 	var r DependencyReport
 	if err := p.getJSON(ctx, "/apps/"+url.PathEscape(appID)+"/dependencies", &r); err != nil {

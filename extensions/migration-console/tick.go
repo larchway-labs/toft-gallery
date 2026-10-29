@@ -267,7 +267,16 @@ func (c *Console) watchInFlight(ctx context.Context, actor string) int {
 			// tail of that log is what the request records and what the mail
 			// carries. A generic "it failed" would send somebody to the other
 			// install to read the thing this app already has.
-			why := lastLines(d.BuildLog, 12)
+			buildLog := d.BuildLog
+			if buildLog == "" {
+				logCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+				buildLog, _ = tp.BuildLog(logCtx, req.TargetAppID, req.TargetDeploymentID)
+				cancel()
+			}
+			why := lastLines(buildLog, 12)
+			if why == "" {
+				why = target.Label + " reports the build failed and gave no log. Open the app there for its deployments."
+			}
 			moved, _ := c.store.SetStatusIf(ctx, req.ID, StatusDeploying, StatusFailed, Event{
 				Action: "push.failed", ActorName: actor,
 				RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID,

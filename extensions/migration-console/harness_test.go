@@ -96,12 +96,14 @@ type fakeInstall struct {
 	archiveHits int
 	received    [][]byte // every zip pushed here, in order
 	nextSBOM    string   // the SBOM the next build here records
+	failNext    string   // when set, the next build fails with this log
+	logs        map[string]string
 }
 
 func newFakeInstall(t *testing.T, name string) *fakeInstall {
 	f := &fakeInstall{t: t, name: name,
 		apps: map[string]*App{}, deploys: map[string][]*Deployment{}, archives: map[string][]byte{},
-		sboms: map[string]string{}, deps: map[string]*DependencyReport{},
+		sboms: map[string]string{}, deps: map[string]*DependencyReport{}, logs: map[string]string{},
 		groups: []Group{{ID: "g-" + name, Name: name + " owners", Members: 1}}}
 	mux := http.NewServeMux()
 	j := func(w http.ResponseWriter, v any) {
@@ -171,6 +173,12 @@ func newFakeInstall(t *testing.T, name string) *fakeInstall {
 		}
 		_, _ = io.WriteString(w, s)
 	})
+	// The deployment reads carry no build_log, as the platform's do not.
+	mux.HandleFunc("GET /api/v1/apps/{id}/deployments/{d}/logs", func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		j(w, map[string]string{"build_log": f.logs[r.PathValue("d")]})
+	})
 	mux.HandleFunc("GET /api/v1/apps/{id}/dependencies", func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
@@ -225,6 +233,12 @@ func (f *fakeInstall) build(appID string, zip []byte) *Deployment {
 	now := time.Now().UTC()
 	d := &Deployment{ID: "dep-" + randHex(4), AppID: appID, Status: "success", Current: true,
 		CommitSHA: randHex(20), StartedAt: now, FinishedAt: &now}
+	if f.failNext != "" {
+		d.Status, d.Current = "failed", false
+		f.logs[d.ID], f.failNext = f.failNext, ""
+		f.deploys[appID] = append([]*Deployment{d}, f.deploys[appID]...)
+		return d
+	}
 	for _, old := range f.deploys[appID] {
 		old.Current = false
 	}
