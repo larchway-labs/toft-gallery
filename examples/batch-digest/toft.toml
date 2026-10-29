@@ -10,7 +10,6 @@ command       = "python digest.py"
 schedule      = "0 6 * * *"
 timezone      = "Europe/London"
 timeout       = 600
-memory        = 256
 # Tell the owners if a day goes by without a successful digest — paused,
 # refused by the queue, or failing quietly.
 expect_within = "26h"

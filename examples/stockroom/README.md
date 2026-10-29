@@ -73,7 +73,6 @@ schedule = "0 7 * * 1"         # Monday 07:00
 timezone = "Europe/London"     # on the wall clock, through the clock changes
 overlap  = "skip"
 timeout  = "5m"
-memory   = 256
 notify   = "failures"
 ```
 

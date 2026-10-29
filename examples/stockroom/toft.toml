@@ -18,7 +18,6 @@ timezone = "Europe/London"
 overlap = "skip"
 
 timeout = "5m"
-memory  = 256         # MiB — a PDF of a few thousand lines
 notify  = "failures"  # one message per run that did not deliver
 
   [jobs.report.params.report]

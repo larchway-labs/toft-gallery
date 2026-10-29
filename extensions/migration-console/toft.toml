@@ -21,7 +21,6 @@ overlap = "skip"
 # hands it over before the far side builds. Ten minutes is the download and the
 # hand-off, not the build: later ticks watch that.
 timeout = "10m"
-memory  = 512
 
 # Tell this app's owners when a tick could not start a migration. A failed
 # build on the target is mailed to the administrators' group by the console

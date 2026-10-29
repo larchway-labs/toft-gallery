@@ -30,7 +30,6 @@ overlap       = "skip"
 # example shows the alarm for one that never happens.
 
 timeout = "15m"        # a real close is minutes
-memory  = 512          # MiB, its own — not the web process's
 notify  = "failures"   # one message per failed close; run it again with toft job rerun
 
   [jobs.close.params.period]
