@@ -409,3 +409,25 @@ func TestAFailedBuildRecordsItsLog(t *testing.T) {
 		t.Fatalf("the failed build recorded %s: %q", got.Status, got.Failure)
 	}
 }
+
+// A promotion into a target with a default owning group lands owned by that
+// group, with no group chosen at approval.
+func TestAPromotionIsOwnedByTheTargetsGroup(t *testing.T) {
+	hs, up := stagedApp(t)
+	ctx := context.Background()
+	hs.prodRow.DefaultOwnerGroupID, hs.prodRow.DefaultOwnerGroupName = "g-prod", "prod owners"
+	hs.saveTarget(ctx, hs.prodRow)
+	if w := hs.promote(up.ID, nil); w.Code != http.StatusSeeOther {
+		t.Fatal(refusal(w))
+	}
+	prom := hs.newest()
+	hs.approve(prom.ID, "grace", nil)
+	hs.tick()
+	got := hs.request(prom.ID)
+	if got.OwnerGroupID != "g-prod" || got.Status != StatusDeploying {
+		t.Fatalf("the promotion is %s, owned by %q", got.Status, got.OwnerGroupID)
+	}
+	if a := hs.prod.apps[got.TargetAppID]; a == nil || a.OwnerGroupID != "g-prod" {
+		t.Errorf("the app on Prod is not owned by Prod's group: %+v", a)
+	}
+}

@@ -343,6 +343,14 @@ func (c *Console) handleApprove(w http.ResponseWriter, r *http.Request) {
 	link, _ := c.store.FindLink(ctx, req.TargetID, req.SourceAppID)
 	if link == nil {
 		group := trimForm(r, "owner_group_id")
+		// The target's default owning group, copied onto the request when it
+		// was raised, stands unless the approver chooses another — so a
+		// promotion into Prod lands owned by Prod's group without anybody
+		// having to pick it again. It is checked against the target's
+		// directory below exactly as a chosen one is.
+		if group == "" {
+			group = req.OwnerGroupID
+		}
 		if group == "" {
 			c.refuse(w, r, caller, http.StatusUnprocessableEntity, "Choose an owning group",
 				"This is the app’s first migration to this target, so it will be created there and needs a group to own it. Choose one from the list on the request.")

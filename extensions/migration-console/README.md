@@ -221,6 +221,12 @@ on the demo tier and the demo tier locks Groups, so a fresh target has none at
 all; the console says so at the approval rather than letting it arrive as a push
 failure on the far side several minutes later.
 
+**Set a default owning group on each target, and Prod's apps belong to Prod's
+group.** The target's default group is copied onto every request raised for it
+and stands at approval unless the reviewer picks another, so a promotion that
+creates the app on Prod creates it owned by the production group. Later
+promotions ship new versions of that app and never change its owner.
+
 ## Building it
 
 ```bash
