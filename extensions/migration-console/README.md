@@ -39,6 +39,28 @@ Gallery on the **source** install, then completes a short setup.
   with the app, the release, the target, the destination and the reason already
   filled in. It is a prefill and never a reopening: the new request gets its own
   review, because the old approval was for those bytes.
+- **Environments can be put in order.** A target can require another — Prod
+  takes releases from Stage — and then a request to it must **promote** a
+  request that deployed to Stage. The app and the release are copied from that
+  request, and four things are checked when it is raised, approved and pushed:
+  the Stage request deployed; it is the newest one for that app on Stage; Stage
+  is still serving exactly that deployment (read live, so a Stage redeployed by
+  hand stops the push and says what it serves now); and the last promotion of
+  the app to Prod is not holding an unacknowledged build difference. Chains are
+  longer the same way: QA → Stage → Prod. A target nothing requires behaves as
+  before.
+- **Prod gets the bytes Stage got.** A push to a target another requires keeps
+  its zip in the console's database, and a promotion sends that zip — checked
+  against its recorded sha256 — rather than downloading the release again, so a
+  release the source has since pruned still ships.
+- **The packages are checked from the platform's own SBOM.** When the Stage push
+  succeeds the console stores Stage's SBOM for that deployment. A target can
+  **require locked dependencies**: a promotion to it passes only if that SBOM
+  says every ecosystem's lockfile was read, and otherwise waits for a reviewer
+  who did not raise it to waive the check, with a reason. After a promotion
+  deploys, **build parity** compares Prod's SBOM with Stage's — package versions
+  and the interpreter — and a difference mails the administrators' group and
+  holds the next promotion of that app until a reviewer acknowledges it.
 - **Everything is recorded.** Every action — submitted, approved, rejected,
   scheduled, pushed, failed, attached, edited — is a row, and the record is
   readable per app: *what has ever shipped from this app, and where is it now*.
@@ -98,6 +120,15 @@ the install, and the Install page says so when Toft refuses to start it.
 A mail about a migration names the app, the install it came from, the target,
 the release and the request, and links to the app on the target once it exists.
 
+For **staged promotion**, edit the later target on the Targets page and choose
+*Takes releases from* the earlier one. Locked dependencies and build parity
+read each install's SBOM, and an install records a package list only with its
+**dependency policy on, with scanning on deploy** — on both. With it off, the
+lockfile check fails saying so, and parity reads *not recorded*, which holds
+nothing. Python apps are never *locked* by Toft's reading today, so on a target
+that requires locked dependencies every Python promotion needs a waiver. A
+target that another requires cannot be removed until that is cleared.
+
 Optionally, choose a **time zone** on Settings. Every time the console shows —
 pages, history, release labels and mail — is written in it, and a migration's
 scheduled time is entered in it. Unset, times are on the install's clock (UTC)
@@ -111,8 +142,12 @@ outstanding.
 
 ## What it does not do
 
-- It does not enforce an order between environments. A target is a target;
-  nothing checks that dev comes before UAT.
+- It does not prove Prod runs the same files as Stage. Parity compares the
+  package **versions** each install's SBOM records; the SBOM carries no hashes,
+  and the operating system and runner image beneath the interpreter are outside
+  it. It does not roll Prod back on a difference either — it holds the next
+  promotion.
+- It does not promote anything but the newest release on the upstream target.
 - It does not avoid a rebuild. Toft exports source and imports source, so
   the target builds what it receives.
 - It does not copy environment variable **values**, ever. It seeds the names
@@ -141,6 +176,12 @@ outstanding.
   or been named on a request here — and accepts any Toft user id.
 
 ## Things worth knowing
+
+**The console's database holds release zips.** A push to a target that another
+target requires keeps its zip (up to the 110 MB archive ceiling) with that
+target's SBOM, until no promotion could use it: one per app per required
+target, plus any a request in flight still reads. A console with no required
+target stores none.
 
 **The console holds keys for your estate.** Each target's key can deploy to any
 app on that install. If the console is compromised, so are those keys. The
