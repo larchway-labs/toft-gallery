@@ -36,6 +36,8 @@ func (c *Console) routes() http.Handler {
 	mux.HandleFunc("POST /requests/{id}/viewers", c.handleAddViewer)
 	mux.HandleFunc("POST /requests/{id}/viewers/{userID}/remove", c.handleRemoveViewer)
 	mux.HandleFunc("POST /requests/{id}/attachments", c.handleAddRequestAttachment)
+	mux.HandleFunc("POST /requests/{id}/checks/{checkID}/waive", c.handleWaiveCheck)
+	mux.HandleFunc("POST /requests/{id}/checks/{checkID}/acknowledge", c.handleAcknowledgeCheck)
 
 	// One source app: everything ever shipped from it, and its standing note.
 	mux.HandleFunc("GET /apps/{appID}", c.handleAppActivity)

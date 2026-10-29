@@ -106,7 +106,7 @@ func (c *Console) tickMain(ctx context.Context) int {
 	defer release()
 
 	report, failed := c.runTick(ctx, actor)
-	for _, k := range []string{"watched", "started", "targets_tested", "skipped"} {
+	for _, k := range []string{"watched", "started", "targets_tested", "sboms_filled", "bundles_pruned", "skipped"} {
 		if v, ok := report[k]; ok && v != "" {
 			log.Printf("%-15s %v", k, v)
 		}
@@ -150,6 +150,12 @@ func (c *Console) runTick(ctx context.Context, actor string) (map[string]any, bo
 		report["skipped"] = skipped
 	}
 	report["targets_tested"] = c.retestTargetsDaily(ctx, actor)
+	if n := c.fillMissingSBOMs(ctx); n > 0 {
+		report["sboms_filled"] = n
+	}
+	if n, err := c.store.PruneBundles(ctx); err == nil && n > 0 {
+		report["bundles_pruned"] = n
+	}
 	return report, failed
 }
 
@@ -323,8 +329,110 @@ func (c *Console) afterSuccess(ctx context.Context, req *Request, d *Deployment)
 			RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID,
 			Detail: fmt.Sprintf("%s → %s", req.SourceAppSlug, req.DestinationSlug)})
 	}
+	c.recordBuild(ctx, req, d)
 	msg := fmt.Sprintf("%s is now serving release %s as %s.", req.SourceAppName, req.SourceReleaseLabel, req.DestinationSlug)
 	c.notifyRequester(ctx, req, "Your migration finished", msg)
+}
+
+// recordBuild captures what the target built, for the two package checks.
+//
+// **Captured now, at success**, because the target prunes a deployment's
+// inventory with its release, and a Prod push may be days away. A request with
+// a kept bundle stores its target's SBOM beside the bytes; a promotion is then
+// compared with the SBOM kept for its upstream request. A read that fails
+// leaves the SBOM empty for fillMissingSBOMs to try again.
+func (c *Console) recordBuild(ctx context.Context, req *Request, d *Deployment) {
+	kept, _ := c.store.BundleInfo(ctx, req.ID)
+	if kept == nil && req.PromotedFrom == "" {
+		return
+	}
+	target, _ := c.store.GetTarget(ctx, req.TargetID)
+	if target == nil {
+		return
+	}
+	var sbom []byte
+	var sbomErr error
+	if tp, err := c.platformFor(target); err != nil {
+		sbomErr = err
+	} else {
+		callCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		sbom, sbomErr = tp.SBOM(callCtx, req.TargetAppID, d.ID)
+		cancel()
+	}
+	if sbomErr != nil {
+		log.Printf("reading the SBOM of %s on %s: %v", req.ID, target.Label, sbomErr)
+	}
+	if kept != nil && sbomErr == nil {
+		_ = c.store.SetBundleSBOM(ctx, req.ID, string(sbom))
+	}
+	if req.PromotedFrom == "" {
+		return
+	}
+
+	upstream, _ := c.store.GetRequest(ctx, req.PromotedFrom)
+	upLabel, upSBOM := "the upstream target", ""
+	if upstream != nil {
+		if t, _ := c.store.GetTarget(ctx, upstream.TargetID); t != nil {
+			upLabel = t.Label
+		}
+		if b, _ := c.store.BundleInfo(ctx, upstream.ID); b != nil {
+			upSBOM = b.SBOM
+		}
+	}
+	downRaw := string(sbom)
+	status, summary, report := parityCheck(upSBOM, downRaw, upLabel, target.Label)
+	if sbomErr != nil {
+		status, summary, report = CheckNotRecorded,
+			fmt.Sprintf("Not checked: %s’s package list couldn’t be read: %v", target.Label, sbomErr), ""
+	}
+	now := time.Now().UTC()
+	_ = c.store.SaveCheck(ctx, Check{ID: newID(), RequestID: req.ID, Kind: CheckParity, Tool: "Migration Console",
+		Status: status, Summary: summary, Report: report, RanAt: &now})
+	_ = c.store.WriteEvent(ctx, Event{Action: "parity." + status, ActorName: "the console",
+		RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID, Detail: firstLine(summary)})
+	if status == CheckDiffers {
+		c.notifyFailure(ctx, req, "A promotion built different packages",
+			summary+"\n\nThe next promotion of this app to "+target.Label+
+				" is held until a reviewer acknowledges the difference on the request.\n\n"+report)
+	}
+}
+
+// fillMissingSBOMs retries the SBOM read for kept bundles whose success did not
+// get one, while their target still serves that deployment.
+func (c *Console) fillMissingSBOMs(ctx context.Context) int {
+	reqs, err := c.store.BundlesMissingSBOM(ctx)
+	if err != nil {
+		return 0
+	}
+	filled := 0
+	for _, req := range reqs {
+		target, _ := c.store.GetTarget(ctx, req.TargetID)
+		if target == nil {
+			continue
+		}
+		tp, err := c.platformFor(target)
+		if err != nil {
+			continue
+		}
+		callCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		serving := false
+		if ds, err := tp.Deployments(callCtx, req.TargetAppID); err == nil {
+			for _, d := range ds {
+				serving = serving || (d.Current && d.ID == req.TargetDeploymentID)
+			}
+		}
+		var sbom []byte
+		if serving {
+			sbom, err = tp.SBOM(callCtx, req.TargetAppID, req.TargetDeploymentID)
+		}
+		cancel()
+		if serving && err == nil && len(sbom) > 0 {
+			if c.store.SetBundleSBOM(ctx, req.ID, string(sbom)) == nil {
+				filled++
+			}
+		}
+	}
+	return filled
 }
 
 // startOneDue claims one approved request whose time has come and starts it.
@@ -400,50 +508,88 @@ func (c *Console) push(ctx context.Context, req *Request, actor string) (bool, e
 		req.TargetAppID = link.TargetAppID
 	}
 	if req.TargetAppID == "" && req.OwnerGroupID == "" {
-		why := "The link to the target app was deleted after approval, so this would now create a new app with no owning group. Raise the request again and the approver will choose a group."
-		moved, _ := c.store.SetStatusIf(ctx, req.ID, StatusApproved, StatusFailed, Event{
-			Action: "push.failed", ActorName: actor,
-			RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID,
-			Detail: why}, map[string]any{"failure": why})
-		if moved {
-			c.notifyRequester(ctx, req, "Your migration couldn’t start", why)
-		}
-		return true, recorded(errors.New(why))
+		return true, c.failBeforeStart(ctx, req, actor,
+			"The link to the target app was deleted after approval, so this would now create a new app with no owning group. Raise the request again and the approver will choose a group.", "")
 	}
 
-	// **The pin is re-checked at execution, and drift is told rather than
-	// obeyed.** It proceeds because the pin *is* the approval: shipping the
-	// newer code would ship something nobody read. It does not proceed
-	// silently, because a migration that lands three-day-old code is a fact the
-	// people watching production need at the time, not in a post-mortem. And it
-	// does not refuse, because refusing would turn an ordinary week of
-	// development into a failed migration and teach everyone to schedule
-	// nothing.
+	// **A promotion ships the bytes the upstream target was given**, never a
+	// fresh download: the source keeps a handful of releases, and the one Stage
+	// built may be gone by the time Prod's window opens. The four conditions are
+	// read again here, live, because this is the check that counts — Stage may
+	// have been redeployed since the approval.
+	var upstream *Request
+	if req.PromotedFrom != "" {
+		upstream, _ = c.store.GetRequest(ctx, req.PromotedFrom)
+		if ok, why := c.promotableNow(ctx, upstream, target); !ok {
+			return true, c.failBeforeStart(ctx, req, actor, why, "")
+		}
+		if target.RequiresLockfile {
+			checks, _ := c.store.Checks(ctx, req.ID)
+			if lc := CheckOf(checks, CheckLockfile); lc == nil || (lc.Status != CheckPass && lc.Status != CheckWaived) {
+				return true, c.failBeforeStart(ctx, req, actor, target.Label+
+					" requires locked dependencies, and this release’s lockfile check hasn’t passed or been waived.", "")
+			}
+		}
+	}
+
+	var zip []byte
 	drift := ""
-	if deploys, err := sp.Deployments(ctx, req.SourceAppID); err == nil {
-		if newest := newestSuccess(deploys); newest != nil && newest.ID != req.SourceDeploymentID {
-			drift = fmt.Sprintf("Approved release %s; the source was serving %s when the migration ran.",
-				req.SourceReleaseLabel, newest.Label())
+	if upstream != nil {
+		b, body, err := c.store.GetBundle(ctx, upstream.ID)
+		if err != nil {
+			return false, err
 		}
-	}
+		if b == nil {
+			return true, c.failBeforeStart(ctx, req, actor, fmt.Sprintf(
+				"The console has no bundle kept for request #%d, so it has nothing to promote. Send the release to its target again and promote that.",
+				upstream.Seq), "")
+		}
+		sum := sha256.Sum256(body)
+		got := hex.EncodeToString(sum[:])
+		if got != b.SHA256 || b.SHA256 != upstream.BundleSHA256 {
+			return true, c.failBeforeStart(ctx, req, actor, fmt.Sprintf(
+				"The kept bundle doesn’t match what request #%d sent: it was recorded as sha256 %s, and the bytes kept read %s. Nothing was sent.",
+				upstream.Seq, upstream.BundleSHA256, got), "A kept bundle doesn’t match its record")
+		}
+		zip = body
+	} else {
+		// **The pin is re-checked at execution, and drift is told rather than
+		// obeyed.** It proceeds because the pin *is* the approval: shipping the
+		// newer code would ship something nobody read. It does not proceed
+		// silently, because a migration that lands three-day-old code is a fact
+		// the people watching production need at the time, not in a
+		// post-mortem. And it does not refuse, because refusing would turn an
+		// ordinary week of development into a failed migration and teach
+		// everyone to schedule nothing.
+		//
+		// A promotion skips this: that the upstream target still serves the
+		// approved release is the stronger form of the same question.
+		if deploys, err := sp.Deployments(ctx, req.SourceAppID); err == nil {
+			if newest := newestSuccess(deploys); newest != nil && newest.ID != req.SourceDeploymentID {
+				drift = fmt.Sprintf("Approved release %s; the source was serving %s when the migration ran.",
+					req.SourceReleaseLabel, newest.Label())
+			}
+		}
 
-	// **The window this download opens is the one a cancel has to survive.** An
-	// archive can be tens of megabytes and this is where the seconds go, so
-	// every status write from here to the hand-off is conditional on the
-	// request still being `approved` — see Store.SetStatusIf. Unconditional
-	// writes here would let a push that somebody stopped record itself as
-	// failed, or start, after the row already said cancelled.
-	zip, err := sp.Archive(ctx, req.SourceAppID, req.SourceDeploymentID)
-	if err != nil {
-		moved, _ := c.store.SetStatusIf(ctx, req.ID, StatusApproved, StatusFailed, Event{
-			Action: "push.failed", ActorName: actor,
-			RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID,
-			Detail: "couldn’t download the release: " + err.Error()},
-			map[string]any{"failure": err.Error()})
-		if moved {
-			c.notifyFailure(ctx, req, "Couldn’t download a release", err.Error())
+		// **The window this download opens is the one a cancel has to
+		// survive.** An archive can be tens of megabytes and this is where the
+		// seconds go, so every status write from here to the hand-off is
+		// conditional on the request still being `approved` — see
+		// Store.SetStatusIf. Unconditional writes here would let a push that
+		// somebody stopped record itself as failed, or start, after the row
+		// already said cancelled.
+		zip, err = sp.Archive(ctx, req.SourceAppID, req.SourceDeploymentID)
+		if err != nil {
+			moved, _ := c.store.SetStatusIf(ctx, req.ID, StatusApproved, StatusFailed, Event{
+				Action: "push.failed", ActorName: actor,
+				RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID,
+				Detail: "couldn’t download the release: " + err.Error()},
+				map[string]any{"failure": err.Error()})
+			if moved {
+				c.notifyFailure(ctx, req, "Couldn’t download a release", err.Error())
+			}
+			return false, recorded(err)
 		}
-		return false, recorded(err)
 	}
 	sum := sha256.Sum256(zip)
 	digest := hex.EncodeToString(sum[:])
@@ -457,10 +603,14 @@ func (c *Console) push(ctx context.Context, req *Request, actor string) (bool, e
 	// last moment at which nothing has: if the row is no longer `approved`,
 	// somebody cancelled while the bytes were coming down, and the right answer
 	// is to drop them.
+	detail := fmt.Sprintf("%s, %s, sha256 %s", req.SourceReleaseLabel, humanBytes(int64(len(zip))), digest[:12])
+	if upstream != nil {
+		detail += fmt.Sprintf(", the bundle kept from request #%d", upstream.Seq)
+	}
 	claimed, err := c.store.SetStatusIf(ctx, req.ID, StatusApproved, StatusDeploying, Event{
 		Action: "push.started", ActorName: actor,
 		RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID,
-		Detail: fmt.Sprintf("%s, %s, sha256 %s", req.SourceReleaseLabel, humanBytes(int64(len(zip))), digest[:12])},
+		Detail: detail},
 		fields)
 	if err != nil {
 		return false, err
@@ -482,6 +632,25 @@ func (c *Console) push(ctx context.Context, req *Request, actor string) (bool, e
 	// written down even if the run is being stopped: a failure write on a
 	// cancelled context is a request left deploying with nothing to watch.
 	wctx := context.WithoutCancel(ctx)
+
+	// **Keep the bytes a later promotion will need, before the target sees
+	// them.** Only when another target requires this one. A Stage deploy whose
+	// bytes could not be kept is one that could never be promoted, so a failed
+	// write fails the push rather than starting a deploy nobody can finish.
+	keep, err := c.keepsBundles(wctx, target.ID)
+	if err == nil && keep {
+		err = c.store.PutBundle(wctx, req.ID, digest, zip)
+	}
+	if err != nil {
+		why := "Couldn’t keep the bundle for a later promotion, so nothing was sent: " + err.Error()
+		_ = c.store.SetStatus(wctx, req.ID, StatusFailed, Event{
+			Action: "push.failed", ActorName: actor,
+			RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID,
+			Detail: why}, map[string]any{"failure": why})
+		c.notifyFailure(wctx, req, "Couldn’t keep a bundle", why)
+		c.notifyRequester(wctx, req, "Your migration failed", why)
+		return true, recorded(err)
+	}
 
 	var result *UploadResult
 	if req.TargetAppID != "" {
@@ -518,6 +687,23 @@ func (c *Console) push(ctx context.Context, req *Request, actor string) (bool, e
 		Detail: "the target accepted the bundle and is building"},
 		acceptedFields(req, result))
 	return true, nil
+}
+
+// failBeforeStart fails an approved request that will not be pushed, saying
+// why on the request and to the requester. `mail` names the administrators'
+// mail too, for the failures that are theirs to look at; "" sends none.
+func (c *Console) failBeforeStart(ctx context.Context, req *Request, actor, why, mail string) error {
+	moved, _ := c.store.SetStatusIf(ctx, req.ID, StatusApproved, StatusFailed, Event{
+		Action: "push.failed", ActorName: actor,
+		RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID,
+		Detail: why}, map[string]any{"failure": why})
+	if moved {
+		if mail != "" {
+			c.notifyFailure(ctx, req, mail, why)
+		}
+		c.notifyRequester(ctx, req, "Your migration couldn’t start", why)
+	}
+	return recorded(errors.New(why))
 }
 
 // acceptedFields is what a push the target accepted writes onto the request.

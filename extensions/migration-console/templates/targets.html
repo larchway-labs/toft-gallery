@@ -30,6 +30,10 @@
         <p>Ask an administrator on the other install to mint a <strong>deploy</strong>-scoped key
            there, then add it below.</p></div>
     {{else}}
+    {{if $d.Chains}}
+    <div class="body"><p class="small">Promotion order:
+      {{range $i, $c := $d.Chains}}{{if $i}} · {{end}}<strong>{{$c}}</strong>{{end}}</p></div>
+    {{end}}
     <div class="tablewrap"><table>
       <thead><tr><th>Label</th><th>Address</th><th>Key</th><th>Last test</th><th class="drop-lg">Owner group</th><th></th></tr></thead>
       <tbody>{{range $d.Targets}}{{template "targetrow" .}}{{end}}</tbody>
@@ -96,6 +100,24 @@
       </div>
       {{end}}
       <div class="field">
+        <label for="req">Takes releases from</label>
+        <select id="req" name="requires_target_id">
+          <option value="">Any request (no earlier target required)</option>
+          {{range $d.Targets}}{{if or (not $e) (ne .ID $e.ID)}}
+            <option value="{{.ID}}" {{if $e}}{{if eq .ID $e.RequiresTargetID}}selected{{end}}{{end}}>Promotions from {{.Label}}</option>
+          {{end}}{{end}}
+        </select>
+        <p class="hint">With a target chosen, a request here must promote a request that deployed
+           there, and ships the bytes the console kept from it. Targets only; ignored for this install.</p>
+      </div>
+      <div class="field">
+        <label class="inline"><input type="checkbox" name="requires_lockfile" style="width:auto"
+          {{if $e}}{{if $e.RequiresLockfile}}checked{{end}}{{end}}> Require locked dependencies</label>
+        <p class="hint">A promotion here needs the earlier target’s SBOM to say every ecosystem’s lockfile
+           was read, or a reviewer’s waiver. Needs the dependency policy on there. Python apps are
+           never locked by Toft’s reading today, so they always need a waiver.</p>
+      </div>
+      <div class="field">
         <label class="inline"><input type="checkbox" name="fast_track" style="width:auto"
           {{if $e}}{{if $e.FastTrack}}checked{{end}}{{end}}> Allow fast-track sends to linked apps</label>
         <p class="hint">Lets a reviewer send the source’s current release to an already-linked app
@@ -114,7 +136,8 @@
 <tr id="target-{{.ID}}">
   <td><strong>{{.Label}}</strong>
     {{if eq .Kind "source"}}<div class="xs muted">Read-only source</div>{{end}}
-    {{if .FastTrack}}<div><span class="chip attention">Fast-track allowed</span></div>{{end}}</td>
+    {{if .FastTrack}}<div><span class="chip attention">Fast-track allowed</span></div>{{end}}
+    {{if .RequiresTargetID}}<div class="xs muted">Takes releases from {{if .RequiresLabel}}{{.RequiresLabel}}{{else}}another target{{end}}{{if .RequiresLockfile}} · locked dependencies only{{end}}</div>{{end}}</td>
   <td class="mono small">{{.BaseURL}}</td>
   <td class="mono xs muted">{{.KeyPrefix}}…</td>
   <td>

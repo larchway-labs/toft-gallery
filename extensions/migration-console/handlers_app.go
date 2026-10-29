@@ -25,6 +25,9 @@ type AppData struct {
 	TargetLabel map[string]string
 	MayEdit     bool
 	MayRaise    bool
+	// PromotedFrom maps a promoted request to its upstream's number, so the
+	// list reads along the chain: Stage's #12, then Prod's #14 "from #12".
+	PromotedFrom map[string]int64
 }
 
 // mayTouchApp is the same predicate the app picker uses: an app this person
@@ -64,6 +67,16 @@ func (c *Console) handleAppActivity(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	data := AppData{AppID: appID, TargetLabel: map[string]string{}, MayEdit: true, MayRaise: true}
 	data.Requests, _ = c.store.RequestsForApp(ctx, appID)
+	data.PromotedFrom = map[string]int64{}
+	seq := map[string]int64{}
+	for _, rq := range data.Requests {
+		seq[rq.ID] = rq.Seq
+	}
+	for _, rq := range data.Requests {
+		if rq.PromotedFrom != "" {
+			data.PromotedFrom[rq.ID] = seq[rq.PromotedFrom]
+		}
+	}
 	data.Events, _ = c.store.AppEvents(ctx, appID)
 	data.Note, _ = c.store.AppNote(ctx, appID)
 	data.Attachments, _ = c.store.AppAttachments(ctx, appID)

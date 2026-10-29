@@ -181,6 +181,16 @@ type NewRequestData struct {
 	// Again names the request this one was prefilled from, so the page can say
 	// so rather than appearing to have remembered something.
 	Again string
+
+	// Gated is every target a request cannot name directly, each with the
+	// label of the target it takes releases from. Listed, never offered.
+	Gated []Target
+	// Promote is the upstream request a ?promote= link named, and
+	// PromoteTargets the targets it may go to now. PromoteWhy is why it
+	// cannot, shown instead of the form.
+	Promote        *Request
+	PromoteTargets []Target
+	PromoteWhy     string
 }
 
 // raisableApps is the apps the console will offer, and it is deliberately
@@ -270,10 +280,22 @@ func (c *Console) handleNewRequestForm(w http.ResponseWriter, r *http.Request) {
 		data.NoteRequired = settings[SettingRequireNoteOnNew] == "true"
 	}
 	targets, _ := c.store.ListTargets(ctx)
+	labels := map[string]string{}
 	for _, t := range targets {
-		if t.Kind == TargetKindTarget {
+		labels[t.ID] = t.Label
+	}
+	for _, t := range targets {
+		switch {
+		case t.Kind != TargetKindTarget:
+		case t.Gated():
+			t.RequiresLabel = labels[t.RequiresTargetID]
+			data.Gated = append(data.Gated, t)
+		default:
 			data.Targets = append(data.Targets, t)
 		}
+	}
+	if id := q.Get("promote"); id != "" {
+		data.Promote, data.PromoteTargets, data.PromoteWhy = c.promotionFor(ctx, caller, id)
 	}
 	v := c.view(r, "New request", "queue", caller, data)
 	v.Setup = c.setupSteps(ctx, caller, v.Caps)
@@ -398,6 +420,10 @@ func (c *Console) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "The form couldn’t be read. Reload the page and try again.", http.StatusBadRequest)
 		return
 	}
+	if from := trimForm(r, "promoted_from"); from != "" {
+		c.createPromotion(w, r, caller, from)
+		return
+	}
 
 	appID := trimForm(r, "app_id")
 	deployID := trimForm(r, "deployment_id")
@@ -434,6 +460,18 @@ func (c *Console) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 	target, err := c.store.GetTarget(ctx, targetID)
 	if err != nil || target == nil || target.Kind != TargetKindTarget {
 		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That target doesn’t exist", "Choose one from the list.")
+		return
+	}
+	// A gated target takes nothing from the source directly. The form never
+	// offers one, so this is a form built by hand.
+	if target.Gated() {
+		up, _ := c.store.GetTarget(ctx, target.RequiresTargetID)
+		upLabel := "the target it requires"
+		if up != nil {
+			upLabel = up.Label
+		}
+		c.refuse(w, r, caller, http.StatusUnprocessableEntity, target.Label+" takes releases from "+upLabel,
+			fmt.Sprintf("%s takes releases from %s. Promote a deployed %s request.", target.Label, upLabel, upLabel))
 		return
 	}
 
@@ -526,13 +564,23 @@ func (c *Console) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *Console) recordDependencyCheck(ctx context.Context, sp *Platform, req *Request) {
-	rep, err := sp.Dependencies(ctx, req.SourceAppID)
+	c.recordVerdict(ctx, sp, req.SourceAppID, req.SourceDeploymentID, req, "")
+}
+
+// recordVerdict records the platform's dependency verdict for one deployment
+// of one app on whichever install p reaches. `where` prefixes the summary when
+// that install is not the source.
+func (c *Console) recordVerdict(ctx context.Context, p *Platform, appID, deployID string, req *Request, where string) {
+	rep, err := p.Dependencies(ctx, appID)
 	if err != nil {
 		// Absent, not failed, and never rendered as a pass: *not recorded* is
 		// not *clean*.
 		return
 	}
-	verdict, summary := rep.VerdictFor(req.SourceDeploymentID)
+	verdict, summary := rep.VerdictFor(deployID)
+	if where != "" {
+		summary = where + ": " + summary
+	}
 	if rep.LockedByPolicy {
 		summary += "; Toft’s dependency policy has locked this app on the source"
 	}
@@ -540,4 +588,171 @@ func (c *Console) recordDependencyCheck(ctx context.Context, sp *Platform, req *
 	_ = c.store.SaveCheck(ctx, Check{
 		ID: newID(), RequestID: req.ID, Kind: "dependencies", Tool: "Toft",
 		Status: "recorded", Verdict: verdict, Summary: summary, RanAt: &now})
+}
+
+// --- Promoting one ------------------------------------------------------------
+
+// promotionFor resolves a promotion of one upstream request for this person:
+// the request, the targets that take releases from its target and may take
+// this one now, and — when there are none — the sentence saying why, which the
+// form shows in place of itself.
+func (c *Console) promotionFor(ctx context.Context, caller Caller, upstreamID string) (*Request, []Target, string) {
+	upstream, err := c.store.GetRequest(ctx, upstreamID)
+	if err != nil || upstream == nil {
+		return nil, nil, "That request doesn’t exist on this console."
+	}
+	apps, _, err := c.raisableApps(ctx, caller)
+	if err != nil {
+		return upstream, nil, err.Error()
+	}
+	mine := false
+	for _, a := range apps {
+		mine = mine || a.ID == upstream.SourceAppID
+	}
+	if !mine {
+		return upstream, nil, "You can promote apps you can raise requests for: apps you own, directly or through a group, and apps you’ve been added to on a request."
+	}
+	upLabel := "its target"
+	if t, _ := c.store.GetTarget(ctx, upstream.TargetID); t != nil {
+		upLabel = t.Label
+	}
+	gated, err := c.store.TargetsRequiring(ctx, upstream.TargetID)
+	if err != nil {
+		return upstream, nil, "Couldn’t read the console’s targets: " + err.Error()
+	}
+	if len(gated) == 0 {
+		return upstream, nil, "No target takes releases from " + upLabel + ", so there’s nowhere to promote this to. Raise an ordinary request instead."
+	}
+	if b, _ := c.store.BundleInfo(ctx, upstream.ID); b == nil {
+		return upstream, nil, fmt.Sprintf("This %s deployment was made before the console kept bundles for it, or its bundle has been pruned. Send it to %s again and promote that.", upLabel, upLabel)
+	}
+	var ok []Target
+	why := ""
+	for _, t := range gated {
+		t.RequiresLabel = upLabel
+		if yes, w := promotable(ctx, c.reads(), upstream, upLabel, &t); yes {
+			ok = append(ok, t)
+		} else if why == "" {
+			why = w
+		}
+	}
+	if len(ok) == 0 {
+		return upstream, nil, why
+	}
+	return upstream, ok, ""
+}
+
+// createPromotion raises a request to a gated target from a deployed upstream
+// request.
+//
+// **The app, the release and the bytes are copied from the upstream row on the
+// server**, never read from the form: what is being promoted is exactly what
+// went to Stage, and a deployment_id in the posted form is ignored. The
+// requester writes what is theirs to write — the reason, the note, where it
+// lands — and the approval is its own, by a reviewer who is not them.
+func (c *Console) createPromotion(w http.ResponseWriter, r *http.Request, caller Caller, upstreamID string) {
+	ctx := r.Context()
+	upstream, targets, why := c.promotionFor(ctx, caller, upstreamID)
+	if why != "" {
+		status := http.StatusUnprocessableEntity
+		if upstream == nil {
+			status = http.StatusNotFound
+		}
+		c.refuse(w, r, caller, status, "This can’t be promoted", why)
+		return
+	}
+	var target *Target
+	for i := range targets {
+		if targets[i].ID == trimForm(r, "target_id") {
+			target = &targets[i]
+		}
+	}
+	if target == nil {
+		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "Choose where to promote it",
+			"Choose one of the targets that take releases from "+targets[0].RequiresLabel+".")
+		return
+	}
+	settings, _ := c.store.Settings(ctx)
+	if settings[SettingRequireNoteOnNew] == "true" && trimForm(r, "note") == "" {
+		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "A note is required",
+			"Add a note for the reviewer saying what’s in this release and what to watch after it ships.")
+		return
+	}
+	vis := trimForm(r, "destination_visibility")
+	if !validVisibility(vis) {
+		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "Choose a valid visibility",
+			"Choose private, signed-in viewers or public.")
+		return
+	}
+	link, _ := c.store.FindLink(ctx, target.ID, upstream.SourceAppID)
+	destSlug := sanitizeSlug(trimForm(r, "destination_slug"))
+	if destSlug == "" {
+		switch {
+		case link != nil && link.TargetAppSlug != "":
+			destSlug = link.TargetAppSlug
+		case upstream.DestinationSlug != "":
+			destSlug = upstream.DestinationSlug
+		default:
+			destSlug = upstream.SourceAppSlug
+		}
+	}
+
+	req := &Request{
+		ID:                    newID(),
+		Status:                StatusSubmitted,
+		TargetID:              target.ID,
+		SourceAppID:           upstream.SourceAppID,
+		SourceAppSlug:         upstream.SourceAppSlug,
+		SourceAppName:         upstream.SourceAppName,
+		SourceDeploymentID:    upstream.SourceDeploymentID,
+		SourceReleaseLabel:    upstream.SourceReleaseLabel,
+		RequesterID:           caller.ID(),
+		RequesterName:         caller.Name(),
+		RequesterEmail:        caller.Email(),
+		Reason:                trimForm(r, "reason"),
+		Note:                  trimForm(r, "note"),
+		DestinationSlug:       destSlug,
+		DestinationVisibility: vis,
+		OwnerGroupID:          target.DefaultOwnerGroupID,
+		OwnerGroupName:        target.DefaultOwnerGroupName,
+		NotifyRequester:       r.FormValue("notify") == "on",
+		PromotedFrom:          upstream.ID,
+	}
+	if link != nil {
+		req.TargetAppID = link.TargetAppID
+	}
+	if err := c.store.InsertRequest(ctx, req); err != nil {
+		c.refuse(w, r, caller, http.StatusInternalServerError, "Couldn’t save the request", err.Error())
+		return
+	}
+	_ = c.store.WriteEvent(ctx, Event{
+		Action: "request.submitted", ActorID: caller.ID(), ActorName: caller.Name(),
+		RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: target.ID,
+		Detail: fmt.Sprintf("%s, promoted from request #%d on %s → %s, release %s, as %s",
+			req.SourceAppName, upstream.Seq, target.RequiresLabel, target.Label, req.SourceReleaseLabel, destSlug)})
+	c.recordPromotionChecks(ctx, req, upstream, target)
+	c.redirect(w, r, "/requests/"+req.ID)
+}
+
+// recordPromotionChecks records what a promotion is judged on when it is
+// raised: the dependency verdict **from the upstream target**, which is the one
+// install guaranteed to be serving exactly this release, and — where the
+// target asks for it — the lockfile reading of the SBOM kept from it.
+func (c *Console) recordPromotionChecks(ctx context.Context, req, upstream *Request, target *Target) {
+	if up, _ := c.store.GetTarget(ctx, upstream.TargetID); up != nil {
+		if p, err := c.platformFor(up); err == nil {
+			c.recordVerdict(ctx, p, upstream.TargetAppID, upstream.TargetDeploymentID, req, "On "+up.Label)
+		}
+	}
+	if !target.RequiresLockfile {
+		return
+	}
+	sbom := ""
+	if b, _ := c.store.BundleInfo(ctx, upstream.ID); b != nil {
+		sbom = b.SBOM
+	}
+	status, summary := lockfileCheck(sbom, target.RequiresLabel)
+	now := time.Now().UTC()
+	_ = c.store.SaveCheck(ctx, Check{ID: newID(), RequestID: req.ID, Kind: CheckLockfile,
+		Tool: "Toft SBOM", Status: status, Summary: summary, RanAt: &now})
 }

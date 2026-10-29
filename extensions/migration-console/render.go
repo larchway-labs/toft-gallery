@@ -106,6 +106,18 @@ func (r *renderer) funcs() template.FuncMap {
 			return s[:n]
 		},
 		"has": func(m map[string]bool, k string) bool { return m[k] },
+		// What a check is called on a request page.
+		"checkkind": func(kind string) string {
+			switch kind {
+			case CheckDependencies:
+				return "Dependencies"
+			case CheckLockfile:
+				return "Locked dependencies"
+			case CheckParity:
+				return "Build parity"
+			}
+			return kind
+		},
 		"dict": func(kv ...any) map[string]any {
 			m := map[string]any{}
 			for i := 0; i+1 < len(kv); i += 2 {
@@ -170,11 +182,12 @@ func tone(status string) string {
 	switch status {
 	case StatusDeployed, LinkUpToDate, "ok", "clean", "pass", "active":
 		return "ok"
-	case StatusSubmitted, StatusApproved, StatusDeploying, LinkBehind, LinkDiverged, "drift", "warn":
+	case StatusSubmitted, StatusApproved, StatusDeploying, LinkBehind, LinkDiverged, "drift", "warn", CheckDiffers:
 		return "attention"
 	case StatusFailed, StatusRejected, "fail", "vulnerable", "blocked":
 		return "danger"
-	case StatusWithdrawn, StatusCancelled, StatusDraft, LinkNotChecked, "skipped", "absent", "":
+	case StatusWithdrawn, StatusCancelled, StatusDraft, LinkNotChecked, "skipped", "absent", "",
+		CheckWaived, CheckAcknowledged, CheckNotRecorded:
 		return "neutral"
 	case RoleSystem, "tick":
 		return "info"
@@ -212,6 +225,8 @@ func statusLabel(status string) string {
 		return "Diverged"
 	case LinkNotChecked:
 		return "Not checked"
+	case CheckNotRecorded:
+		return "Not recorded"
 	}
 	if status == "" {
 		return "—"

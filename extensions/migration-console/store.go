@@ -17,11 +17,16 @@ const targetCols = `id, kind, label, base_url, deploy_key_enc, key_prefix,
 	default_owner_group_id, default_owner_group_name, fast_track,
 	created_by_id, created_by_name, created_at, last_tested_at, last_test_ok, last_test_result, apps_url`
 
+// targetSelect reads the nullable requirement as "" so nothing above the store
+// handles a NULL.
+const targetSelect = targetCols + `, COALESCE(requires_target_id, ''), requires_lockfile`
+
 func scanTarget(row pgx.Row) (*Target, error) {
 	var t Target
 	err := row.Scan(&t.ID, &t.Kind, &t.Label, &t.BaseURL, &t.DeployKeyEnc, &t.KeyPrefix,
 		&t.DefaultOwnerGroupID, &t.DefaultOwnerGroupName, &t.FastTrack,
-		&t.CreatedByID, &t.CreatedByName, &t.CreatedAt, &t.LastTestedAt, &t.LastTestOK, &t.LastTestResult, &t.AppsURL)
+		&t.CreatedByID, &t.CreatedByName, &t.CreatedAt, &t.LastTestedAt, &t.LastTestOK, &t.LastTestResult, &t.AppsURL,
+		&t.RequiresTargetID, &t.RequiresLockfile)
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +34,7 @@ func scanTarget(row pgx.Row) (*Target, error) {
 }
 
 func (s *Store) ListTargets(ctx context.Context) ([]Target, error) {
-	rows, err := s.pool.Query(ctx, `SELECT `+targetCols+` FROM mc_targets ORDER BY kind DESC, label`)
+	rows, err := s.pool.Query(ctx, `SELECT `+targetSelect+` FROM mc_targets ORDER BY kind DESC, label`)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +51,7 @@ func (s *Store) ListTargets(ctx context.Context) ([]Target, error) {
 }
 
 func (s *Store) GetTarget(ctx context.Context, id string) (*Target, error) {
-	t, err := scanTarget(s.pool.QueryRow(ctx, `SELECT `+targetCols+` FROM mc_targets WHERE id=$1`, id))
+	t, err := scanTarget(s.pool.QueryRow(ctx, `SELECT `+targetSelect+` FROM mc_targets WHERE id=$1`, id))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -57,7 +62,7 @@ func (s *Store) GetTarget(ctx context.Context, id string) (*Target, error) {
 // administrator adds it, which is one of the four steps /health names.
 func (s *Store) SourceTarget(ctx context.Context) (*Target, error) {
 	t, err := scanTarget(s.pool.QueryRow(ctx,
-		`SELECT `+targetCols+` FROM mc_targets WHERE kind=$1 LIMIT 1`, TargetKindSource))
+		`SELECT `+targetSelect+` FROM mc_targets WHERE kind=$1 LIMIT 1`, TargetKindSource))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -77,8 +82,8 @@ func (s *Store) SourceTarget(ctx context.Context) (*Target, error) {
 // truth; there is no reading of "one writer" worth either.
 func (s *Store) SaveTarget(ctx context.Context, t *Target) error {
 	_, err := s.pool.Exec(ctx, `
-		INSERT INTO mc_targets (`+targetCols+`)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+		INSERT INTO mc_targets (`+targetCols+`, requires_target_id, requires_lockfile)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NULLIF($17,''),$18)
 		ON CONFLICT (id) DO UPDATE SET
 			label=EXCLUDED.label, base_url=EXCLUDED.base_url,
 			deploy_key_enc=EXCLUDED.deploy_key_enc, key_prefix=EXCLUDED.key_prefix,
@@ -88,10 +93,13 @@ func (s *Store) SaveTarget(ctx context.Context, t *Target) error {
 			last_tested_at=EXCLUDED.last_tested_at,
 			last_test_ok=EXCLUDED.last_test_ok,
 			last_test_result=EXCLUDED.last_test_result,
-			apps_url=EXCLUDED.apps_url`,
+			apps_url=EXCLUDED.apps_url,
+			requires_target_id=EXCLUDED.requires_target_id,
+			requires_lockfile=EXCLUDED.requires_lockfile`,
 		t.ID, t.Kind, t.Label, t.BaseURL, t.DeployKeyEnc, t.KeyPrefix,
 		t.DefaultOwnerGroupID, t.DefaultOwnerGroupName, t.FastTrack,
-		t.CreatedByID, t.CreatedByName, t.CreatedAt, t.LastTestedAt, t.LastTestOK, t.LastTestResult, t.AppsURL)
+		t.CreatedByID, t.CreatedByName, t.CreatedAt, t.LastTestedAt, t.LastTestOK, t.LastTestResult, t.AppsURL,
+		t.RequiresTargetID, t.RequiresLockfile)
 	return err
 }
 
@@ -109,6 +117,26 @@ func (s *Store) RecordTargetTest(ctx context.Context, id string, ok bool, result
 func (s *Store) SetTargetAppsURL(ctx context.Context, id, appsURL string) error {
 	_, err := s.pool.Exec(ctx, `UPDATE mc_targets SET apps_url=$2 WHERE id=$1`, id, appsURL)
 	return err
+}
+
+// TargetsRequiring is every target that names this one as the target a release
+// must reach first.
+func (s *Store) TargetsRequiring(ctx context.Context, id string) ([]Target, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT `+targetSelect+` FROM mc_targets WHERE requires_target_id=$1 ORDER BY label`, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Target
+	for rows.Next() {
+		t, err := scanTarget(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *t)
+	}
+	return out, rows.Err()
 }
 
 func (s *Store) DeleteTarget(ctx context.Context, id string) error {
@@ -228,7 +256,7 @@ const requestCols = `id, seq, status, target_id, source_app_id, source_app_slug,
 	reason, note, destination_slug, destination_visibility, owner_group_id, owner_group_name,
 	target_app_id, notify_requester, scheduled_for, via, decided_by_id, decided_by_name,
 	decided_at, decision_reason, drift_note, bundle_sha256, bundle_bytes, target_deployment_id,
-	failure, created_at, updated_at`
+	failure, COALESCE(promoted_from, ''), created_at, updated_at`
 
 func scanRequest(row pgx.Row) (*Request, error) {
 	var r Request
@@ -238,7 +266,7 @@ func scanRequest(row pgx.Row) (*Request, error) {
 		&r.DestinationVisibility, &r.OwnerGroupID, &r.OwnerGroupName, &r.TargetAppID,
 		&r.NotifyRequester, &r.ScheduledFor, &r.Via, &r.DecidedByID, &r.DecidedByName,
 		&r.DecidedAt, &r.DecisionReason, &r.DriftNote, &r.BundleSHA256, &r.BundleBytes,
-		&r.TargetDeploymentID, &r.Failure, &r.CreatedAt, &r.UpdatedAt)
+		&r.TargetDeploymentID, &r.Failure, &r.PromotedFrom, &r.CreatedAt, &r.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -296,17 +324,30 @@ func (s *Store) InFlightRequests(ctx context.Context) ([]Request, error) {
 	return s.queryRequests(ctx, `WHERE status=$1`, StatusDeploying)
 }
 
+// NewestDeployed is the request that most recently deployed this source app to
+// this target, or nil. "Most recently" is the moment it finished, which is the
+// row's updated_at once it reads deployed: nothing moves a deployed row again.
+func (s *Store) NewestDeployed(ctx context.Context, sourceAppID, targetID string) (*Request, error) {
+	r, err := scanRequest(s.pool.QueryRow(ctx, `SELECT `+requestCols+` FROM mc_requests
+		WHERE source_app_id=$1 AND target_id=$2 AND status=$3
+		ORDER BY updated_at DESC, seq DESC LIMIT 1`, sourceAppID, targetID, StatusDeployed))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	return r, err
+}
+
 func (s *Store) InsertRequest(ctx context.Context, r *Request) error {
 	_, err := s.pool.Exec(ctx, `
 		INSERT INTO mc_requests (id, status, target_id, source_app_id, source_app_slug, source_app_name,
 			source_deployment_id, source_release_label, requester_id, requester_name, requester_email,
 			reason, note, destination_slug, destination_visibility, owner_group_id, owner_group_name,
-			target_app_id, notify_requester, via)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
+			target_app_id, notify_requester, via, promoted_from)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,NULLIF($21,''))`,
 		r.ID, r.Status, r.TargetID, r.SourceAppID, r.SourceAppSlug, r.SourceAppName,
 		r.SourceDeploymentID, r.SourceReleaseLabel, r.RequesterID, r.RequesterName, r.RequesterEmail,
 		r.Reason, r.Note, r.DestinationSlug, r.DestinationVisibility, r.OwnerGroupID, r.OwnerGroupName,
-		r.TargetAppID, r.NotifyRequester, r.Via)
+		r.TargetAppID, r.NotifyRequester, r.Via, r.PromotedFrom)
 	return err
 }
 
@@ -710,6 +751,128 @@ func (s *Store) SaveCheck(ctx context.Context, c Check) error {
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
 		c.ID, c.RequestID, c.Kind, c.Tool, c.Status, c.Verdict, c.Summary, c.Report, c.RanAt)
 	return err
+}
+
+// UpdateCheckStatus moves one check from the status the caller read to
+// another, with its event, in one transaction — the first update of a check
+// there has ever been, and conditional for the reason SetStatusIf is: two
+// reviewers pressing the same button must not both be recorded as the one who
+// did it. The reason is appended to the summary so the check carries it too.
+func (s *Store) UpdateCheckStatus(ctx context.Context, checkID, from, to, note string, ev Event) (bool, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback(ctx)
+	tag, err := tx.Exec(ctx, `UPDATE mc_checks SET status=$3,
+		summary = CASE WHEN $4 = '' THEN summary ELSE summary || E'\n' || $4 END
+		WHERE id=$1 AND status=$2`, checkID, from, to, note)
+	if err != nil {
+		return false, err
+	}
+	if tag.RowsAffected() == 0 {
+		return false, nil
+	}
+	if err := writeEventTx(ctx, tx, ev); err != nil {
+		return false, err
+	}
+	return true, tx.Commit(ctx)
+}
+
+// CheckOf is the newest check of one kind on a request, or nil.
+func CheckOf(checks []Check, kind string) *Check {
+	var out *Check
+	for i := range checks {
+		if checks[i].Kind == kind {
+			if out == nil || (checks[i].RanAt != nil && (out.RanAt == nil || checks[i].RanAt.After(*out.RanAt))) {
+				out = &checks[i]
+			}
+		}
+	}
+	return out
+}
+
+// --- Bundles ----------------------------------------------------------------
+
+// PutBundle keeps the zip a push is about to hand to a target that another
+// target requires. Written once per request; a second write of the same
+// request is a tick that died after the first, and replaces it.
+func (s *Store) PutBundle(ctx context.Context, requestID, sha string, body []byte) error {
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO mc_bundles (request_id, sha256, bytes) VALUES ($1,$2,$3)
+		ON CONFLICT (request_id) DO UPDATE SET sha256=EXCLUDED.sha256, bytes=EXCLUDED.bytes, kept_at=now()`,
+		requestID, sha, body)
+	return err
+}
+
+// BundleInfo is a kept bundle without its bytes, or nil.
+func (s *Store) BundleInfo(ctx context.Context, requestID string) (*Bundle, error) {
+	var b Bundle
+	err := s.pool.QueryRow(ctx, `
+		SELECT request_id, sha256, octet_length(bytes), sbom, kept_at FROM mc_bundles WHERE request_id=$1`,
+		requestID).Scan(&b.RequestID, &b.SHA256, &b.Size, &b.SBOM, &b.KeptAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &b, nil
+}
+
+// GetBundle is a kept bundle and its bytes, or nil.
+func (s *Store) GetBundle(ctx context.Context, requestID string) (*Bundle, []byte, error) {
+	var b Bundle
+	var body []byte
+	err := s.pool.QueryRow(ctx, `
+		SELECT request_id, sha256, sbom, kept_at, bytes FROM mc_bundles WHERE request_id=$1`,
+		requestID).Scan(&b.RequestID, &b.SHA256, &b.SBOM, &b.KeptAt, &body)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil, nil
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	b.Size = int64(len(body))
+	return &b, body, nil
+}
+
+func (s *Store) SetBundleSBOM(ctx context.Context, requestID, sbom string) error {
+	_, err := s.pool.Exec(ctx, `UPDATE mc_bundles SET sbom=$2 WHERE request_id=$1`, requestID, sbom)
+	return err
+}
+
+// BundlesMissingSBOM is every deployed request whose kept bundle has no SBOM
+// yet — the read after its success failed, and the tick tries again.
+func (s *Store) BundlesMissingSBOM(ctx context.Context) ([]Request, error) {
+	return s.queryRequests(ctx, `WHERE status=$1 AND id IN (SELECT request_id FROM mc_bundles WHERE sbom='')`,
+		StatusDeployed)
+}
+
+// PruneBundles deletes every kept bundle no promotion could use any more.
+//
+// A bundle is kept while its request is in flight, while it is the newest
+// deployed request for its (source app, target) — the only one D4 lets anybody
+// promote — and while a promotion of it is in flight, whose push and parity
+// both read it. Nothing here asks whether the downstream target has deployed:
+// a failed Prod build raised again needs the same bytes.
+func (s *Store) PruneBundles(ctx context.Context) (int64, error) {
+	tag, err := s.pool.Exec(ctx, `
+		DELETE FROM mc_bundles b USING mc_requests r
+		WHERE r.id = b.request_id
+		  AND r.status NOT IN ($1, $2)
+		  AND NOT (r.status = $3 AND r.id = (
+		        SELECT n.id FROM mc_requests n
+		        WHERE n.source_app_id = r.source_app_id AND n.target_id = r.target_id AND n.status = $3
+		        ORDER BY n.updated_at DESC, n.seq DESC LIMIT 1))
+		  AND NOT EXISTS (
+		        SELECT 1 FROM mc_requests p
+		        WHERE p.promoted_from = r.id AND p.status IN ($1, $2))`,
+		StatusApproved, StatusDeploying, StatusDeployed)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
 }
 
 // --- Events -----------------------------------------------------------------

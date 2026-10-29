@@ -58,6 +58,8 @@ type TargetsData struct {
 	// (TOFT_API_URL) — what the source row should say, offered so nobody has to
 	// work out how an app reaches the install it runs on.
 	OwnAddress string
+	// Chains is every promotion chain read from the top, "Stage → Prod".
+	Chains []string
 }
 
 func (c *Console) handleTargets(w http.ResponseWriter, r *http.Request) {
@@ -68,6 +70,11 @@ func (c *Console) handleTargets(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	data := TargetsData{OwnAddress: ownOrigin(c.cfg.APIURL)}
 	all, _ := c.store.ListTargets(ctx)
+	labelTargets(all)
+	required := map[string]bool{}
+	for _, t := range all {
+		required[t.RequiresTargetID] = true
+	}
 	for _, t := range all {
 		if t.Kind == TargetKindSource {
 			s := t
@@ -75,9 +82,20 @@ func (c *Console) handleTargets(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		data.Targets = append(data.Targets, t)
+		// A chain is printed once, from its last link.
+		if t.Gated() && !required[t.ID] {
+			data.Chains = append(data.Chains, chainOf(all, t))
+		}
 	}
 	if id := r.URL.Query().Get("edit"); id != "" {
 		data.Editing, _ = c.store.GetTarget(ctx, id)
+		if data.Editing != nil {
+			for _, t := range data.Targets {
+				if t.ID == data.Editing.ID {
+					data.Editing.RequiresLabel = t.RequiresLabel
+				}
+			}
+		}
 		// The default owning group is a group on **that** install, not this
 		// one, so it can only be offered once the row exists and its key has
 		// been tested — which is exactly when somebody is editing it. On the
@@ -93,6 +111,17 @@ func (c *Console) handleTargets(w http.ResponseWriter, r *http.Request) {
 	v := c.view(r, "Targets", "targets", caller, data)
 	v.Setup = c.setupSteps(ctx, caller, v.Caps)
 	c.render.page(w, http.StatusOK, "targets", v)
+}
+
+// labelTargets fills in each row's RequiresLabel from the others.
+func labelTargets(all []Target) {
+	labels := map[string]string{}
+	for _, t := range all {
+		labels[t.ID] = t.Label
+	}
+	for i := range all {
+		all[i].RequiresLabel = labels[all[i].RequiresTargetID]
+	}
 }
 
 // handleSaveTarget writes a target row, and tests the connection **before**
@@ -164,10 +193,22 @@ func (c *Console) handleSaveTarget(w http.ResponseWriter, r *http.Request) {
 		DefaultOwnerGroupName: trimForm(r, "default_owner_group_name"),
 		FastTrack:             r.FormValue("fast_track") == "on",
 		CreatedByID:           caller.ID(), CreatedByName: caller.Name(),
-		CreatedAt: time.Now().UTC(),
+		CreatedAt:        time.Now().UTC(),
+		RequiresTargetID: trimForm(r, "requires_target_id"),
+		RequiresLockfile: r.FormValue("requires_lockfile") == "on",
 	}
 	if t.ID == "" {
 		t.ID = newID()
+	}
+	if kind == TargetKindSource {
+		t.RequiresTargetID, t.RequiresLockfile = "", false
+	}
+	// The chain is checked before the connection is: a loop is refused however
+	// reachable the install is.
+	all, _ := c.store.ListTargets(ctx)
+	if why := chainRefusal(all, t.ID, t.Kind, t.Label, t.RequiresTargetID); why != "" {
+		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "That requirement can’t be saved", why)
+		return
 	}
 	if existing != nil {
 		t.CreatedByID, t.CreatedByName, t.CreatedAt = existing.CreatedByID, existing.CreatedByName, existing.CreatedAt
@@ -266,6 +307,11 @@ func (c *Console) handleTestTarget(w http.ResponseWriter, r *http.Request) {
 	_ = c.store.WriteEvent(r.Context(), Event{Action: "target.tested",
 		ActorID: caller.ID(), ActorName: caller.Name(), TargetID: t.ID, Detail: result})
 	refreshed, _ := c.store.GetTarget(r.Context(), t.ID)
+	if refreshed != nil && refreshed.Gated() {
+		if up, _ := c.store.GetTarget(r.Context(), refreshed.RequiresTargetID); up != nil {
+			refreshed.RequiresLabel = up.Label
+		}
+	}
 	c.render.fragment(w, "targets", "targetrow", refreshed)
 }
 
@@ -277,6 +323,14 @@ func (c *Console) handleDeleteTarget(w http.ResponseWriter, r *http.Request) {
 	t, _ := c.store.GetTarget(r.Context(), r.PathValue("id"))
 	if t == nil {
 		http.NotFound(w, r)
+		return
+	}
+	// Refused by the foreign key anyway; checked first so the refusal names
+	// the target holding it rather than passing a driver's sentence through.
+	// Not SET NULL: removing Stage must not open Prod.
+	if deps, _ := c.store.TargetsRequiring(r.Context(), t.ID); len(deps) > 0 {
+		c.refuse(w, r, caller, http.StatusConflict, "Couldn’t remove that target",
+			fmt.Sprintf("%s requires this target. Clear that on %s first.", deps[0].Label, deps[0].Label))
 		return
 	}
 	if err := c.store.DeleteTarget(r.Context(), t.ID); err != nil {

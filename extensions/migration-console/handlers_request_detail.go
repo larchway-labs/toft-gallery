@@ -56,6 +56,26 @@ type RequestData struct {
 	// "add somebody to this request" form. Never a gate — the field still takes
 	// any id.
 	People []Person
+
+	// Upstream is the request this one promotes, UpstreamLabel its target,
+	// and Kept the bundle this request's push kept for a later promotion.
+	Upstream      *Request
+	UpstreamLabel string
+	Kept          *Bundle
+	// Promotions is, on a deployed request whose target another requires,
+	// each target it could go to next and whether it can go now.
+	Promotions []PromotionOffer
+	// MayResolveChecks is a reviewer who did not raise this request: who may
+	// waive a lockfile check or acknowledge a parity difference.
+	MayResolveChecks bool
+}
+
+// PromotionOffer is one "Promote to <label>" on a deployed request, or the
+// sentence saying why it cannot go yet.
+type PromotionOffer struct {
+	Target Target
+	OK     bool
+	Why    string
 }
 
 // requestAudience answers who may open this request at all.
@@ -153,8 +173,48 @@ func (c *Console) handleRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	data.Destination = c.describeDestination(req, data.Link)
 
+	data.MayResolveChecks = caller.Reviewer && req.RequesterID != caller.ID()
+	data.Kept, _ = c.store.BundleInfo(ctx, req.ID)
+	if req.PromotedFrom != "" {
+		data.Upstream, _ = c.store.GetRequest(ctx, req.PromotedFrom)
+		if data.Upstream != nil {
+			if t, _ := c.store.GetTarget(ctx, data.Upstream.TargetID); t != nil {
+				data.UpstreamLabel = t.Label
+			}
+		}
+	}
+	if req.Status == StatusDeployed {
+		data.Promotions = c.promotionOffers(ctx, caller, req, data.Target)
+	}
+
 	v := c.view(r, "Request", "queue", caller, data)
 	c.render.page(w, http.StatusOK, "request", v)
+}
+
+// promotionOffers is the Promote action on a deployed request: one per target
+// that takes releases from this one's, for somebody who may raise for the app.
+func (c *Console) promotionOffers(ctx context.Context, caller Caller, req *Request, target *Target) []PromotionOffer {
+	gated, _ := c.store.TargetsRequiring(ctx, req.TargetID)
+	if len(gated) == 0 || target == nil || caller.Viewer == nil {
+		return nil
+	}
+	upstream, ok, why := c.promotionFor(ctx, caller, req.ID)
+	if upstream == nil {
+		return nil
+	}
+	may := map[string]bool{}
+	for _, t := range ok {
+		may[t.ID] = true
+	}
+	var out []PromotionOffer
+	for _, t := range gated {
+		o := PromotionOffer{Target: t, OK: may[t.ID], Why: why}
+		if !o.OK && why == "" {
+			_, o.Why = promotable(ctx, c.reads(), req, target.Label, &t)
+		}
+		out = append(out, o)
+	}
+	return out
 }
 
 func isViewer(vs []RequestViewer, id string) bool {
@@ -251,6 +311,24 @@ func (c *Console) handleApprove(w http.ResponseWriter, r *http.Request) {
 		c.refuse(w, r, caller, http.StatusConflict, "The target has been removed",
 			"This request’s target was removed from the console, so nothing can be sent to it.")
 		return
+	}
+	// A promotion is approved only while it could still run, and only once a
+	// lockfile check the target asks for has passed or been waived. The push
+	// asks both again; this saves a reviewer approving something that cannot.
+	if req.PromotedFrom != "" {
+		upstream, _ := c.store.GetRequest(ctx, req.PromotedFrom)
+		if ok, why := c.promotableNow(ctx, upstream, target); !ok {
+			c.refuse(w, r, caller, http.StatusConflict, "This can’t be promoted now", why)
+			return
+		}
+		if target.RequiresLockfile {
+			checks, _ := c.store.Checks(ctx, req.ID)
+			if lc := CheckOf(checks, CheckLockfile); lc == nil || (lc.Status != CheckPass && lc.Status != CheckWaived) {
+				c.refuse(w, r, caller, http.StatusConflict, "The lockfile check hasn’t passed",
+					target.Label+" requires locked dependencies. A reviewer who didn’t raise this request can waive the check, with a reason, on this page.")
+				return
+			}
+		}
 	}
 	_ = r.ParseForm()
 
@@ -350,6 +428,82 @@ func (c *Console) handleApprove(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, scheduled := fields["scheduled_for"]; !scheduled {
 		c.tickSoon(r)
+	}
+	c.redirect(w, r, "/requests/"+req.ID)
+}
+
+// handleWaiveCheck moves a failing lockfile check to waived, and
+// handleAcknowledgeCheck a parity difference to acknowledged. Two routes rather
+// than one with an action field, because each accepts exactly one check kind in
+// one status, and anything else is refused with a sentence.
+func (c *Console) handleWaiveCheck(w http.ResponseWriter, r *http.Request) {
+	c.resolveCheck(w, r, CheckLockfile, CheckFail, CheckWaived, "check.waived", "waive",
+		"Only a failing lockfile check can be waived.")
+}
+
+func (c *Console) handleAcknowledgeCheck(w http.ResponseWriter, r *http.Request) {
+	c.resolveCheck(w, r, CheckParity, CheckDiffers, CheckAcknowledged, "parity.acknowledged", "acknowledge",
+		"Only a build parity check that found a difference can be acknowledged.")
+}
+
+// resolveCheck is the shared half: a reviewer who did not raise the request,
+// a reason, and a move that is conditional on the check still reading `from`.
+func (c *Console) resolveCheck(w http.ResponseWriter, r *http.Request, kind, from, to, action, verb, wrong string) {
+	caller := c.resolveCaller(r)
+	req, _, ok := c.loadRequest(w, r, caller)
+	if !ok {
+		return
+	}
+	ctx := r.Context()
+	if !caller.Reviewer {
+		c.refuse(w, r, caller, http.StatusForbidden, "You’re not a reviewer",
+			"Only people on this console’s Reviewers page can "+verb+" a check.")
+		return
+	}
+	if req.RequesterID == caller.ID() {
+		c.refuse(w, r, caller, http.StatusForbidden, "You can’t "+verb+" a check on your own request",
+			"Ask another reviewer.")
+		return
+	}
+	checks, _ := c.store.Checks(ctx, req.ID)
+	var check *Check
+	for i := range checks {
+		if checks[i].ID == r.PathValue("checkID") {
+			check = &checks[i]
+		}
+	}
+	if check == nil {
+		c.refuse(w, r, caller, http.StatusNotFound, "Check not found", "It isn’t on this request.")
+		return
+	}
+	if check.Kind != kind || check.Status != from {
+		c.refuse(w, r, caller, http.StatusConflict, "That check can’t be changed", wrong)
+		return
+	}
+	if kind == CheckLockfile && Terminal(req.Status) {
+		c.refuse(w, r, caller, http.StatusConflict, "This request has ended",
+			"A waiver only matters before a request is pushed. Raise the promotion again.")
+		return
+	}
+	_ = r.ParseForm()
+	reason := trimForm(r, "reason")
+	if reason == "" {
+		c.refuse(w, r, caller, http.StatusUnprocessableEntity, "A reason is required",
+			"Say why this is acceptable. The reason is kept on the check and in the history.")
+		return
+	}
+	moved, err := c.store.UpdateCheckStatus(ctx, check.ID, from, to,
+		fmt.Sprintf("%s by %s: %s", statusLabel(to), caller.Name(), reason),
+		Event{Action: action, ActorID: caller.ID(), ActorName: caller.Name(),
+			RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: req.TargetID, Detail: reason})
+	if err != nil {
+		c.refuse(w, r, caller, http.StatusInternalServerError, "Couldn’t save that", err.Error())
+		return
+	}
+	if !moved {
+		c.refuse(w, r, caller, http.StatusConflict, "That check has already changed",
+			"Another reviewer got there first. Reload the request.")
+		return
 	}
 	c.redirect(w, r, "/requests/"+req.ID)
 }

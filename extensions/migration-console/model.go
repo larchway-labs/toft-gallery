@@ -71,7 +71,20 @@ type Target struct {
 	// AppsURL is where this install serves apps, ending in a slash; empty until
 	// a test has read it.
 	AppsURL string
+	// RequiresTargetID is the target a release must have deployed to first:
+	// a request here is a promotion of a request that deployed there. Empty
+	// for an ungated target, and always empty on the source row.
+	RequiresTargetID string
+	// RequiresLockfile holds a promotion here until the upstream target's SBOM
+	// says every ecosystem's lockfile was read, or a reviewer waives it.
+	RequiresLockfile bool
+	// RequiresLabel is the required target's label, filled in for display and
+	// never stored.
+	RequiresLabel string
 }
+
+// Gated reports whether a request to this target must be a promotion.
+func (t Target) Gated() bool { return t.RequiresTargetID != "" }
 
 // AppURL is the address of one app on this install, or "" when the console
 // has not learned where its apps live yet. Only an http(s) address is ever
@@ -150,8 +163,21 @@ type Request struct {
 	BundleBytes           int64
 	TargetDeploymentID    string
 	Failure               string
-	CreatedAt             time.Time
-	UpdatedAt             time.Time
+	// PromotedFrom is the upstream request this one promotes: same app, same
+	// release, same bytes, copied from that row and never from a form.
+	PromotedFrom string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+// Bundle is a zip the console kept because another target requires the one it
+// was pushed to. The bytes themselves are read only by the push that uses them.
+type Bundle struct {
+	RequestID string
+	SHA256    string
+	Size      int64
+	SBOM      string
+	KeptAt    time.Time
 }
 
 // PaletteHit is one line of the command palette's results, named for the same
@@ -230,6 +256,27 @@ type Attachment struct {
 	UploadedByName string
 	UploadedAt     time.Time
 }
+
+// The check kinds, and the statuses a check can be in. `dependencies` is
+// recorded and carries its verdict in Verdict; the two promotion checks carry
+// their outcome in Status, because a reviewer moves it.
+//
+// **Not recorded is never a pass.** A check that could not be computed — no
+// package list on either side — reads not_recorded, and every gate that reads
+// a check reads that as not passing.
+const (
+	CheckDependencies = "dependencies"
+	CheckLockfile     = "lockfile"
+	CheckParity       = "build_parity"
+
+	CheckRecorded     = "recorded"
+	CheckPass         = "pass"
+	CheckFail         = "fail"
+	CheckWaived       = "waived"
+	CheckDiffers      = "differs"
+	CheckAcknowledged = "acknowledged"
+	CheckNotRecorded  = "not_recorded"
+)
 
 type Check struct {
 	ID        string

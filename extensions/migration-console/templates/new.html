@@ -20,7 +20,75 @@
       "Body" "Nothing has been submitted yet. Check the details and submit; this new request gets its own review."}}
 {{end}}
 
-{{if not $d.Apps}}
+{{if or $d.Promote $d.PromoteWhy}}
+{{if $d.PromoteWhy}}
+  {{template "_notice" dict "Tone" "attention" "Title" "This can’t be promoted" "Body" $d.PromoteWhy}}
+  {{with $d.Promote}}<p><a href="{{url (printf "/requests/%s" .ID)}}">Back to request #{{.Seq}}</a></p>{{end}}
+{{else}}
+{{$p := $d.Promote}}
+{{/* A promotion names no app and no release: both are copied, on the server,
+     from the request that deployed upstream. What the requester writes is what
+     is theirs to write. */}}
+<form class="card measure" method="post" action="{{url "/requests/new"}}">
+  <input type="hidden" name="promoted_from" value="{{$p.ID}}">
+  <div class="body stack">
+    <dl class="facts">
+      <dt>App</dt><dd>{{$p.SourceAppName}} <span class="mono xs muted">{{$p.SourceAppSlug}}</span></dd>
+      <dt>Release</dt><dd class="mono">{{$p.SourceReleaseLabel}}</dd>
+      <dt>Promoted from</dt><dd><a href="{{url (printf "/requests/%s" $p.ID)}}">#{{$p.Seq}}</a>,
+        deployed there as <span class="mono">{{$p.DestinationSlug}}</span>
+        {{if $p.BundleSHA256}}<div class="mono xs muted">sha256 {{short 16 $p.BundleSHA256}}…</div>{{end}}</dd>
+    </dl>
+    <p class="hint">The same bytes that were sent upstream are sent again. Nothing is downloaded from
+       this install.</p>
+
+    <div class="field">
+      <label for="target">Promote to</label>
+      <select id="target" name="target_id" required>
+        {{range $d.PromoteTargets}}<option value="{{.ID}}" {{if eq .ID $d.SelectedTarget}}selected{{end}}>{{.Label}}</option>{{end}}
+      </select>
+      <p class="hint">Targets that take releases from {{with index $d.PromoteTargets 0}}{{.RequiresLabel}}{{end}}.</p>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="slug">Name on the target</label>
+        <input id="slug" name="destination_slug" type="text" placeholder="{{$p.DestinationSlug}}" value="{{$d.DestSlug}}">
+        <p class="hint">Leave blank for the name used last time there, or {{$p.DestinationSlug}}.</p>
+      </div>
+      <div class="field">
+        <label for="vis">Visibility on the target</label>
+        <select id="vis" name="destination_visibility">
+          <option value="" {{if eq $d.DestVisibility ""}}selected{{end}}>Leave as it is</option>
+          <option value="private" {{if eq $d.DestVisibility "private"}}selected{{end}}>Private</option>
+          <option value="authenticated" {{if eq $d.DestVisibility "authenticated"}}selected{{end}}>Signed-in viewers</option>
+          <option value="public" {{if eq $d.DestVisibility "public"}}selected{{end}}>Public</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="reason">Reason</label>
+      <textarea id="reason" name="reason" placeholder="The change reference, and what was seen upstream.">{{$d.Reason}}</textarea>
+    </div>
+
+    <div class="field">
+      <label for="note">Note for the reviewer{{if $d.NoteRequired}} <span class="req">Required</span>{{end}}</label>
+      <textarea id="note" name="note" {{if $d.NoteRequired}}required{{end}}>{{$d.Note}}</textarea>
+    </div>
+
+    <div class="field">
+      <label class="inline"><input type="checkbox" name="notify" checked style="width:auto"> Email me when it finishes</label>
+    </div>
+
+    <div class="inline">
+      <button class="primary" type="submit">Submit for review</button>
+      <a class="btn" href="{{url (printf "/requests/%s" $p.ID)}}">Cancel</a>
+    </div>
+  </div>
+</form>
+{{end}}
+{{else if not $d.Apps}}
   <div class="card"><div class="empty">
     <h3>No apps you can migrate</h3>
     <p>You can migrate apps you own, directly or through a group, and apps you’ve been added to on
@@ -68,6 +136,11 @@
         {{range $d.Targets}}<option value="{{.ID}}" {{if eq .ID $d.SelectedTarget}}selected{{end}}>{{.Label}}</option>{{end}}
       </select>
       <p class="hint">The install this release is deployed to.</p>
+      {{if $d.Gated}}
+      <ul class="hint">{{range $d.Gated}}
+        <li><strong>{{.Label}}</strong>: promote from a deployed {{.RequiresLabel}} request.</li>{{end}}
+      </ul>
+      {{end}}
     </div>
 
     <div class="row">

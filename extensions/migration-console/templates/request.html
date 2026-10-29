@@ -45,6 +45,24 @@
          spinner. --- */}}
   {{template "progress" $d}}
 
+  {{/* --- Where this release can go next. One line per target that takes
+         releases from this one's, with the reason when it can't go yet. --- */}}
+  {{if $d.Promotions}}
+  <div class="card">
+    <div class="cardhead"><h2>Promote</h2></div>
+    <div class="body stack">
+      {{range $d.Promotions}}
+        {{if .OK}}
+        <div><a class="btn primary" href="{{url "/requests/new"}}?promote={{$d.ID}}&amp;target={{.Target.ID}}">Promote to {{.Target.Label}} →</a>
+          <p class="hint">Raises a request to {{.Target.Label}} for these exact bytes. It needs its own review.</p></div>
+        {{else}}
+        {{template "_notice" dict "Tone" "neutral" "Title" (printf "Can’t promote to %s yet" .Target.Label) "Body" .Why}}
+        {{end}}
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+
   {{/* --- The standing note on the app, then this request's own. --- */}}
   {{if $d.AppNote}}{{if $d.AppNote.Body}}
   <div class="card">
@@ -74,16 +92,38 @@
            affect approval.</p>
       {{else}}
         <table>
-          <thead><tr><th>Kind</th><th>Tool</th><th>Verdict</th><th class="drop-md">Summary</th></tr></thead>
+          <thead><tr><th>Check</th><th>Tool</th><th>Result</th><th class="drop-md">Summary</th></tr></thead>
           <tbody>{{range $d.Checks}}
-            <tr><td>{{.Kind}}</td><td>{{.Tool}}</td>
-                <td>{{if .Verdict}}{{template "_chip" .Verdict}}
-                    {{else}}<span class="chip neutral">Not recorded</span>{{end}}</td>
-                <td class="drop-md small">{{.Summary}}</td></tr>
+            <tr><td>{{checkkind .Kind}}</td><td>{{.Tool}}</td>
+                <td>{{if eq .Kind "dependencies"}}{{if .Verdict}}{{template "_chip" .Verdict}}
+                    {{else}}<span class="chip neutral">Not recorded</span>{{end}}
+                    {{else}}{{template "_chip" .Status}}{{end}}</td>
+                <td class="drop-md small"><div style="white-space:pre-wrap">{{.Summary}}</div>
+                  {{if .Report}}<details><summary class="xs">Every difference</summary>
+                    <pre class="xs" style="white-space:pre-wrap">{{.Report}}</pre></details>{{end}}
+                  {{if $d.MayResolveChecks}}
+                  {{if and (eq .Kind "lockfile") (eq .Status "fail")}}
+                  <details><summary class="btn small">Waive this check…</summary>
+                    <form method="post" action="{{url (printf "/requests/%s/checks/%s/waive" $d.ID .ID)}}" class="stack" style="margin-top:8px">
+                      <div class="field"><label for="wv-{{.ID}}">Why this release may go unlocked</label>
+                        <input id="wv-{{.ID}}" name="reason" required placeholder="Required"></div>
+                      <button type="submit">Waive</button>
+                    </form></details>
+                  {{else if and (eq .Kind "build_parity") (eq .Status "differs")}}
+                  <details><summary class="btn small">Acknowledge the difference…</summary>
+                    <form method="post" action="{{url (printf "/requests/%s/checks/%s/acknowledge" $d.ID .ID)}}" class="stack" style="margin-top:8px">
+                      <div class="field"><label for="ak-{{.ID}}">Why the difference is acceptable</label>
+                        <input id="ak-{{.ID}}" name="reason" required placeholder="Required"></div>
+                      <button type="submit">Acknowledge</button>
+                      <p class="hint">Lifts the hold on the next promotion of this app to this target.</p>
+                    </form></details>
+                  {{end}}{{end}}
+                </td></tr>
           {{end}}</tbody>
         </table>
-        <p class="hint">The dependency verdict comes from Toft, for this release. SAST and DAST results
-           aren’t recorded yet.</p>
+        <p class="hint">The dependency verdict comes from Toft, for this release{{if $d.Upstream}}, on
+           {{$d.UpstreamLabel}}{{end}}. Locked dependencies and build parity read the two installs’ own
+           SBOMs: parity compares package versions, not files. <em>Not recorded</em> is never a pass.</p>
       {{end}}
     </div>
   </div>
@@ -216,6 +256,11 @@
           {{if $d.DecidedAt}}<div class="xs muted sub">{{whenp $d.DecidedAt}}</div>{{end}}</dd>{{end}}
         {{if $d.ScheduledFor}}<dt>Scheduled</dt><dd>{{whenp $d.ScheduledFor}}</dd>{{end}}
         {{if eq $d.Via "fast_track"}}<dt>Route</dt><dd><span class="chip info">Fast-tracked</span></dd>{{end}}
+        {{with $d.Upstream}}<dt>Promoted from</dt><dd><a href="{{url (printf "/requests/%s" .ID)}}">#{{.Seq}}</a>
+          {{if $d.UpstreamLabel}}on {{$d.UpstreamLabel}}{{end}}
+          {{if .BundleSHA256}}<div class="mono xs muted sub">sha256 {{short 16 .BundleSHA256}}…</div>{{end}}</dd>{{end}}
+        {{with $d.Kept}}<dt>Kept for promotion</dt><dd class="small">{{bytes .Size}}
+          <div class="xs muted sub">{{if .SBOM}}with its SBOM{{else}}SBOM not recorded yet{{end}}</div></dd>{{end}}
         {{if $d.BundleSHA256}}<dt>Bundle</dt><dd class="mono xs">{{short 16 $d.BundleSHA256}}…
           <div class="xs muted sub">{{bytes $d.BundleBytes}}</div></dd>{{end}}
       </dl>
@@ -396,7 +441,13 @@
      dead request open in another tab to copy from. */}}
 {{define "again"}}
 <p style="margin-top:10px">
+  {{if .PromotedFrom}}
+  {{/* A promotion is raised again as a promotion of the same upstream
+       request, which is then held to every condition afresh. */}}
+  <a class="btn small" href="{{url "/requests/new"}}?again={{.ID}}&amp;promote={{.PromotedFrom}}&amp;target={{.TargetID}}&amp;slug={{.DestinationSlug}}&amp;visibility={{.DestinationVisibility}}&amp;reason={{.Reason}}&amp;note={{.Note}}">Raise the same promotion again →</a>
+  {{else}}
   <a class="btn small" href="{{url "/requests/new"}}?again={{.ID}}&amp;app={{.SourceAppID}}&amp;deployment={{.SourceDeploymentID}}&amp;target={{.TargetID}}&amp;slug={{.DestinationSlug}}&amp;visibility={{.DestinationVisibility}}&amp;reason={{.Reason}}&amp;note={{.Note}}">Raise the same request again →</a>
+  {{end}}
 </p>
 {{end}}
 

@@ -258,6 +258,11 @@ func (c *Console) handleSendNewest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if target.Gated() {
+		c.sendNewestPromotion(w, r, caller, link, target, reason)
+		return
+	}
+
 	source, _ := c.store.SourceTarget(ctx)
 	sp, err := c.platformFor(source)
 	if err != nil {
@@ -302,5 +307,70 @@ func (c *Console) handleSendNewest(w http.ResponseWriter, r *http.Request) {
 			"decided_by_id": caller.ID(), "decided_by_name": caller.Name(),
 			"decided_at": now, "decision_reason": reason})
 	c.recordDependencyCheck(ctx, sp, req)
+	c.redirect(w, r, "/requests/"+req.ID)
+}
+
+// sendNewestPromotion is the fast-track on a gated target: it sends **the
+// newest release deployed to the target this one requires**, not the source's
+// newest, and only if that release could be promoted by a request. Fast-track
+// skips the second reviewer, as it always has. It does not skip Stage.
+func (c *Console) sendNewestPromotion(w http.ResponseWriter, r *http.Request, caller Caller, link *Link, target *Target, reason string) {
+	ctx := r.Context()
+	up, _ := c.store.GetTarget(ctx, target.RequiresTargetID)
+	upLabel := "the target it requires"
+	if up != nil {
+		upLabel = up.Label
+	}
+	target.RequiresLabel = upLabel
+	upstream, err := c.store.NewestDeployed(ctx, link.SourceAppID, target.RequiresTargetID)
+	if err != nil {
+		c.refuse(w, r, caller, http.StatusInternalServerError, "Couldn’t read the console’s records", err.Error())
+		return
+	}
+	if upstream == nil {
+		c.refuse(w, r, caller, http.StatusConflict, "There’s nothing to send",
+			fmt.Sprintf("%s takes releases from %s, and nothing from this app has deployed there yet.", target.Label, upLabel))
+		return
+	}
+	if ok, why := c.promotableNow(ctx, upstream, target); !ok {
+		c.refuse(w, r, caller, http.StatusConflict, "This can’t be promoted now", why)
+		return
+	}
+	kept, _ := c.store.BundleInfo(ctx, upstream.ID)
+	if kept == nil {
+		c.refuse(w, r, caller, http.StatusConflict, "This can’t be promoted now",
+			fmt.Sprintf("This %s deployment was made before the console kept bundles for it. Send it to %s again.", upLabel, upLabel))
+		return
+	}
+	if target.RequiresLockfile {
+		if status, summary := lockfileCheck(kept.SBOM, upLabel); status != CheckPass {
+			c.refuse(w, r, caller, http.StatusConflict, "The lockfile check doesn’t pass",
+				target.Label+" requires locked dependencies, and a fast-track has nobody to waive it. Raise a promotion instead.\n\n"+summary)
+			return
+		}
+	}
+
+	now := time.Now().UTC()
+	req := &Request{
+		ID: newID(), Status: StatusApproved, TargetID: target.ID,
+		SourceAppID: upstream.SourceAppID, SourceAppSlug: upstream.SourceAppSlug, SourceAppName: upstream.SourceAppName,
+		SourceDeploymentID: upstream.SourceDeploymentID, SourceReleaseLabel: upstream.SourceReleaseLabel,
+		RequesterID: caller.ID(), RequesterName: caller.Name(), RequesterEmail: caller.Email(),
+		Reason: reason, DestinationSlug: link.TargetAppSlug, TargetAppID: link.TargetAppID,
+		Via: "fast_track", NotifyRequester: false, PromotedFrom: upstream.ID,
+	}
+	if err := c.store.InsertRequest(ctx, req); err != nil {
+		c.refuse(w, r, caller, http.StatusInternalServerError, "Couldn’t save the request", err.Error())
+		return
+	}
+	_ = c.store.UpdateRequestFields(ctx, req.ID, Event{
+		Action: "request.fast_tracked", ActorID: caller.ID(), ActorName: caller.Name(),
+		RequestID: req.ID, SourceAppID: req.SourceAppID, TargetID: target.ID,
+		Detail: fmt.Sprintf("fast-tracked without a second reviewer, promoting request #%d from %s — %s",
+			upstream.Seq, upLabel, reason)},
+		map[string]any{
+			"decided_by_id": caller.ID(), "decided_by_name": caller.Name(),
+			"decided_at": now, "decision_reason": reason})
+	c.recordPromotionChecks(ctx, req, upstream, target)
 	c.redirect(w, r, "/requests/"+req.ID)
 }

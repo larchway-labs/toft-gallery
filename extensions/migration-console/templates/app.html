@@ -44,7 +44,8 @@
       <tbody>{{range $d.Requests}}
         <tr data-row>
           <td><a data-open href="{{url (printf "/requests/%s" .ID)}}">#{{.Seq}}</a>
-              <div class="xs muted">{{.RequesterName}}</div></td>
+              <div class="xs muted">{{.RequesterName}}</div>
+              {{with index $d.PromotedFrom .ID}}<div class="xs muted">promoted from #{{.}}</div>{{end}}</td>
           <td>{{index $d.TargetLabel .TargetID}}</td>
           <td>{{template "_chip" .Status}}{{if .DriftNote}} <span class="chip attention">Drift</span>{{end}}</td>
           <td class="drop-md">

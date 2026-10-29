@@ -452,6 +452,23 @@ func (p *Platform) Archive(ctx context.Context, appID, deployID string) ([]byte,
 	return io.ReadAll(io.LimitReader(resp.Body, 110<<20))
 }
 
+// SBOM is one release's CycloneDX document as the platform rendered it, kept
+// byte for byte: the console stores it as the record of what a target built,
+// and parses it only to compare (promote.go). Bounded, because it is held in
+// memory and in the ledger.
+func (p *Platform) SBOM(ctx context.Context, appID, deployID string) ([]byte, error) {
+	resp, err := p.do(ctx, http.MethodGet,
+		"/apps/"+url.PathEscape(appID)+"/deployments/"+url.PathEscape(deployID)+"/sbom", nil, "")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return nil, readAPIError(resp)
+	}
+	return io.ReadAll(io.LimitReader(resp.Body, 16<<20))
+}
+
 // Reachable answers whether there is a Toft at this address, without a
 // credential. /api/v1/config is the platform's own unauthenticated probe and is
 // one of the things a chart may never template, so it is the one endpoint

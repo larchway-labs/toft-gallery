@@ -176,13 +176,16 @@ CREATE TABLE IF NOT EXISTS mc_attachments (
 CREATE INDEX IF NOT EXISTS mc_attachments_request_idx ON mc_attachments (request_id);
 CREATE INDEX IF NOT EXISTS mc_attachments_app_idx ON mc_attachments (source_app_id);
 
--- Zero or more checks per request. One of the three kinds has a producer today
--- — Toft's own dependency verdict for the exact release being promoted.
--- An absent check renders as absent, never as a pass.
+-- Zero or more checks per request: Toft's own dependency verdict for the exact
+-- release being promoted, and on a promotion the lockfile reading of the
+-- upstream SBOM and, once it deploys, the build parity between the two.
+-- An absent check renders as absent, never as a pass. A reviewer may move a
+-- failing lockfile check to waived and a differing parity to acknowledged;
+-- nothing else updates a check.
 CREATE TABLE IF NOT EXISTS mc_checks (
     id         text PRIMARY KEY,
     request_id text NOT NULL REFERENCES mc_requests(id) ON DELETE CASCADE,
-    kind       text NOT NULL,               -- 'sast' | 'dast' | 'dependencies'
+    kind       text NOT NULL,               -- 'dependencies' | 'lockfile' | 'build_parity'
     tool       text NOT NULL DEFAULT '',
     status     text NOT NULL DEFAULT '',
     verdict    text NOT NULL DEFAULT '',
@@ -214,3 +217,29 @@ CREATE INDEX IF NOT EXISTS mc_events_app_idx ON mc_events (source_app_id, id DES
 -- this plus the slug; the target's address alone is wrong wherever apps have an
 -- origin of their own (trytoft serves them from apps.trytoft.dev).
 ALTER TABLE mc_targets ADD COLUMN IF NOT EXISTS apps_url text NOT NULL DEFAULT '';
+
+-- Staged promotion. A target may require one other target: a request to it
+-- must be a promotion of a request that deployed to the one it requires. One
+-- pointer rather than an ordered list, because a missing Stage is an unset
+-- column and QA → Stage → Prod is the same column twice. No ON DELETE: removing
+-- Stage must not quietly open Prod, so the delete is refused instead.
+ALTER TABLE mc_targets ADD COLUMN IF NOT EXISTS requires_target_id text REFERENCES mc_targets(id);
+-- Off by default. On, a promotion to this target needs the platform's own SBOM
+-- from the upstream target to say every ecosystem's lockfile was read.
+ALTER TABLE mc_targets ADD COLUMN IF NOT EXISTS requires_lockfile boolean NOT NULL DEFAULT false;
+ALTER TABLE mc_requests ADD COLUMN IF NOT EXISTS promoted_from text REFERENCES mc_requests(id);
+
+-- The zip the console gave a target that another target requires, kept so a
+-- promotion ships those bytes rather than downloading the release again: the
+-- source keeps a handful of releases and prunes the rest, and a Prod push is
+-- often days after Stage's. `sbom` is the upstream target's CycloneDX for the
+-- deployment, captured when it succeeded, because that target prunes the
+-- inventory with the release. One per (source app, required target) survives
+-- the tick's prune, plus any a request in flight still needs.
+CREATE TABLE IF NOT EXISTS mc_bundles (
+    request_id text PRIMARY KEY REFERENCES mc_requests(id) ON DELETE CASCADE,
+    sha256     text NOT NULL,
+    bytes      bytea NOT NULL,
+    sbom       text NOT NULL DEFAULT '',
+    kept_at    timestamptz NOT NULL DEFAULT now()
+);
