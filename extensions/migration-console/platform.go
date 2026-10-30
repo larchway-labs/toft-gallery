@@ -348,10 +348,14 @@ func (p *Platform) AppBySlug(ctx context.Context, slug string) (*App, error) {
 // every name the source app declares, with an **empty value** for the target's
 // administrator to fill in.
 //
-// Names once, values never, and never again: a deploy key may not PATCH an app,
-// so no later request can touch them, and configuration drift on the target is
-// the target's business. Saying otherwise would be claiming this console
-// synchronised something it did not.
+// Names on the first create, values never. Later promotions carry no names of
+// their own: a source whose toft.toml declares `[env] names` has every missing
+// name seeded, empty and sensitive, by the target's own deploy of each
+// version. A deploy-scoped key may write the target's environment through
+// PATCH /apps/{id}/env, which names only the keys it changes, so carrying
+// values is possible if this console ever chooses to — today it does not, and
+// configuration drift on the target is the target's business. Saying otherwise
+// would be claiming this console synchronised something it did not.
 func EnvNamesJSON(keys []string) string {
 	if len(keys) == 0 {
 		return ""

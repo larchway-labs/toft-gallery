@@ -666,9 +666,12 @@ func (c *Console) push(ctx context.Context, req *Request, actor string) (bool, e
 		result, err = tp.PushVersion(ctx, req.TargetAppID, zip, req.DestinationSlug, req.DestinationVisibility)
 	} else {
 		// The env var *names* the source app declares, with empty values for
-		// the target's administrator to fill in. A deploy key may not PATCH the
-		// app, so no later request can touch them, and configuration drift on
-		// the target is the target's business.
+		// the target's administrator to fill in. A later promotion sends none:
+		// names the source declares in toft.toml `[env]` are seeded by the
+		// target's deploy of that version. A deploy key may write the target's
+		// environment through PATCH /apps/{id}/env if this console ever chooses
+		// to carry values; it does not, and configuration drift on the target
+		// is the target's business.
 		//
 		// Best effort: a source that cannot be re-read is not a reason to
 		// refuse a migration whose bytes are already in hand.
